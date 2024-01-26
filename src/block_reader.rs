@@ -16,14 +16,14 @@ fn iso8601_to_epoch(date_str: &str) -> u64 {
 }
 
 impl FileBlockReader {
-    pub fn new() -> Self {
+    pub fn new(path: String) -> Self {
         let null_hash =
             B256::from_str("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
                 .unwrap();
         let mut blocks = HashMap::new();
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(false)
-            .from_path("blocks.csv")
+            .from_path(path)
             .unwrap();
 
         for result in reader.records() {
