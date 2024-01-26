@@ -1,0 +1,11 @@
+[package]
+name = "telos-consensus-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+alloy-primitives = "0.6.2"
+reth-primitives = { path = "../telos-reth/crates/primitives" }
+reth-rpc-types = { path = "../telos-reth/crates/rpc/rpc-types" }
+csv = "1.3.0"
+chrono = "0.4.33"
