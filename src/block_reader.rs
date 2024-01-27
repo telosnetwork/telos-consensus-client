@@ -1,12 +1,12 @@
 use alloy_primitives::{Address, Bloom};
 use chrono::DateTime;
-use reth_primitives::{Bytes, B256, U256};
+use reth_primitives::{Bytes, B256, U256, hex};
 use reth_rpc_types::ExecutionPayloadV1;
 use std::collections::HashMap;
 use std::str::FromStr;
+use reth_primitives::constants::MIN_PROTOCOL_BASE_FEE_U256;
 
 pub struct FileBlockReader {
-    // blocks is a Map of block_num -> block
     blocks: HashMap<u64, ExecutionPayloadV1>,
 }
 
@@ -31,7 +31,8 @@ impl FileBlockReader {
             let timestamp = iso8601_to_epoch(record.get(0).unwrap());
             let block_number = record.get(1).unwrap().parse::<u64>().unwrap() - 36;
             // native block hash
-            let extra_data = Bytes::from(record.get(2).unwrap().to_string());
+            let extra_data_string = record.get(2).unwrap().to_string();
+            let extra_data = Bytes::copy_from_slice(hex::decode(extra_data_string.as_str()).unwrap().as_slice());
             let block_hash = B256::from_str(record.get(3).unwrap()).unwrap();
             let parent_hash = B256::from_str(record.get(4).unwrap()).unwrap();
             let receipts_root = B256::from_str(record.get(5).unwrap()).unwrap();
@@ -51,7 +52,7 @@ impl FileBlockReader {
                     gas_used,
                     timestamp,
                     extra_data,
-                    base_fee_per_gas: U256::ZERO,
+                    base_fee_per_gas: MIN_PROTOCOL_BASE_FEE_U256,
                     block_hash,
                     transactions: vec![],
                 },
