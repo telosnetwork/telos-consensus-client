@@ -10,7 +10,7 @@ pub struct CliArgs {
     pub config: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct AppConfig {
     /// The base URL of the execution API
     pub base_url: String,

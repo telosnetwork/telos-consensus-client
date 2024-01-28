@@ -66,3 +66,15 @@ impl FileBlockReader {
         self.blocks.get(&block_num)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::block_reader::FileBlockReader;
+
+    #[test]
+    fn block_reader() {
+        let reader = FileBlockReader::new("blocks.csv".to_string());
+        let block_zero = reader.get_block(0);
+        assert!(block_zero.is_some());
+    }
+}
