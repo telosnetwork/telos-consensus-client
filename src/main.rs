@@ -1,13 +1,13 @@
+use crate::client::ConsensusClient;
 use crate::config::{AppConfig, CliArgs};
 use clap::Parser;
-use crate::client::ConsensusClient;
 
 mod auth;
 mod block_reader;
+mod client;
 mod config;
 mod execution_api_client;
 mod json_rpc;
-mod client;
 
 #[tokio::main]
 async fn main() {

@@ -13,7 +13,11 @@ impl ConsensusClient {
         let my_config = config.clone();
         let reader = crate::block_reader::FileBlockReader::new(my_config.blocks_csv.clone());
         let execution_api = ExecutionApiClient::new(config.base_url, config.jwt_secret);
-        Self { config: my_config, reader, execution_api }
+        Self {
+            config: my_config,
+            reader,
+            execution_api,
+        }
     }
 
     pub async fn run(&self) {
@@ -29,5 +33,4 @@ impl ConsensusClient {
         println!("result: {:?}", result);
         println!("next_block: {:?}", next_block);
     }
-
 }

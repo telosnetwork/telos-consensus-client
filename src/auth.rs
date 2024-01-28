@@ -13,14 +13,14 @@ pub const JWT_SECRET_LENGTH: usize = 32;
 
 #[derive(Debug)]
 pub enum Error {
-    JWT(jsonwebtoken::errors::Error),
+    Jwt(jsonwebtoken::errors::Error),
     InvalidToken,
     InvalidKey(String),
 }
 
 impl From<jsonwebtoken::errors::Error> for Error {
     fn from(e: jsonwebtoken::errors::Error) -> Self {
-        Error::JWT(e)
+        Error::Jwt(e)
     }
 }
 

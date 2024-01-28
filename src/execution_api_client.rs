@@ -1,10 +1,10 @@
 use crate::auth::{strip_prefix, Auth, Error, JwtKey};
+use crate::json_rpc::{JsonRequestBody, JsonResponseBody};
 use reqwest::header::CONTENT_TYPE;
 use reqwest::Client;
 use serde::Serialize;
-use std::fmt::Display;
 use serde_json::{json, Value};
-use crate::json_rpc::{JsonRequestBody, JsonResponseBody};
+use std::fmt::Display;
 
 pub enum ExecutionApiMethod {
     BlockNumber,
@@ -15,7 +15,7 @@ impl Display for ExecutionApiMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ExecutionApiMethod::BlockNumber => write!(f, "eth_blockNumber"),
-            ExecutionApiMethod::NewPayloadV1 => write!(f, "engine_newPayloadV1")
+            ExecutionApiMethod::NewPayloadV1 => write!(f, "engine_newPayloadV1"),
         }
     }
 }
@@ -47,10 +47,10 @@ impl ExecutionApiClient {
         payload: Option<T>,
     ) -> Result<JsonResponseBody, String> {
         let id: Value = json!(1);
-        const jsonrpc: &str = "2.0";
+        const JSONRPC: &str = "2.0";
         let method = method.to_string();
         let rpc_payload = JsonRequestBody {
-            jsonrpc,
+            jsonrpc: JSONRPC,
             method: method.as_str(),
             params: json!(payload),
             id,
@@ -69,7 +69,10 @@ impl ExecutionApiClient {
     }
 
     pub async fn block_number(&self) -> Result<u64, String> {
-        let response = self.rpc::<Vec<()>>(ExecutionApiMethod::BlockNumber, None).await.unwrap();
+        let response = self
+            .rpc::<Vec<()>>(ExecutionApiMethod::BlockNumber, None)
+            .await
+            .unwrap();
         let stripped = strip_prefix(response.result.as_str().unwrap());
         Ok(u64::from_str_radix(stripped, 16).unwrap())
     }
