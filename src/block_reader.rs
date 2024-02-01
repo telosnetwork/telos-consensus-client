@@ -2,11 +2,13 @@ use alloy_primitives::{Address, Bloom};
 use chrono::DateTime;
 use reth_primitives::constants::MIN_PROTOCOL_BASE_FEE_U256;
 use reth_primitives::{hex, Bytes, B256};
-use reth_rpc_types::ExecutionPayloadV1;
+use reth_rpc_types::{Block, ExecutionPayloadV1};
 use std::collections::HashMap;
+use std::ops::Index;
 use std::str::FromStr;
 
 pub struct FileBlockReader {
+    last_block: u64,
     blocks: HashMap<u64, ExecutionPayloadV1>,
 }
 
@@ -26,10 +28,14 @@ impl FileBlockReader {
             .from_path(path)
             .unwrap();
 
+        let mut last_block = 0u64;
         for result in reader.records() {
             let record = result.unwrap();
             let timestamp = iso8601_to_epoch(record.get(0).unwrap());
             let block_number = record.get(1).unwrap().parse::<u64>().unwrap() - 36;
+            if block_number > last_block {
+                last_block = block_number;
+            }
             // native block hash
             let extra_data_string = record.get(2).unwrap().to_string();
             let extra_data =
@@ -60,11 +66,15 @@ impl FileBlockReader {
             );
         }
 
-        FileBlockReader { blocks }
+        FileBlockReader { last_block, blocks }
     }
 
     pub fn get_block(&self, block_num: u64) -> Option<&ExecutionPayloadV1> {
         self.blocks.get(&block_num)
+    }
+
+    pub fn get_latest_block(&self) -> Option<&ExecutionPayloadV1> {
+        self.blocks.get(&self.last_block)
     }
 }
 

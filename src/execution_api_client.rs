@@ -2,18 +2,21 @@ use crate::auth::{strip_prefix, Auth, Error, JwtKey};
 use crate::json_rpc::{JsonRequestBody, JsonResponseBody};
 use reqwest::header::CONTENT_TYPE;
 use reqwest::Client;
+use reth_rpc_types::Block;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::fmt::Display;
 
 pub enum ExecutionApiMethod {
     BlockNumber,
+    BlockByNumber,
     NewPayloadV1,
 }
 
 impl Display for ExecutionApiMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            ExecutionApiMethod::BlockByNumber => write!(f, "eth_getBlockByNumber"),
             ExecutionApiMethod::BlockNumber => write!(f, "eth_blockNumber"),
             ExecutionApiMethod::NewPayloadV1 => write!(f, "engine_newPayloadV1"),
         }
@@ -41,10 +44,10 @@ impl ExecutionApiClient {
         }
     }
 
-    pub async fn rpc<T: Serialize>(
+    pub async fn rpc(
         &self,
         method: ExecutionApiMethod,
-        payload: Option<T>,
+        params: Value,
     ) -> Result<JsonResponseBody, String> {
         let id: Value = json!(1);
         const JSONRPC: &str = "2.0";
@@ -52,7 +55,7 @@ impl ExecutionApiClient {
         let rpc_payload = JsonRequestBody {
             jsonrpc: JSONRPC,
             method: method.as_str(),
-            params: json!(payload),
+            params,
             id,
         };
 
@@ -68,9 +71,21 @@ impl ExecutionApiClient {
         Ok(json_response)
     }
 
+    pub async fn block_by_number(&self, block_number: u64, full: bool) -> Result<Block, String> {
+        let response = self
+            .rpc(
+                ExecutionApiMethod::BlockByNumber,
+                json!([format!("0x{:x}", block_number), full]),
+            )
+            .await
+            .unwrap();
+        let block = serde_json::from_value::<Block>(response.result);
+        Ok(block.unwrap())
+    }
+
     pub async fn block_number(&self) -> Result<u64, String> {
         let response = self
-            .rpc::<Vec<()>>(ExecutionApiMethod::BlockNumber, None)
+            .rpc(ExecutionApiMethod::BlockNumber, json!([]))
             .await
             .unwrap();
         let stripped = strip_prefix(response.result.as_str().unwrap());

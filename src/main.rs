@@ -14,6 +14,6 @@ async fn main() {
     let cli_args = CliArgs::parse();
     let config_contents = std::fs::read_to_string(cli_args.config).unwrap();
     let config: AppConfig = toml::from_str(&config_contents).unwrap();
-    let client = ConsensusClient::new(config);
+    let mut client = ConsensusClient::new(config).await;
     client.run().await;
 }
