@@ -45,7 +45,7 @@ impl ConsensusClient {
 
         let result = self.execution_api.rpc(
                 crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
-                json![next_block],
+                json![vec![next_block]],
             ).await;
 
         println!("result: {:?}", result);
