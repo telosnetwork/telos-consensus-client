@@ -2,6 +2,7 @@ use crate::block_reader::FileBlockReader;
 use crate::config::AppConfig;
 use crate::execution_api_client::ExecutionApiClient;
 use reth_rpc_types::{Block, ExecutionPayloadV1};
+use reth_rpc_types::engine::ForkchoiceState;
 use serde_json::json;
 
 pub struct ConsensusClient {
@@ -38,18 +39,36 @@ impl ConsensusClient {
             return;
         }
 
-        let next_block =
+        let mut next_block =
             self.reader.get_block(
                 self.latest_valid_executor_block.header.number.unwrap().to::<u64>() + 1,
             ).unwrap();
 
-        let result = self.execution_api.rpc(
+        while next_block.block_number < 10 {
+            let result = self.execution_api.rpc(
                 crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
                 json![vec![next_block]],
             ).await;
 
-        println!("result: {:?}", result);
-        println!("next_block: {:?}", next_block);
+            next_block = self.reader.get_block(
+                next_block.block_number + 1
+            ).unwrap();
+            println!("result: {:?}", result);
+            println!("next_block: {:?}", next_block);
+        }
+
+        let fork_choice_state = ForkchoiceState {
+            head_block_hash: next_block.block_hash,
+            safe_block_hash: next_block.block_hash,
+            finalized_block_hash: next_block.block_hash,
+        };
+
+        let fork_choice_updated_reuslt = self.execution_api.rpc(
+            crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
+            json![vec![fork_choice_state]],
+        ).await;
+
+        println!("fork_choice_updated_result: {:?}", fork_choice_updated_reuslt);
     }
 
     fn get_latest_consensus_block(reader: &FileBlockReader) -> ExecutionPayloadV1 {

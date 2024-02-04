@@ -11,6 +11,7 @@ pub enum ExecutionApiMethod {
     BlockNumber,
     BlockByNumber,
     NewPayloadV1,
+    ForkChoiceUpdatedV1,
 }
 
 impl Display for ExecutionApiMethod {
@@ -19,6 +20,7 @@ impl Display for ExecutionApiMethod {
             ExecutionApiMethod::BlockByNumber => write!(f, "eth_getBlockByNumber"),
             ExecutionApiMethod::BlockNumber => write!(f, "eth_blockNumber"),
             ExecutionApiMethod::NewPayloadV1 => write!(f, "engine_newPayloadV1"),
+            ExecutionApiMethod::ForkChoiceUpdatedV1 => write!(f, "engine_forkchoiceUpdatedV1"),
         }
     }
 }
