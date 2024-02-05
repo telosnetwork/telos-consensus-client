@@ -1,9 +1,11 @@
+use alloy_primitives::B256;
 use crate::block_reader::FileBlockReader;
 use crate::config::AppConfig;
 use crate::execution_api_client::ExecutionApiClient;
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use reth_rpc_types::engine::ForkchoiceState;
 use serde_json::json;
+use crate::json_rpc::JsonResponseBody;
 
 pub struct ConsensusClient {
     pub config: AppConfig,
@@ -39,40 +41,64 @@ impl ConsensusClient {
             return;
         }
 
-        let mut next_block =
-            self.reader.get_block(
-                self.latest_valid_executor_block.header.number.unwrap().to::<u64>() + 1,
-            ).unwrap();
+        let mut last_block: Option<&ExecutionPayloadV1> = None;
+        let mut next_block_number = self.latest_valid_executor_block.header.number.unwrap().to::<u64>() + 1;
 
-        while next_block.block_number < 10 {
-            let result = self.execution_api.rpc(
+        const BATCH_SIZE: usize = 1;
+        let mut new_blocks: Vec<&ExecutionPayloadV1>;
+        let mut batch_count = 0;
+
+        while self.latest_consensus_block.block_number > next_block_number {
+            batch_count += 1;
+            new_blocks = vec![];
+
+            while new_blocks.len() < BATCH_SIZE && self.latest_consensus_block.block_number > next_block_number {
+                let mut next_block = self.reader.get_block(next_block_number).unwrap();
+                new_blocks.push(next_block);
+
+                last_block = Some(next_block);
+                next_block_number = next_block.block_number + 1;
+                next_block = self.reader.get_block(next_block_number).unwrap();
+            }
+
+            let new_payloadv1_result = self.execution_api.rpc(
                 crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
-                json![vec![next_block]],
-            ).await;
+                json![new_blocks],
+            ).await.unwrap();
+            println!("NewPayloadV1 result for batch {}: {:?}", batch_count, new_payloadv1_result.result);
 
-            next_block = self.reader.get_block(
-                next_block.block_number + 1
-            ).unwrap();
-            println!("result: {:?}", result);
-            println!("next_block: {:?}", next_block);
+            let last_block_sent = last_block.unwrap();
+            if last_block_sent.block_number % 1000 == 0 {
+                let fork_choice_updated_result = self.fork_choice_updated(
+                    last_block_sent.block_hash,
+                    last_block_sent.block_hash,
+                    last_block_sent.block_hash,
+                ).await;
+
+                println!("fork_choice_updated_result for block number {}: {:?}", last_block_sent.block_number, fork_choice_updated_result);
+            }
+
         }
 
-        let fork_choice_state = ForkchoiceState {
-            head_block_hash: next_block.block_hash,
-            safe_block_hash: next_block.block_hash,
-            finalized_block_hash: next_block.block_hash,
-        };
-
-        let fork_choice_updated_reuslt = self.execution_api.rpc(
-            crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
-            json![vec![fork_choice_state]],
-        ).await;
-
-        println!("fork_choice_updated_result: {:?}", fork_choice_updated_reuslt);
     }
 
     fn get_latest_consensus_block(reader: &FileBlockReader) -> ExecutionPayloadV1 {
         reader.get_latest_block().unwrap().clone()
+    }
+
+    async fn fork_choice_updated(&self, head_hash: B256, safe_hash: B256, finalized_hash: B256) -> JsonResponseBody {
+        let fork_choice_state = ForkchoiceState {
+            head_block_hash: head_hash,
+            safe_block_hash: safe_hash,
+            finalized_block_hash: finalized_hash,
+        };
+
+        let fork_choice_updated_result = self.execution_api.rpc(
+            crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
+            json![vec![fork_choice_state]],
+        ).await.unwrap();
+
+        fork_choice_updated_result
     }
 
     async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Block {
