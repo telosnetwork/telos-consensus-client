@@ -1,7 +1,7 @@
 use alloy_primitives::B256;
 use crate::block_reader::FileBlockReader;
 use crate::config::AppConfig;
-use crate::execution_api_client::ExecutionApiClient;
+use crate::execution_api_client::{ExecutionApiClient, RpcRequest};
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use reth_rpc_types::engine::ForkchoiceState;
 use serde_json::json;
@@ -44,7 +44,7 @@ impl ConsensusClient {
         let mut last_block: Option<&ExecutionPayloadV1> = None;
         let mut next_block_number = self.latest_valid_executor_block.header.number.unwrap().to::<u64>() + 1;
 
-        const BATCH_SIZE: usize = 1;
+        const BATCH_SIZE: usize = 200;
         let mut new_blocks: Vec<&ExecutionPayloadV1>;
         let mut batch_count = 0;
 
@@ -61,14 +61,22 @@ impl ConsensusClient {
                 next_block = self.reader.get_block(next_block_number).unwrap();
             }
 
-            let new_payloadv1_result = self.execution_api.rpc(
-                crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
-                json![new_blocks],
+            //new_blocks.reverse();
+
+            let rpc_batch = new_blocks.iter().map(|block| {
+                RpcRequest {
+                    method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
+                    params: json![vec![block]],
+                }
+            }).collect::<Vec<RpcRequest>>();
+
+            let new_payloadv1_result = self.execution_api.rpc_batch(
+               rpc_batch
             ).await.unwrap();
-            println!("NewPayloadV1 result for batch {}: {:?}", batch_count, new_payloadv1_result.result);
+            println!("NewPayloadV1 result for batch {}: {:?}", batch_count, new_payloadv1_result);
 
             let last_block_sent = last_block.unwrap();
-            if last_block_sent.block_number % 1000 == 0 {
+            if last_block_sent.block_number % 10 == 0 {
                 let fork_choice_updated_result = self.fork_choice_updated(
                     last_block_sent.block_hash,
                     last_block_sent.block_hash,
@@ -93,10 +101,10 @@ impl ConsensusClient {
             finalized_block_hash: finalized_hash,
         };
 
-        let fork_choice_updated_result = self.execution_api.rpc(
-            crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
-            json![vec![fork_choice_state]],
-        ).await.unwrap();
+        let fork_choice_updated_result = self.execution_api.rpc(RpcRequest {
+                method: crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
+                params: json![vec![fork_choice_state]],
+            }).await.unwrap();
 
         fork_choice_updated_result
     }

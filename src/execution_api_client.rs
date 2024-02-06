@@ -3,7 +3,6 @@ use crate::json_rpc::{JsonRequestBody, JsonResponseBody};
 use reqwest::header::CONTENT_TYPE;
 use reqwest::Client;
 use reth_rpc_types::Block;
-use serde::Serialize;
 use serde_json::{json, Value};
 use std::fmt::Display;
 
@@ -23,6 +22,11 @@ impl Display for ExecutionApiMethod {
             ExecutionApiMethod::ForkChoiceUpdatedV1 => write!(f, "engine_forkchoiceUpdatedV1"),
         }
     }
+}
+
+pub struct RpcRequest {
+    pub method: ExecutionApiMethod,
+    pub params: Value,
 }
 
 pub struct ExecutionApiClient {
@@ -48,16 +52,15 @@ impl ExecutionApiClient {
 
     pub async fn rpc(
         &self,
-        method: ExecutionApiMethod,
-        params: Value,
+        rpc_request: RpcRequest
     ) -> Result<JsonResponseBody, String> {
         let id: Value = json!(1);
         const JSONRPC: &str = "2.0";
-        let method = method.to_string();
+        let method = rpc_request.method.to_string();
         let rpc_payload = JsonRequestBody {
             jsonrpc: JSONRPC,
-            method: method.as_str(),
-            params,
+            method,
+            params: rpc_request.params,
             id,
         };
 
@@ -73,12 +76,43 @@ impl ExecutionApiClient {
         Ok(json_response)
     }
 
+    pub async fn rpc_batch(
+        &self,
+        rpc_requests: Vec<RpcRequest>
+    ) -> Result<Vec<JsonResponseBody>, String> {
+        let mut counter = 0;
+        const JSONRPC: &str = "2.0";
+        let mut batch_requests = vec![];
+        for rpc_request in rpc_requests {
+            let method = rpc_request.method.to_string();
+            let id = json!(counter);
+            let rpc_payload = JsonRequestBody {
+                jsonrpc: JSONRPC,
+                method,
+                params: rpc_request.params,
+                id,
+            };
+            batch_requests.push(rpc_payload);
+        }
+
+        let request = self
+            .client
+            .post(&self.base_url)
+            .bearer_auth(self.jwt_secret.generate_token().unwrap())
+            .json(&batch_requests)
+            .header(CONTENT_TYPE, "application/json");
+
+        let response = request.send().await.unwrap();
+        let json_response = response.json::<Vec<JsonResponseBody>>().await.unwrap();
+        Ok(json_response)
+    }
+
     pub async fn block_by_number(&self, block_number: u64, full: bool) -> Result<Block, String> {
         let response = self
-            .rpc(
-                ExecutionApiMethod::BlockByNumber,
-                json!([format!("0x{:x}", block_number), full]),
-            )
+            .rpc(RpcRequest {
+                method: ExecutionApiMethod::BlockByNumber,
+                params: json!([format!("0x{:x}", block_number), full]),
+            })
             .await
             .unwrap();
         let block = serde_json::from_value::<Block>(response.result);
@@ -87,7 +121,10 @@ impl ExecutionApiClient {
 
     pub async fn block_number(&self) -> Result<u64, String> {
         let response = self
-            .rpc(ExecutionApiMethod::BlockNumber, json!([]))
+            .rpc(RpcRequest {
+                method: ExecutionApiMethod::BlockNumber,
+                params: json!([])
+            })
             .await
             .unwrap();
         let stripped = strip_prefix(response.result.as_str().unwrap());

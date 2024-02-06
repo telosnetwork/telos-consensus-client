@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct JsonRequestBody<'a> {
     pub jsonrpc: &'a str,
-    pub method: &'a str,
+    pub method: String,
     pub params: serde_json::Value,
     pub id: serde_json::Value,
 }
