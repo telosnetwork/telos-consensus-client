@@ -40,12 +40,10 @@ impl SequentialFileBlockReader {
     }
 
     pub fn get_block(&mut self, block_num: u64) -> Option<ExecutionPayloadV1> {
-        println!("{}",block_num);
         if block_num == 180698823 {
             let bytes = hex!("f9021ef90219a087bb009caefe5447b3c4beafb6cc168d031a73eb9c6bb0718b5b5972448908c2a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347940000000000000000000000000000000000000000a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421b901000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080840ac53ec7847fffffff808461782354a00ac53eebcfa1cf139272bf58540d6dc53f0d22785f9e3d74cb9bc333b597e1bfa00000000000000000000000000000000000000000000000000000000000000000880000000000000000c0c0");
             let bytes_buf = &mut bytes.as_ref();
             let block = Block::decode(bytes_buf).unwrap();
-            println!("{:?}",block.clone().seal_slow().hash);
             let mut payload = try_block_to_payload_v1(block.seal_slow());
             payload.base_fee_per_gas = MIN_PROTOCOL_BASE_FEE_U256;
             return Some(payload);
@@ -79,7 +77,7 @@ mod tests {
 
     #[test]
     fn block_reader() {
-        let mut reader = SequentialFileBlockReader::new("/mnt/f/TelosWorks/read-state-history/dump-block-bytes.dat".to_string());
+        let mut reader = SequentialFileBlockReader::new("dump-block-bytes.dat".to_string());
         assert_eq!(reader.read_next_block().unwrap().block_number,180698824);
         assert_eq!(reader.get_block(180698860).unwrap().block_number,180698860);
         assert_eq!(reader.get_block(180698861).unwrap().block_number,180698861);

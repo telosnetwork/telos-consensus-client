@@ -84,15 +84,13 @@ impl ConsensusClient {
             println!("NewPayloadV1 result for batch {}: {:?}", batch_count, new_payloadv1_result);
 
             let last_block_sent = last_block.clone().unwrap();
-            if last_block_sent.block_number % 10 == 0 {
-                let fork_choice_updated_result = self.fork_choice_updated(
-                    last_block_sent.block_hash,
-                    last_block_sent.block_hash,
-                    last_block_sent.block_hash,
-                ).await;
+            let fork_choice_updated_result = self.fork_choice_updated(
+                last_block_sent.block_hash,
+                last_block_sent.block_hash,
+                last_block_sent.block_hash,
+            ).await;
 
-                println!("fork_choice_updated_result for block number {}: {:?}", last_block_sent.block_number, fork_choice_updated_result);
-            }
+            println!("fork_choice_updated_result for block number {}: {:?}", last_block_sent.block_number, fork_choice_updated_result);
 
         }
 
