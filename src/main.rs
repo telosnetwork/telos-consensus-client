@@ -4,6 +4,7 @@ use clap::Parser;
 
 mod auth;
 mod block_reader;
+mod sequential_block_reader;
 mod client;
 mod config;
 mod execution_api_client;

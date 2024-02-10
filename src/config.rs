@@ -18,4 +18,6 @@ pub struct AppConfig {
     pub jwt_secret: String,
     /// The path to the blocks.csv file (temporary for POC
     pub blocks_csv: String,
+    /// The path to the dump-block-bytes.dat
+    pub blocks_bytes: String,
 }

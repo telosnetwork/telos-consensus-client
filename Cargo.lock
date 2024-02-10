@@ -2264,6 +2264,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-rpc-types-compat"
+version = "0.1.0-alpha.15"
+dependencies = [
+ "alloy-rlp",
+ "alloy-rpc-types",
+ "reth-primitives",
+ "reth-rpc-types",
+ "serde_json",
+]
+
+[[package]]
 name = "revm"
 version = "3.5.0"
 source = "git+https://github.com/bluealloy/revm?branch=reth_freeze#e13f6041e2b4c0fca1028632a17d5a736212e6ec"
@@ -2881,6 +2892,7 @@ name = "telos-consensus-client"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
+ "alloy-rlp",
  "chrono",
  "clap",
  "csv",
@@ -2890,6 +2902,7 @@ dependencies = [
  "reqwest",
  "reth-primitives",
  "reth-rpc-types",
+ "reth-rpc-types-compat",
  "serde",
  "serde_json",
  "tokio",
