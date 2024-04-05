@@ -12,12 +12,13 @@ use arrowbatch::batch::{ArrowBatchConfig, ArrowBatchReader, ArrowBatchTypes};
 
 
 pub struct ArrowFileBlockReader {
+    delta: u64,
     last_block: Option<ExecutionPayloadV1>,
     reader: ArrowBatchReader,
 }
 
 impl ArrowFileBlockReader {
-    pub fn new(path: String) -> Self {
+    pub fn new(path: String, delta: u64) -> Self {
         let last_block = None::<ExecutionPayloadV1>;
 
         let mut reader = ArrowBatchReader::new(
@@ -30,7 +31,9 @@ impl ArrowFileBlockReader {
         reader.reload_on_disk_buckets();
 
         ArrowFileBlockReader {
-            last_block, reader
+            delta,
+            last_block,
+            reader
         }
     }
 
@@ -40,7 +43,7 @@ impl ArrowFileBlockReader {
         } if self.last_block.is_some() && self.last_block.clone().unwrap().block_number > block_num {
             return None;
         }
-        let block_row = self.reader.get_root_row(block_num).unwrap();
+        let block_row = self.reader.get_root_row(block_num + self.delta).unwrap();
         let null_hash =
             B256::from_hex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
                 .unwrap();
@@ -99,9 +102,9 @@ mod tests {
 
     #[test]
     fn block_reader() {
-        let mut reader = ArrowFileBlockReader::new("../telosevm-translator/arrow-data-beta".to_string());
-        assert_eq!(reader.get_block(180698860).unwrap().block_number,180698860);
-        assert_eq!(reader.get_block(180698861).unwrap().block_number,180698861);
-        assert_eq!(reader.get_block(180698862).unwrap().block_number,180698862);
+        let mut reader = ArrowFileBlockReader::new("../telosevm-translator/arrow-data-beta".to_string(), 36);
+        assert_eq!(reader.get_block(180698824).unwrap().block_number,180698824);
+        assert_eq!(reader.get_block(180698825).unwrap().block_number,180698825);
+        assert_eq!(reader.get_block(180698826).unwrap().block_number,180698826);
     }
 }
