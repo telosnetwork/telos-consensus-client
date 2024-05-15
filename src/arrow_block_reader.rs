@@ -1,39 +1,35 @@
 use alloy_primitives::{FixedBytes, Address, Bytes, Bloom, B256};
 use alloy_primitives::hex::FromHex;
+use arrowbatch::proto::ArrowBatchTypes;
 use reth_primitives::constants::MIN_PROTOCOL_BASE_FEE_U256;
-use reth_primitives::{hex, Block, Header};
+use reth_primitives::hex;
 use reth_rpc_types::ExecutionPayloadV1;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use alloy_rlp::Decodable;
-use reth_rpc_types_compat::engine::payload::try_block_to_payload_v1;
 
-use arrowbatch::batch::{ArrowBatchConfig, ArrowBatchReader, ArrowBatchTypes};
+use arrowbatch::reader::{ArrowBatchContext, ArrowBatchReader};
 
-
-pub struct ArrowFileBlockReader {
-    delta: u64,
-    last_block: Option<ExecutionPayloadV1>,
-    reader: ArrowBatchReader,
+macro_rules! null_hash {
+    () => {
+        B256::from_hex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421").unwrap()
+    };
 }
 
-impl ArrowFileBlockReader {
-    pub fn new(path: String, delta: u64) -> Self {
-        let last_block = None::<ExecutionPayloadV1>;
 
-        let mut reader = ArrowBatchReader::new(
-            &ArrowBatchConfig{
-                data_dir: path,
-                bucket_size: 10_000_000,
-                dump_size: 100_000
-            }
-        );
-        reader.reload_on_disk_buckets();
+pub struct ArrowFileBlockReader<'a> {
+    delta: u64,
+    last_block: Option<ExecutionPayloadV1>,
+
+    reader: ArrowBatchReader<'a>,
+}
+
+impl<'a> ArrowFileBlockReader<'a> {
+    pub fn new(context: &'a ArrowBatchContext, delta: u64) -> Self {
+        let last_block = None::<ExecutionPayloadV1>;
 
         ArrowFileBlockReader {
             delta,
             last_block,
-            reader
+
+            reader: ArrowBatchReader::new(context)
         }
     }
 
@@ -43,10 +39,9 @@ impl ArrowFileBlockReader {
         } if self.last_block.is_some() && self.last_block.clone().unwrap().block_number > block_num {
             return None;
         }
-        let block_row = self.reader.get_root_row(block_num + self.delta).unwrap();
-        let null_hash =
-            B256::from_hex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-                .unwrap();
+        let block = self.reader.get_row(block_num + self.delta).unwrap();
+
+        let block_row = block.row;
 
         let timestamp = match block_row[1] {
             ArrowBatchTypes::U64(value) => value,
@@ -75,11 +70,23 @@ impl ArrowFileBlockReader {
         let extra_data =
             Bytes::copy_from_slice(hex::decode(block_hash.as_str()).unwrap().as_slice());
 
+        let mut txs = Vec::new();
+
+        if block.refs.contains_key("tx") {
+            for tx in block.refs.get("tx").unwrap() {
+                let tx_raw = match &tx.row[4] {
+                    ArrowBatchTypes::Bytes(r) => r,
+                    _ => panic!("Invalid type for tx.raw")
+                };
+                txs.push(alloy_primitives::Bytes::from(tx_raw.clone()));
+            }
+        }
+
         Some(
             ExecutionPayloadV1 {
                 parent_hash: FixedBytes::from_hex(evm_parent_block_hash).unwrap(),
                 fee_recipient: Address::ZERO,
-                state_root: null_hash,
+                state_root: null_hash!(),
                 receipts_root: FixedBytes::from_hex(receipt_hash).unwrap(),
                 logs_bloom: Bloom::default(),
                 prev_randao: Default::default(),
@@ -90,7 +97,7 @@ impl ArrowFileBlockReader {
                 extra_data,
                 base_fee_per_gas: MIN_PROTOCOL_BASE_FEE_U256,
                 block_hash: FixedBytes::from_hex(evm_block_hash).unwrap(),
-                transactions: vec![]
+                transactions: txs
             }
         )
     }
@@ -98,13 +105,31 @@ impl ArrowFileBlockReader {
 
 #[cfg(test)]
 mod tests {
+    use arrowbatch::reader::{ArrowBatchConfig, ArrowBatchContext};
+
     use crate::arrow_block_reader::ArrowFileBlockReader;
 
     #[test]
     fn block_reader() {
-        let mut reader = ArrowFileBlockReader::new("../telosevm-translator/arrow-data-beta".to_string(), 36);
+        let config = ArrowBatchConfig {
+            data_dir: "/home/g/repos/telosevm-translator/arrow-data-beta".to_string(),
+            bucket_size: 10_000_000_u64,
+            dump_size: 100_000_u64
+        };
+
+        let mut context = ArrowBatchContext::new(config);
+
+        context.reload_on_disk_buckets();
+        let mut reader = ArrowFileBlockReader::new(&context, 36);
         assert_eq!(reader.get_block(180698824).unwrap().block_number,180698824);
         assert_eq!(reader.get_block(180698825).unwrap().block_number,180698825);
         assert_eq!(reader.get_block(180698826).unwrap().block_number,180698826);
+
+        let first_tx_block_num = 180840052;
+        let first_tx_block = reader.get_block(first_tx_block_num).unwrap();
+
+        println!("{:#?}", first_tx_block);
+
+        assert_eq!(first_tx_block.transactions.len(), 1);
     }
 }
