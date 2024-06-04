@@ -110,9 +110,9 @@ mod tests {
     use crate::arrow_block_reader::ArrowFileBlockReader;
 
     #[test]
-    fn block_reader() {
+    fn test_arrow_block_reader() {
         let config = ArrowBatchConfig {
-            data_dir: "/home/g/repos/telosevm-translator/arrow-data-beta".to_string(),
+            data_dir: "/home/g/repos/arrow-data-from-333M".to_string(),
             bucket_size: 10_000_000_u64,
             dump_size: 100_000_u64
         };
@@ -121,11 +121,10 @@ mod tests {
 
         context.reload_on_disk_buckets();
         let mut reader = ArrowFileBlockReader::new(&context, 36);
-        assert_eq!(reader.get_block(180698824).unwrap().block_number,180698824);
-        assert_eq!(reader.get_block(180698825).unwrap().block_number,180698825);
-        assert_eq!(reader.get_block(180698826).unwrap().block_number,180698826);
+        assert_eq!(reader.get_block(332933022).unwrap().block_number,332933022);
+        assert_eq!(reader.get_block(332933023).unwrap().block_number,332933023);
 
-        let first_tx_block_num = 180840052;
+        let first_tx_block_num = 332933024;
         let first_tx_block = reader.get_block(first_tx_block_num).unwrap();
 
         println!("{:#?}", first_tx_block);
