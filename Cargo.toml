@@ -22,4 +22,5 @@ hex = "0.4.3"
 jsonwebtoken = "9.2.0"
 serde_json = "1.0.111"
 alloy-rlp = "0.3"
-arrowbatch = "1.8"
+#arrowbatch = "1.9"
+arrowbatch = { git = "https://github.com/telosnetwork/arrowbatch-rs.git", branch = "mut_refactor" }

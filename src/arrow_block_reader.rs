@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use alloy_primitives::{FixedBytes, Address, Bytes, Bloom, B256};
 use alloy_primitives::hex::FromHex;
 use arrowbatch::proto::ArrowBatchTypes;
@@ -6,6 +8,7 @@ use reth_primitives::hex;
 use reth_rpc_types::ExecutionPayloadV1;
 
 use arrowbatch::reader::{ArrowBatchContext, ArrowBatchReader};
+use tokio::time::sleep;
 
 macro_rules! null_hash {
     () => {
@@ -14,32 +17,51 @@ macro_rules! null_hash {
 }
 
 
-pub struct ArrowFileBlockReader<'a> {
+pub struct ArrowFileBlockReader {
     delta: u64,
     last_block: Option<ExecutionPayloadV1>,
-
-    reader: ArrowBatchReader<'a>,
+    reader: ArrowBatchReader,
 }
 
-impl<'a> ArrowFileBlockReader<'a> {
-    pub fn new(context: &'a ArrowBatchContext, delta: u64) -> Self {
+impl ArrowFileBlockReader {
+    pub fn new(context: Arc<Mutex<ArrowBatchContext>>, delta: u64) -> Self {
         let last_block = None::<ExecutionPayloadV1>;
+
+        let context_clone = Arc::clone(&context);
+
+        // TODO: Remove this once we have live updating
+        tokio::spawn(async move {
+            loop {
+                sleep(Duration::from_secs(5)).await;
+                let mut context = context_clone.lock().unwrap();
+                context.reload_on_disk_buckets();
+            }
+        });
 
         ArrowFileBlockReader {
             delta,
             last_block,
-
-            reader: ArrowBatchReader::new(context)
+            reader: ArrowBatchReader::new(context.clone()),
         }
     }
 
-    pub fn get_block(&mut self, block_num: u64) -> Option<ExecutionPayloadV1> {
-        if self.last_block.is_some() && self.last_block.clone().unwrap().block_number == block_num {
-            return self.last_block.clone();
-        } if self.last_block.is_some() && self.last_block.clone().unwrap().block_number > block_num {
-            return None;
+    pub fn get_latest_block(&self) -> Option<ExecutionPayloadV1> {
+        // TODO: remove this once websocket live updating is implemented
+        let latest_block_num = self.reader.context.lock().unwrap().last_ordinal.unwrap();
+        self.get_block(latest_block_num - self.delta)
+    }
+
+    pub fn get_block(&self, block_num: u64) -> Option<ExecutionPayloadV1> {
+        println!("Getting block {}", block_num);
+        if let Some(ref last_block) = self.last_block {
+            if last_block.block_number == block_num {
+                return Some(last_block.clone());
+            }
+            if last_block.block_number > block_num {
+                return None;
+            }
         }
-        let block = self.reader.get_row(block_num + self.delta).unwrap();
+        let block = self.reader.get_row(block_num + self.delta)?;
 
         let block_row = block.row;
 
@@ -112,7 +134,7 @@ mod tests {
     #[test]
     fn test_arrow_block_reader() {
         let config = ArrowBatchConfig {
-            data_dir: "/home/g/repos/arrow-data-from-333M".to_string(),
+            data_dir: "/Users/jesse/repos/telos-consensus-client/mainnet_data/mainnet-arrow-data".to_string(),
             bucket_size: 10_000_000_u64,
             dump_size: 100_000_u64
         };
@@ -120,7 +142,7 @@ mod tests {
         let mut context = ArrowBatchContext::new(config);
 
         context.reload_on_disk_buckets();
-        let mut reader = ArrowFileBlockReader::new(&context, 36);
+        let mut reader = ArrowFileBlockReader::new(Box::new(context), 36);
         assert_eq!(reader.get_block(332933022).unwrap().block_number,332933022);
         assert_eq!(reader.get_block(332933023).unwrap().block_number,332933023);
 

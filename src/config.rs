@@ -16,8 +16,6 @@ pub struct AppConfig {
     pub base_url: String,
     /// The JWT secret used to sign the JWT token
     pub jwt_secret: String,
-    /// The path to the blocks.csv file (temporary for POC
-    pub blocks_csv: String,
-    /// The path to the dump-block-bytes.dat
-    pub blocks_bytes: String,
+    /// The path to the arrow file directory of blocks
+    pub arrow_data: String,
 }
