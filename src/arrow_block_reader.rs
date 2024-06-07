@@ -52,7 +52,6 @@ impl ArrowFileBlockReader {
     }
 
     pub fn get_block(&self, block_num: u64) -> Option<ExecutionPayloadV1> {
-        println!("Getting block {}", block_num);
         if let Some(ref last_block) = self.last_block {
             if last_block.block_number == block_num {
                 return Some(last_block.clone());

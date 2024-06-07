@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use alloy_primitives::B256;
 use arrowbatch::reader::ArrowBatchContext;
+use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, RpcRequest};
 use reth_rpc_types::{Block, ExecutionPayloadV1};
@@ -22,14 +23,14 @@ pub struct ConsensusClient {
     is_forked: bool,
 }
 
-// TODO: make this a config parameter 
-pub const BATCH_SIZE: usize = 200;
+// TODO: make this a config parameter
+pub const BATCH_SIZE: u64 = 200;
 
 impl ConsensusClient {
     pub async fn new(config: AppConfig, context: Arc<Mutex<ArrowBatchContext>>) -> Self {
         let my_config = config.clone();
         let reader_context = context.clone();
-        
+
         let reader = ArrowFileBlockReader::new(reader_context, 36);
         let execution_api = ExecutionApiClient::new(config.base_url, config.jwt_secret);
         let latest_consensus_block = ConsensusClient::get_latest_consensus_block(&reader);
@@ -67,22 +68,24 @@ impl ConsensusClient {
             };
             self.do_batch(next_block_number, to_block).await;
             batch_count += 1;
+            
+            next_block_number = to_block + 1;
             if caught_up {
                 println!("Caught up to latest block {}, sleeping for 5 seconds", last_block_number);
-                // TODO: make this more live
+                // TODO: make this more live & fork aware
                 sleep(Duration::from_secs(5)).await;
             }
         }
     }
-    
+
     async fn do_batch(&self, from_block: u64, to_block: u64) {
         let mut next_block_number = from_block;
         let mut new_blocks: Vec<ExecutionPayloadV1>;
-        
+
         while next_block_number < to_block {
             new_blocks = vec![];
 
-            while new_blocks.len() < BATCH_SIZE {
+            while new_blocks.len().as_u64() < BATCH_SIZE {
                 if let Some(block) = self.reader.get_block(next_block_number) {
                     next_block_number = block.block_number + 1;
                     new_blocks.push(block);
@@ -103,7 +106,7 @@ impl ConsensusClient {
             }).collect::<Vec<RpcRequest>>();
 
             let new_payloadv1_result = self.execution_api.rpc_batch(rpc_batch).await.unwrap();
-            println!("NewPayloadV1 result: {:?}", new_payloadv1_result);
+            //println!("NewPayloadV1 result: {:?}", new_payloadv1_result);
 
             let last_block_sent = new_blocks.last().unwrap();
             let fork_choice_updated_result = self.fork_choice_updated(
@@ -113,7 +116,7 @@ impl ConsensusClient {
             ).await;
 
             println!("Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}", last_block_sent.block_hash, last_block_sent.parent_hash, last_block_sent.block_number);
-            println!("fork_choice_updated_result for block number {}: {:?}", last_block_sent.block_number, fork_choice_updated_result);
+            //println!("fork_choice_updated_result for block number {}: {:?}", last_block_sent.block_number, fork_choice_updated_result);
         }
     }
 
