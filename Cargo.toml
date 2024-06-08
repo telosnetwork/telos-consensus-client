@@ -24,3 +24,7 @@ serde_json = "1.0.111"
 alloy-rlp = "0.3"
 #arrowbatch = "1.9"
 arrowbatch = { git = "https://github.com/telosnetwork/arrowbatch-rs.git", branch = "mut_refactor" }
+
+#[dev-dependencies]
+#alloy = { git = "https://github.com/alloy-rs/alloy", rev = "0928b92000d1a56370531d5d3d825729b03dfed9", features = [ "contract", "providers" ]}
+#eyre = "0.6.5"

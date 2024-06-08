@@ -58,6 +58,7 @@ impl ConsensusClient {
         let mut batch_count = 0;
         let mut last_block_number = self.reader.get_latest_block().unwrap().block_number;
 
+        let mut last_log_time = std::time::Instant::now();
         loop {
             let mut caught_up = false;
             let to_block = if last_block_number > next_block_number + BATCH_SIZE as u64 {
@@ -68,12 +69,18 @@ impl ConsensusClient {
             };
             self.do_batch(next_block_number, to_block).await;
             batch_count += 1;
-            
-            next_block_number = to_block + 1;
+
+            // do_batch is exclusive of to_block so we do NOT need to increment by 1
+            next_block_number = to_block;
             if caught_up {
-                println!("Caught up to latest block {}, sleeping for 5 seconds", last_block_number);
+                println!("Caught up to latest block {}, sleeping for 5 seconds", next_block_number);
                 // TODO: make this more live & fork aware
                 sleep(Duration::from_secs(5)).await;
+            } else {
+                if last_log_time.elapsed().as_secs() > 5 {
+                    last_log_time = std::time::Instant::now();
+                    println!("Processed batch {}, up to block {}, sleeping for 1 second", batch_count, next_block_number);
+                }
             }
         }
     }
@@ -106,6 +113,7 @@ impl ConsensusClient {
             }).collect::<Vec<RpcRequest>>();
 
             let new_payloadv1_result = self.execution_api.rpc_batch(rpc_batch).await.unwrap();
+            // TODO: check for VALID status on new_payloadv1_result, and handle the failure case
             //println!("NewPayloadV1 result: {:?}", new_payloadv1_result);
 
             let last_block_sent = new_blocks.last().unwrap();
@@ -115,7 +123,8 @@ impl ConsensusClient {
                 last_block_sent.block_hash,
             ).await;
 
-            println!("Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}", last_block_sent.block_hash, last_block_sent.parent_hash, last_block_sent.block_number);
+            // TODO: Check status of fork_choice_updated_result and handle the failure case
+            //println!("Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}", last_block_sent.block_hash, last_block_sent.parent_hash, last_block_sent.block_number);
             //println!("fork_choice_updated_result for block number {}: {:?}", last_block_sent.block_number, fork_choice_updated_result);
         }
     }
