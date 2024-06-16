@@ -25,16 +25,18 @@ pub struct Transfer {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PrintedReceipt {
+    pub charged_gas: String,
+    pub trx_index: u16,
+    pub block: u32,
     pub status: u8,
     pub epoch: u64,
-    // pub itxs: any[],
-    // pub logs: any[],
-    // pub errors: Option<any[],
-    pub output: String,
+    pub createdaddr: String,
     pub gasused: String,
-    pub gasusedblock: String,
-    pub charged_gas: String,
-    pub createdaddr: String
+    // pub logs: any[], // Define struct for this
+    pub output: String,
+    // pub errors: Option<any[],  // Define struct for this
+    // pub itxs: any[], // Define struct for this
+    //pub gasusedblock: String,  // Optional?
 }
 
 impl PrintedReceipt {
