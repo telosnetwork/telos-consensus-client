@@ -22,6 +22,16 @@ impl PriorityQueue {
         let mut heap = self.heap.lock().unwrap();
         heap.pop()
     }
+
+    pub fn len(&self) -> usize {
+        let heap = self.heap.lock().unwrap();
+        heap.len()
+    }
+
+    pub fn capacity(&self) -> usize {
+        let heap = self.heap.lock().unwrap();
+        heap.capacity()
+    }
 }
 
 impl Clone for PriorityQueue {

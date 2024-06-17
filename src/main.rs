@@ -11,6 +11,7 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
+    tracing_subscriber::fmt::init();
     let mut translator = Translator::new(args.ship_endpoint).await.unwrap();
     translator.launch().await.unwrap();
 }

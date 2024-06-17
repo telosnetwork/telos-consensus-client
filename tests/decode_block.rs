@@ -1,6 +1,6 @@
 use antelope::util::hex_to_bytes;
 use telos_translator_rs::block::Block;
-use telos_translator_rs::ship_types::ShipResult;
+use telos_translator_rs::types::ship_types::ShipResult;
 
 #[test]
 fn decode_block() {
@@ -16,7 +16,7 @@ fn decode_block() {
         ShipResult::GetBlocksResultV0(r) => {
             if let Some(b) = &r.this_block {
                 println!("Got block: {}", b.block_num);
-                let block = Block::new(b.block_num, r.clone());
+                let mut block = Block::new(b.block_num, r.clone());
                 block.deserialize();
             } else {
                 panic!("GetBlocksResultV0 without a block");

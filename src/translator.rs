@@ -9,9 +9,9 @@ use futures_util::{SinkExt, StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
-use crate::block_deserializer::block_deserializer;
+use tracing::{error, info};
+use crate::tasks::{block_deserializer, evm_block_generator};
 use crate::block::Block;
-use crate::evm_block_generator::evm_block_generator;
 use crate::types::ship_types::{GetBlocksAckRequestV0, GetBlocksRequestV0, GetStatusRequestV0, ShipRequest, ShipResult};
 use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::types::PriorityQueue;
@@ -49,6 +49,7 @@ impl Translator {
 
         let mut unackd_blocks = 0;
         let mut last_log = Instant::now();
+        let mut unlogged_blocks = 0;
 
         let block_queue = PriorityQueue::new();
         tokio::task::spawn(block_deserializer(block_queue.clone(), self.block_map.clone()));
@@ -69,22 +70,22 @@ impl Translator {
                     } else {
                         // Print received messages after ABI is set
                         let msg_data = msg.into_data();
-                        //println!("Received message: {:?}", bytes_to_hex(&msg_data));
+                        //info!("Received message: {:?}", bytes_to_hex(&msg_data));
+                        // TODO: Better threading so we don't block reading while deserialize?
                         let mut decoder = Decoder::new(msg_data.as_slice());
                         let ship_result = &mut ShipResult::default();
                         decoder.unpack(ship_result);
 
-
                         match ship_result {
                             ShipResult::GetStatusResultV0(r) => {
-                                println!("GetStatusResultV0: {:?}", r);
+                                info!("GetStatusResultV0: {:?}", r);
                                 self.latest_status = Some(Arc::new(ShipResult::GetStatusResultV0(r.clone())));
                                 write_message(&mut ws_tx, &ShipRequest::GetBlocks(GetBlocksRequestV0 {
                                     start_block_num: START_BLOCK,
                                     end_block_num: STOP_BLOCK,
                                     max_messages_in_flight: 1000,
                                     have_positions: vec![],
-                                    irreversible_only: false,
+                                    irreversible_only: true,  // TODO: Fork handling
                                     fetch_block: true,
                                     fetch_traces: true,
                                     fetch_deltas: true,
@@ -93,22 +94,30 @@ impl Translator {
                             ShipResult::GetBlocksResultV0(r) => {
                                 unackd_blocks += 1;
                                 if let Some(b) = &r.this_block {
-                                    //println!("Got block: {}", b.block_num);
                                     let block = Block::new(b.block_num, r.clone());
                                     block_queue.push(block);
-                                    // TODO: Better logic here, don't just ack every 10 blocks
-                                    // TODO: Better threading so we don't block reading while we write?
-                                    if b.block_num % 500 == 0 {
-                                        println!("Processed {} blocks/sec", unackd_blocks as f64 / last_log.elapsed().as_secs_f64());
+                                    if last_log.elapsed().as_secs_f64() > 10.0 {
+                                        info!("Processed {} blocks/sec", (unlogged_blocks + unackd_blocks) as f64 / last_log.elapsed().as_secs_f64());
+                                        info!("Block queue size: {} with capacity: {}", block_queue.len(), block_queue.capacity());
+                                        unlogged_blocks = 0;
                                         last_log = Instant::now();
+                                    }
+
+                                    // TODO: Better logic here, don't just ack every N blocks, do this based on backpressure
+                                    if b.block_num % 200 == 0 {
+                                        //info!("Acking {} blocks", unackd_blocks);
+                                        // TODO: Better threading so we don't block reading while we write?
                                         write_message(&mut ws_tx, &GetBlocksAck(GetBlocksAckRequestV0 {
                                             num_messages: unackd_blocks
                                         })).await;
+                                        //info!("Blocks acked");
+                                        unlogged_blocks += unackd_blocks;
                                         unackd_blocks = 0;
+
                                     }
                                 } else {
                                     // TODO: why would this happen?
-                                    eprintln!("GetBlocksResultV0 without a block");
+                                    error!("GetBlocksResultV0 without a block");
                                 }
                             }
                         }
@@ -116,7 +125,7 @@ impl Translator {
                 },
                 Err(e) => {
                     // Log the error and break the loop
-                    println!("Error: {}", e);
+                    info!("Error: {}", e);
                     break;
                 },
             }
