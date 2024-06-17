@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use serde::{Serialize, Deserialize};
 use alloy_primitives::{FixedBytes, Address, Bytes, Bloom, B256};
 use alloy_primitives::hex::FromHex;
 use arrowbatch::proto::ArrowBatchTypes;
@@ -10,6 +11,8 @@ use reth_rpc_types::ExecutionPayloadV1;
 use arrowbatch::reader::{ArrowBatchContext, ArrowBatchReader};
 use tokio::time::sleep;
 
+extern crate base64;
+
 macro_rules! null_hash {
     () => {
         B256::from_hex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421").unwrap()
@@ -17,14 +20,20 @@ macro_rules! null_hash {
 }
 
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TxStruct {
+    hash: String,
+    raw: String
+}
+
+
 pub struct ArrowFileBlockReader {
-    delta: u64,
     last_block: Option<ExecutionPayloadV1>,
     reader: ArrowBatchReader,
 }
 
 impl ArrowFileBlockReader {
-    pub fn new(context: Arc<Mutex<ArrowBatchContext>>, delta: u64) -> Self {
+    pub fn new(context: Arc<Mutex<ArrowBatchContext>>) -> Self {
         let last_block = None::<ExecutionPayloadV1>;
 
         let context_clone = Arc::clone(&context);
@@ -34,12 +43,13 @@ impl ArrowFileBlockReader {
             loop {
                 sleep(Duration::from_secs(5)).await;
                 let mut context = context_clone.lock().unwrap();
+                println!("pre reload: {:?}", context.last_ordinal);
                 context.reload_on_disk_buckets();
+                println!("post reload: {:?}", context.last_ordinal);
             }
         });
 
         ArrowFileBlockReader {
-            delta,
             last_block,
             reader: ArrowBatchReader::new(context.clone()),
         }
@@ -48,7 +58,7 @@ impl ArrowFileBlockReader {
     pub fn get_latest_block(&self) -> Option<ExecutionPayloadV1> {
         // TODO: remove this once websocket live updating is implemented
         let latest_block_num = self.reader.context.lock().unwrap().last_ordinal.unwrap();
-        self.get_block(latest_block_num - self.delta)
+        self.get_block(latest_block_num)
     }
 
     pub fn get_block(&self, block_num: u64) -> Option<ExecutionPayloadV1> {
@@ -60,48 +70,46 @@ impl ArrowFileBlockReader {
                 return None;
             }
         }
-        let block = self.reader.get_row(block_num + self.delta)?;
+        let block = self.reader.get_row(block_num)?;
 
-        let block_row = block.row;
-
-        let timestamp = match block_row[1] {
+        let timestamp = match block[2] {
             ArrowBatchTypes::U64(value) => value,
             _ => panic!("Invalid type for timestamp")
         };
-        let block_hash = match &block_row[2] {
+        let block_hash = match &block[3] {
             ArrowBatchTypes::Checksum256(value) => value.clone(),
             _ => panic!("Invalid type for block_hash")
         };
-        let evm_block_hash = match &block_row[3] {
+        let evm_block_hash = match &block[4] {
             ArrowBatchTypes::Checksum256(value) => value.clone(),
             _ => panic!("Invalid type for evm_block_hash")
         };
-        let evm_parent_block_hash = match &block_row[4] {
+        let evm_parent_block_hash = match &block[5] {
             ArrowBatchTypes::Checksum256(value) => value.clone(),
             _ => panic!("Invalid type for evm_parent_block_hash")
         };
-        let receipt_hash = match &block_row[5] {
+        let receipt_hash = match &block[6] {
             ArrowBatchTypes::Checksum256(value) => value.clone(),
             _ => panic!("Invalid type for receipt_hash")
         };
-        let gas_used = match &block_row[7] {
+        let gas_used = match &block[8] {
             ArrowBatchTypes::UVar(value) => value.clone().to_string().parse().expect("Gas used is not a valid u64"),
             _ => panic!("Invalid type for receipt_hash")
         };
-        let extra_data =
-            Bytes::copy_from_slice(hex::decode(block_hash.as_str()).unwrap().as_slice());
 
         let mut txs = Vec::new();
+        match &block[11] {
+            ArrowBatchTypes::StructArray(values) => {
+                 for tx_struct_value in values {
+                     let tx_struct: TxStruct = serde_json::from_value(tx_struct_value.clone()).unwrap();
+                     txs.push(base64::decode(tx_struct.raw).unwrap().into());
+                 }
+            },
+            _ => panic!("Invalid type for transactions")
+        };
 
-        if block.refs.contains_key("tx") {
-            for tx in block.refs.get("tx").unwrap() {
-                let tx_raw = match &tx.row[4] {
-                    ArrowBatchTypes::Bytes(r) => r,
-                    _ => panic!("Invalid type for tx.raw")
-                };
-                txs.push(alloy_primitives::Bytes::from(tx_raw.clone()));
-            }
-        }
+        let extra_data =
+            Bytes::copy_from_slice(hex::decode(block_hash.as_str()).unwrap().as_slice());
 
         Some(
             ExecutionPayloadV1 {

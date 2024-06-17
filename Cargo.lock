@@ -451,7 +451,7 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "atoi",
- "base64 0.22.0",
+ "base64 0.22.1",
  "chrono",
  "half",
  "lexical-core",
@@ -593,11 +593,12 @@ dependencies = [
 
 [[package]]
 name = "arrowbatch"
-version = "1.9.0"
-source = "git+https://github.com/telosnetwork/arrowbatch-rs.git?branch=mut_refactor#9850caed0efa540b58e90424871ef565ef7fc93d"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "255c4fc5fa6bd4d2900d02e050382b2d62d07e1866ad3a96117de038392612a9"
 dependencies = [
  "arrow",
- "base64 0.22.0",
+ "base64 0.22.1",
  "chrono",
  "futures",
  "futures-util",
@@ -680,9 +681,9 @@ checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "base64"
-version = "0.22.0"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9475866fec1451be56a3c2400fd081ff546538961565ccb5b7142cbd22bc7a51"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "base64ct"
@@ -3313,6 +3314,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "arrowbatch",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "csv",

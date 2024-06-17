@@ -31,7 +31,7 @@ impl ConsensusClient {
         let my_config = config.clone();
         let reader_context = context.clone();
 
-        let reader = ArrowFileBlockReader::new(reader_context, 36);
+        let reader = ArrowFileBlockReader::new(reader_context);
         let execution_api = ExecutionApiClient::new(config.base_url, config.jwt_secret);
         let latest_consensus_block = ConsensusClient::get_latest_consensus_block(&reader);
         let latest_executor_block =
