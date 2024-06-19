@@ -10,8 +10,10 @@ edition = "2021"
 antelope-client = { path = "../antelope-rs/crates/antelope" }
 alloy = { git = "https://github.com/alloy-rs/alloy", rev = "v0.1.1" }
 alloy-consensus = { git = " https://github.com/alloy-rs/alloy", rev = "v0.1.1" }
+num-bigint = "0.4.5"
 clap = { version = "4.5.6", features = ["derive"] }
 dashmap = "5.5.3"
+k256 = { version = "0.13.3", features = ["ecdsa"] }
 eyre = "0.6.5"
 moka = { version = "0.12.7", features = ["sync"] }
 tokio = { version = "1.38.0", features = ["rt", "rt-multi-thread", "macros"] }
@@ -21,3 +23,6 @@ tokio-tungstenite = "0.23.0"
 futures-util = "0.3.30"
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.117"
+
+[dev-dependencies]
+async-trait = "0.1.80"

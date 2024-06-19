@@ -2,7 +2,7 @@ use alloy::primitives::{Address, address, B256, Bytes, Log};
 use antelope::serializer::Decoder;
 use antelope::serializer::Encoder;
 use antelope::chain::asset::Asset;
-use antelope::chain::checksum::Checksum160;
+use antelope::chain::checksum::{Checksum160, Checksum256};
 use antelope::chain::name::Name;
 use antelope::StructPacker;
 use antelope::chain::Packer;
@@ -23,6 +23,22 @@ pub struct TransferAction {
     pub to: Name,
     pub quantity: Asset,
     pub memo: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
+pub struct AccountRow {
+    pub index: u64,
+    pub address: Checksum160,
+    pub account: Name,
+    pub nonce: u64,
+    pub code: Vec<u8>,
+    pub balance: Checksum256,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
+pub struct WithdrawAction {
+    pub to: Name,
+    pub quantity: Asset,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

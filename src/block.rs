@@ -1,25 +1,18 @@
 use std::cmp::Ordering;
 use alloy::primitives::Address;
 use alloy_consensus::Header;
+use antelope::api::default_provider::DefaultProvider;
+use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
 use antelope::chain::name::Name;
 use antelope::name;
 use moka::sync::Cache;
 use tracing::info;
 use crate::transaction::Transaction;
-use crate::types::evm_types::{RawAction, PrintedReceipt, TransferAction};
+use crate::types::evm_types::{RawAction, PrintedReceipt, TransferAction, WithdrawAction};
 use crate::types::ship_types::{ActionTrace, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace};
-
-const EOSIO: u64 = 6138663577826885632u64;
-const EOSIO_STAKE: u64 = 6138663591134630912u64;
-const EOSIO_RAM: u64 = 6138663590285017088u64;
-const EOSIO_EVM: u64 = 6138663583658016768u64;
-const EOSIO_TOKEN: u64 = 6138663591592764928u64;
-const RAW: u64 = 13382446292731428864u64;
-const WITHDRAW: u64 = 16407410437513019392u64;
-const TRANSFER: u64 = 14829575313431724032u64;
-const DORESOURCES: u64 = 5561572063795392512u64;
-const SYSTEM_ACCOUNTS: [u64; 3] = [EOSIO, EOSIO_STAKE, EOSIO_RAM];
+use crate::types::names::*;
+use crate::types::types::NameToAddressCache;
 
 pub trait BasicTrace {
     fn action_name(&self) -> u64;
@@ -69,6 +62,8 @@ impl BasicTrace for ActionTrace {
 #[derive(Clone)]
 pub struct Block {
     pub block_num: u32,
+    block_hash: Checksum256,
+    chain_id: u64,
     result: GetBlocksResultV0,
     signed_block: Option<SignedBlock>,
     block_traces: Option<Vec<TransactionTrace>>,
@@ -90,10 +85,19 @@ pub fn decode_transfer(raw: &[u8]) -> TransferAction {
     transfer.clone()
 }
 
+pub fn decode_withdraw(raw: &[u8]) -> WithdrawAction {
+    let mut decoder = Decoder::new(raw);
+    let withdraw = &mut WithdrawAction::default();
+    decoder.unpack(withdraw);
+    withdraw.clone()
+}
+
 impl Block {
-    pub fn new(block_num: u32, result: GetBlocksResultV0) -> Self {
+    pub fn new(chain_id: u64, block_num: u32, block_hash: Checksum256, result: GetBlocksResultV0) -> Self {
         Self {
             block_num,
+            block_hash,
+            chain_id,
             result,
             signed_block: None,
             block_traces: None,
@@ -125,7 +129,7 @@ impl Block {
         }
     }
 
-    fn handle_action(&mut self, action: Box<dyn BasicTrace>) {
+    async fn handle_action(&mut self, action: Box<dyn BasicTrace + Send>, native_to_evm_cache: &NameToAddressCache) {
         let action_name = action.action_name();
         let action_account = action.action_account();
         let action_receiver = action.receiver();
@@ -137,27 +141,29 @@ impl Block {
             if printed_receipt.is_none() {
                 panic!("No printed receipt found for raw action in block: {}", self.block_num);
             }
-            let transaction = Transaction::from_raw_action(raw, printed_receipt.unwrap());
+            let transaction = Transaction::from_raw_action(raw, printed_receipt.unwrap(), native_to_evm_cache).await;
             self.transactions.push(transaction);
         } else if action_account == EOSIO_EVM && action_name == WITHDRAW {
             // Withdrawal from EVM
-            // let transaction = Transaction::from_withdraw(action);
-            // self.transactions.push(transaction);
+            let withdraw_action = decode_withdraw(&action.data());
+            let transaction = Transaction::from_withdraw(self.chain_id, self.transactions.len(), self.block_hash, withdraw_action, native_to_evm_cache).await;
+            self.transactions.push(transaction);
         } else if action_account == EOSIO_TOKEN && action_name == TRANSFER && action_receiver == EOSIO_EVM {
             // Deposit/transfer to EVM
-            let transfer = decode_transfer(&action.data());
-            if SYSTEM_ACCOUNTS.contains(&transfer.from.n) {
+            let transfer_action = decode_transfer(&action.data());
+            if SYSTEM_ACCOUNTS.contains(&transfer_action.from.n) {
                 return;
             }
 
-            // let transaction = Transaction::from_transfer(transfer);
-            // self.transactions.push(transaction);
+            let transaction = Transaction::from_transfer(self.chain_id, self.transactions.len(), self.block_hash, transfer_action, native_to_evm_cache).await;
+            self.transactions.push(transaction.clone());
+            info!("Deposit hash: {}", transaction.hash());
         } else if action_account == EOSIO_EVM && action_name == DORESOURCES {
             // TODO: Handle doresources action
         }
     }
 
-    pub fn generate_evm_data(&mut self, native_to_evm_cache: Cache<Name, Address>) {
+    pub async fn generate_evm_data(&mut self, native_to_evm_cache: &NameToAddressCache) {
         if self.signed_block.is_none() || self.block_traces.is_none() || self.block_deltas.is_none() {
             panic!("Block::to_evm called on a block with missing data");
         }
@@ -168,7 +174,7 @@ impl Block {
             match t {
                 TransactionTrace::V0(t) => {
                     for action in t.action_traces {
-                        self.handle_action(Box::new(action));
+                        self.handle_action(Box::new(action), &native_to_evm_cache).await;
                     }
                 }
             }
@@ -197,7 +203,7 @@ impl Block {
             requests_root: None,
             extra_data: Default::default(),
         };
-        info!("Block hash: {:?}", block_header.hash_slow());
+        //info!("Block hash: {:?}", block_header.hash_slow());
 
     }
 }

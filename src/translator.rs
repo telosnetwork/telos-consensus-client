@@ -1,5 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
+use antelope::api::client::APIClient;
+use antelope::api::default_provider::DefaultProvider;
 use antelope::chain::abi::ABI;
 use antelope::chain::{Decoder, Encoder};
 use dashmap::DashMap;
@@ -16,9 +18,9 @@ use crate::types::ship_types::{GetBlocksAckRequestV0, GetBlocksRequestV0, GetSta
 use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::types::PriorityQueue;
 
-
-const START_BLOCK: u32 = 300_000_000;
+const START_BLOCK: u32 = 300000965;
 const STOP_BLOCK: u32 = 301_000_000;
+const CHAIN_ID: u64 = 40;
 
 pub async fn write_message(tx_stream: &mut SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>, message: &ShipRequest) {
     let bytes = Encoder::pack(message);
@@ -26,6 +28,7 @@ pub async fn write_message(tx_stream: &mut SplitSink<WebSocketStream<MaybeTlsStr
 }
 
 pub struct Translator {
+    http_endpoint: String,
     ship_endpoint: String,
     ship_abi: Option<ABI>,
     latest_status: Option<Arc<ShipResult>>,
@@ -33,9 +36,10 @@ pub struct Translator {
 }
 
 impl Translator {
-    pub async fn new(ship_endpoint: String) -> Result<Self> {
+    pub async fn new(http_endpoint: String, ship_endpoint: String) -> Result<Self> {
 
         Ok(Self {
+            http_endpoint,
             ship_endpoint,
             ship_abi: None,
             latest_status: None,
@@ -44,8 +48,9 @@ impl Translator {
     }
 
     pub async fn launch(&mut self) -> Result<()> {
-        let (ws_stream, _) = connect_async(self.ship_endpoint.as_str()).await?;
+        let (ws_stream, _) = connect_async(self.ship_endpoint.as_str()).await.expect("Failed to connect to ship");
         let (mut ws_tx, mut ws_rx): (SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>, SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>) = ws_stream.split();
+        let api_client: APIClient<DefaultProvider> = APIClient::<DefaultProvider>::default_provider(self.http_endpoint.clone()).expect("Failed to create API client");
 
         let mut unackd_blocks = 0;
         let mut last_log = Instant::now();
@@ -53,7 +58,7 @@ impl Translator {
 
         let block_queue = PriorityQueue::new();
         tokio::task::spawn(block_deserializer(block_queue.clone(), self.block_map.clone()));
-        tokio::task::spawn(evm_block_generator(START_BLOCK, self.block_map.clone()));
+        tokio::task::spawn(evm_block_generator(START_BLOCK, self.block_map.clone(), api_client));
 
         while let Some(msg_result) = ws_rx.next().await {
             match msg_result {
@@ -94,7 +99,7 @@ impl Translator {
                             ShipResult::GetBlocksResultV0(r) => {
                                 unackd_blocks += 1;
                                 if let Some(b) = &r.this_block {
-                                    let block = Block::new(b.block_num, r.clone());
+                                    let block = Block::new(CHAIN_ID, b.block_num, b.block_id, r.clone());
                                     block_queue.push(block);
                                     if last_log.elapsed().as_secs_f64() > 10.0 {
                                         info!("Processed {} blocks/sec", (unlogged_blocks + unackd_blocks) as f64 / last_log.elapsed().as_secs_f64());
