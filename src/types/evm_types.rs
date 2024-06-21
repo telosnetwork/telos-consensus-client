@@ -70,10 +70,17 @@ where
         topics: Vec<String>,
     }
 
+    impl LogHelper {
+        fn address(&self) -> Address {
+            let padded = format!("{:0>40}", self.address);
+            padded.parse().expect("Invalid address")
+        }
+    }
+
     let log_helpers = Vec::<LogHelper>::deserialize(deserializer)?;
     let mut logs = vec![];
     for log in log_helpers {
-        let address = log.address.parse().expect("Invalid address");
+        let address = log.address();
         let topics = log.topics.into_iter().map(|topic| to_b256(&topic)).collect();
         let data = log.data.parse().expect("Invalid data");
         logs.push(Log::new(address, topics, data).unwrap());
@@ -102,7 +109,6 @@ impl PrintedReceipt {
                 let end_index = start_index + end;
                 let extracted = &console[start_index..end_index];
                 let printed_receipt = serde_json::from_str::<PrintedReceipt>(extracted).unwrap();
-                println!("{:?}", printed_receipt);
                 Some(printed_receipt)
             } else {
                 println!("End pattern not found.");

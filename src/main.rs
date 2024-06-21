@@ -1,4 +1,5 @@
 use clap::Parser;
+use tracing::{error, info};
 use telos_translator_rs::translator::Translator;
 
 #[derive(Parser, Debug)]
@@ -15,5 +16,8 @@ async fn main() {
     let args = Args::parse();
     tracing_subscriber::fmt::init();
     let mut translator = Translator::new(args.http_endpoint, args.ship_endpoint).await.unwrap();
-    translator.launch().await.unwrap();
+    match translator.launch().await {
+        Ok(_) => info!("Translator launched successfully"),
+        Err(e) => error!("Failed to launch translator: {:?}", e),
+    }
 }

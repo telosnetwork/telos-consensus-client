@@ -68,7 +68,7 @@ source = "git+https://github.com/alloy-rs/alloy?rev=v0.1.1#f04a704ac5be9cb21b4b1
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
- "alloy-rlp",
+ "alloy-rlp 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "alloy-serde",
  "c-kzg",
  "serde",
@@ -109,7 +109,7 @@ version = "0.1.1"
 source = "git+https://github.com/alloy-rs/alloy?rev=v0.1.1#f04a704ac5be9cb21b4b1f6c35f925607f1aa939"
 dependencies = [
  "alloy-primitives",
- "alloy-rlp",
+ "alloy-rlp 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "alloy-serde",
  "c-kzg",
  "once_cell",
@@ -177,7 +177,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f783611babedbbe90db3478c120fb5f5daacceffc210b39adc0af4fe0da70bad"
 dependencies = [
- "alloy-rlp",
+ "alloy-rlp 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes",
  "cfg-if",
  "const-hex",
@@ -188,7 +188,7 @@ dependencies = [
  "keccak-asm",
  "proptest",
  "rand",
- "ruint",
+ "ruint 1.12.3",
  "serde",
  "tiny-keccak",
 ]
@@ -236,6 +236,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-rlp"
+version = "0.3.5"
+source = "git+https://github.com/alloy-rs/rlp?rev=v0.3.5#2d2978753325fc2ac2929ae8fd7cd21c62f6c2d5"
+dependencies = [
+ "arrayvec",
+ "bytes",
+]
+
+[[package]]
 name = "alloy-rlp-derive"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -274,7 +283,7 @@ dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-primitives",
- "alloy-rlp",
+ "alloy-rlp 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "alloy-serde",
  "alloy-sol-types",
  "itertools 0.13.0",
@@ -2603,11 +2612,23 @@ dependencies = [
 
 [[package]]
 name = "ruint"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0430214a5bb015461c0628e93d07738af2866e77a3f3db71e8264c999dda03fc"
+dependencies = [
+ "itertools 0.10.5",
+ "ruint-macro 0.2.1",
+ "rustc_version 0.4.0",
+ "thiserror",
+]
+
+[[package]]
+name = "ruint"
 version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c3cc4c2511671f327125da14133d0c5c5d137f006a1017a16f557bc85b16286"
 dependencies = [
- "alloy-rlp",
+ "alloy-rlp 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "ark-ff 0.3.0",
  "ark-ff 0.4.2",
  "bytes",
@@ -2619,11 +2640,17 @@ dependencies = [
  "proptest",
  "rand",
  "rlp",
- "ruint-macro",
+ "ruint-macro 1.2.1",
  "serde",
  "valuable",
  "zeroize",
 ]
+
+[[package]]
+name = "ruint-macro"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0f4dd8af87bc3b385595ce5f61887b5b8efd4def9eb1679ce4300ec4d89c308"
 
 [[package]]
 name = "ruint-macro"
@@ -3082,8 +3109,10 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "alloy-consensus",
+ "alloy-rlp 0.3.5 (git+https://github.com/alloy-rs/rlp?rev=v0.3.5)",
  "antelope-client",
  "async-trait",
+ "bytes",
  "clap",
  "dashmap",
  "eyre",
@@ -3091,6 +3120,8 @@ dependencies = [
  "k256",
  "moka",
  "num-bigint",
+ "rlp",
+ "ruint 0.3.0",
  "serde",
  "serde_json",
  "tokio",

@@ -18,7 +18,18 @@ use crate::types::ship_types::{GetBlocksAckRequestV0, GetBlocksRequestV0, GetSta
 use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::types::PriorityQueue;
 
-const START_BLOCK: u32 = 300000965;
+// Deposit block
+//const START_BLOCK: u32 = 300000965;
+
+// Withdraw block
+// const START_BLOCK: u32 = 302247479;
+
+// Short address in log
+// const START_BLOCK: u32 = 300056989;
+
+// Tx decode issue
+const START_BLOCK: u32 = 300062700;
+//const START_BLOCK: u32 = 300_000_000;
 const STOP_BLOCK: u32 = 301_000_000;
 const CHAIN_ID: u64 = 40;
 
@@ -30,7 +41,7 @@ pub async fn write_message(tx_stream: &mut SplitSink<WebSocketStream<MaybeTlsStr
 pub struct Translator {
     http_endpoint: String,
     ship_endpoint: String,
-    ship_abi: Option<ABI>,
+    ship_abi: Option<String>,
     latest_status: Option<Arc<ShipResult>>,
     block_map: Arc<DashMap<u32, Block>>,
 }
@@ -48,7 +59,13 @@ impl Translator {
     }
 
     pub async fn launch(&mut self) -> Result<()> {
-        let (ws_stream, _) = connect_async(self.ship_endpoint.as_str()).await.expect("Failed to connect to ship");
+        let connect_result = connect_async(self.ship_endpoint.as_str()).await;
+        if connect_result.is_err() {
+            error!("Failed to connect to ship at endpoint {}", self.ship_endpoint.as_str());
+            return Err(eyre::eyre!("Failed to connect to ship"));
+        }
+
+        let (ws_stream, _) = connect_result.unwrap();
         let (mut ws_tx, mut ws_rx): (SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>, SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>) = ws_stream.split();
         let api_client: APIClient<DefaultProvider> = APIClient::<DefaultProvider>::default_provider(self.http_endpoint.clone()).expect("Failed to create API client");
 
@@ -57,6 +74,7 @@ impl Translator {
         let mut unlogged_blocks = 0;
 
         let block_queue = PriorityQueue::new();
+        // TODO: Some better task management, if evm_block_generator crashes, we need to stop or slow down the reader/deserializer or the block_map grows forever
         tokio::task::spawn(block_deserializer(block_queue.clone(), self.block_map.clone()));
         tokio::task::spawn(evm_block_generator(START_BLOCK, self.block_map.clone(), api_client));
 
@@ -65,9 +83,15 @@ impl Translator {
                 Ok(msg) => {
                     // ABI is always the first message sent on connect
                     if self.ship_abi.is_none() {
+                        // TODO: maybe get this working as an ABI again?
+                        //   the problem is that the ABI from ship has invalid table names like `account_metadata`
+                        //   which cause from_string to fail, but if you change AbiTable.name to a String then
+                        //   when you use the ABI struct to pack for a contract deployment, it causes the table
+                        //   lookups via v1/chain/get_table_rows to fail because it doesn't like the string when
+                        //   it's trying to determine the index type of a table
                         let abi_string = msg.to_string();
-                        let abi = ABI::from_string(abi_string.as_str()).unwrap();
-                        self.ship_abi = Some(abi);
+                        //let abi = ABI::from_string(abi_string.as_str()).unwrap();
+                        self.ship_abi = Some(abi_string);
 
                         // Send GetStatus request after setting up the ABI
                         let request = GetStatus(GetStatusRequestV0);
@@ -83,7 +107,7 @@ impl Translator {
 
                         match ship_result {
                             ShipResult::GetStatusResultV0(r) => {
-                                info!("GetStatusResultV0: {:?}", r);
+                                info!("GetStatusResultV0 head: {:?} last_irreversible: {:?}", r.head.block_num, r.last_irreversible.block_num);
                                 self.latest_status = Some(Arc::new(ShipResult::GetStatusResultV0(r.clone())));
                                 write_message(&mut ws_tx, &ShipRequest::GetBlocks(GetBlocksRequestV0 {
                                     start_block_num: START_BLOCK,
@@ -102,7 +126,7 @@ impl Translator {
                                     let block = Block::new(CHAIN_ID, b.block_num, b.block_id, r.clone());
                                     block_queue.push(block);
                                     if last_log.elapsed().as_secs_f64() > 10.0 {
-                                        info!("Processed {} blocks/sec", (unlogged_blocks + unackd_blocks) as f64 / last_log.elapsed().as_secs_f64());
+                                        info!("Block #{} - rocessed {} blocks/sec", b.block_num, (unlogged_blocks + unackd_blocks) as f64 / last_log.elapsed().as_secs_f64());
                                         info!("Block queue size: {} with capacity: {}", block_queue.len(), block_queue.capacity());
                                         unlogged_blocks = 0;
                                         last_log = Instant::now();

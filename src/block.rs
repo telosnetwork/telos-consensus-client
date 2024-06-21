@@ -141,7 +141,7 @@ impl Block {
             if printed_receipt.is_none() {
                 panic!("No printed receipt found for raw action in block: {}", self.block_num);
             }
-            let transaction = Transaction::from_raw_action(raw, printed_receipt.unwrap(), native_to_evm_cache).await;
+            let transaction = Transaction::from_raw_action(self.chain_id, self.transactions.len(), self.block_hash, raw, printed_receipt.unwrap(), native_to_evm_cache).await;
             self.transactions.push(transaction);
         } else if action_account == EOSIO_EVM && action_name == WITHDRAW {
             // Withdrawal from EVM
@@ -157,7 +157,6 @@ impl Block {
 
             let transaction = Transaction::from_transfer(self.chain_id, self.transactions.len(), self.block_hash, transfer_action, native_to_evm_cache).await;
             self.transactions.push(transaction.clone());
-            info!("Deposit hash: {}", transaction.hash());
         } else if action_account == EOSIO_EVM && action_name == DORESOURCES {
             // TODO: Handle doresources action
         }
