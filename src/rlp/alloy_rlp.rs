@@ -1,4 +1,4 @@
-use alloy::primitives::private::alloy_rlp::{Decodable, EMPTY_STRING_CODE, Header};
+use alloy::primitives::private::alloy_rlp::{Decodable, EMPTY_STRING_CODE, Error, Header};
 use alloy::primitives::{Address, Bytes, TxKind, U256};
 use alloy_consensus::TxLegacy;
 use alloy_rlp::Result;
@@ -75,17 +75,34 @@ impl TelosDecodable for TxKind {
 
 impl TelosDecodable for U256 {
     fn decode_telos(buf: &mut &[u8]) -> Result<Self> {
-        if let Some(&first) = buf.first() {
-            if first == EMPTY_STRING_CODE {
-                buf.advance(1);
-                Ok(U256::ZERO)
-            } else {
-                let u256 = U256::from_be_slice(&buf[0..32]);
-                buf.advance(32);
-                Ok(u256)
-            }
-        } else {
-            Err(InputTooShort)
-        }
+        let bytes = Header::decode_bytes(buf, false).expect("Failed to decode bytes");
+
+        // The RLP spec states that deserialized positive integers with leading zeroes
+        // get treated as invalid.
+        //
+        // See:
+        // https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/
+        //
+        // To check this, we only need to check if the first byte is zero to make sure
+        // there are no leading zeros
+        // if !bytes.is_empty() && bytes[0] == 0 {
+        //     return Err(Error::LeadingZero);
+        // }
+
+        Ok(Self::try_from_be_slice(bytes).expect("Failed to decode U256 from bytes"))
+
+        //
+        // if let Some(&first) = buf.first() {
+        //     if first == EMPTY_STRING_CODE {
+        //         buf.advance(1);
+        //         Ok(U256::ZERO)
+        //     } else {
+        //         let u256 = U256::from_be_slice(&buf[0..32]);
+        //         buf.advance(32);
+        //         Ok(u256)
+        //     }
+        // } else {
+        //     Err(InputTooShort)
+        // }
     }
 }
