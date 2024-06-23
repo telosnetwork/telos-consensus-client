@@ -43,7 +43,9 @@ impl Transaction {
         }
 
         let signed_legacy = signed_legacy_result.unwrap();
-        if signed_legacy.signature().r().is_zero() || signed_legacy.signature().s().is_zero() {
+        // Align with contract, if BOTH are zero it's zero and raw.sender is used
+        //   https://github.com/telosnetwork/telos.evm/blob/9f2024a2a65e7c6b9bb98b36b368c359e24e6885/eosio.evm/include/eosio.evm/transaction.hpp#L205
+        if signed_legacy.signature().r().is_zero() && signed_legacy.signature().s().is_zero() {
             let address = Address::from(raw.sender.expect("Failed to get address from sender in unsigned transaction").data);
             let sig = make_unique_vrs(block_hash, address, trx_index);
             let unsigned_legacy = signed_legacy.strip_signature().into_signed(sig);
