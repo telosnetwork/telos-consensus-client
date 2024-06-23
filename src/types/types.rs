@@ -27,14 +27,14 @@ impl NameToAddressCache {
         if let Some(cached) = cached {
             Some(cached.clone())
         } else {
-            let EVM_CONTRACT = Name::from_u64(EOSIO_EVM);
+            let evm_contract = Name::from_u64(EOSIO_EVM);
             // TODO: hardcode this in names.rs for performance
-            let ACCOUNT = Name::new_from_str("account");
+            let account = Name::new_from_str("account");
             let account_result = self.api_client.v1_chain.get_table_rows::<AccountRow>(
                 GetTableRowsParams {
-                    code: EVM_CONTRACT,
-                    table: ACCOUNT,
-                    scope: Some(EVM_CONTRACT),
+                    code: evm_contract,
+                    table: account,
+                    scope: Some(evm_contract),
                     lower_bound: Some(TableIndexType::UINT64(name)),
                     upper_bound: Some(TableIndexType::UINT64(name)),
                     limit: Some(1),

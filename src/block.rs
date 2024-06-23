@@ -1,13 +1,7 @@
 use std::cmp::Ordering;
-use alloy::primitives::Address;
 use alloy_consensus::Header;
-use antelope::api::default_provider::DefaultProvider;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
-use antelope::chain::name::Name;
-use antelope::name;
-use moka::sync::Cache;
-use tracing::info;
 use crate::transaction::Transaction;
 use crate::types::evm_types::{RawAction, PrintedReceipt, TransferAction, WithdrawAction};
 use crate::types::ship_types::{ActionTrace, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace};
@@ -108,21 +102,21 @@ impl Block {
 
     pub fn deserialize(&mut self) {
         if let Some(b) = &self.result.block {
-            let mut decoder = Decoder::new(b.as_slice().clone());
+            let mut decoder = Decoder::new(b.as_slice());
             let signed_block = &mut SignedBlock::default();
             decoder.unpack(signed_block);
             self.signed_block = Some(signed_block.clone());
         }
 
         if let Some(t) = &self.result.traces {
-            let mut decoder = Decoder::new(t.as_slice().clone());
+            let mut decoder = Decoder::new(t.as_slice());
             let block_traces: &mut Vec<TransactionTrace> = &mut vec![];
             decoder.unpack(block_traces);
             self.block_traces = Some(block_traces.to_vec());
         }
 
         if let Some(d) = &self.result.deltas {
-            let mut decoder = Decoder::new(d.as_slice().clone());
+            let mut decoder = Decoder::new(d.as_slice());
             let block_deltas: &mut Vec<TableDelta> = &mut vec![];
             decoder.unpack(block_deltas);
             self.block_deltas = Some(block_deltas.to_vec());
@@ -141,7 +135,7 @@ impl Block {
             if printed_receipt.is_none() {
                 panic!("No printed receipt found for raw action in block: {}", self.block_num);
             }
-            let transaction = Transaction::from_raw_action(self.chain_id, self.transactions.len(), self.block_hash, raw, printed_receipt.unwrap(), native_to_evm_cache).await;
+            let transaction = Transaction::from_raw_action(self.chain_id, self.transactions.len(), self.block_hash, raw, printed_receipt.unwrap()).await;
             self.transactions.push(transaction);
         } else if action_account == EOSIO_EVM && action_name == WITHDRAW {
             // Withdrawal from EVM

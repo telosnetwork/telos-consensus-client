@@ -1,11 +1,8 @@
-use alloy::primitives::private::alloy_rlp::{length_of_length, MaxEncodedLenAssoc};
 use ruint::Uint;
 use alloy_rlp::{
-    Decodable, Error, Header,
+    Error, Header,
 };
 use crate::rlp::decode::TelosDecodable;
-
-const MAX_BITS: usize = 55 * 8;
 
 /// Allows a [`Uint`] to be deserialized from RLP.
 ///

@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::time::Instant;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
-use antelope::chain::abi::ABI;
 use antelope::chain::{Decoder, Encoder};
 use dashmap::DashMap;
 use eyre::{Result};

@@ -2,7 +2,6 @@ use alloy_rlp::{Error, Header, Result};
 use bytes::{Bytes, BytesMut};
 use core::marker::{PhantomData, PhantomPinned};
 use std::borrow::Cow;
-use std::convert::TryInto;
 use std::rc::Rc;
 use std::sync::Arc;
 
