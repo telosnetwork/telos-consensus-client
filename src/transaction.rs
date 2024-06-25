@@ -35,7 +35,6 @@ impl Transaction {
         // TODO: Set trx_index properly for signed and unsigned transactions
         let signed_legacy_result = TxLegacy::decode_signed_fields(&mut raw.tx.clone().as_slice());
         if signed_legacy_result.is_err() {
-            info!("Failed to decode signed fields for transaction: {:?}", bytes_to_hex(&raw.tx.clone()));
             let address = Address::from(raw.sender.expect("Failed to get address from sender in unsigned transaction").data);
             let sig = make_unique_vrs(block_hash, address, trx_index);
             let unsigned_legacy = TxLegacy::decode_telos_signed_fields(&mut raw.tx.clone().as_slice(), sig);

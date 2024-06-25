@@ -52,7 +52,6 @@ pub struct PrintedReceipt {
     pub gasused: String,
     #[serde(deserialize_with = "deserialize_logs")]
     pub logs: Vec<Log>,
-    // pub logs: any[], // Define struct for this
     pub output: String,
     // pub errors: Option<any[],  // Define struct for this
     // pub itxs: any[], // Define struct for this

@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use alloy::primitives::Bloom;
 use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
@@ -62,7 +63,7 @@ pub struct Block {
     signed_block: Option<SignedBlock>,
     block_traces: Option<Vec<TransactionTrace>>,
     block_deltas: Option<Vec<TableDelta>>,
-    transactions: Vec<Transaction>,
+    pub transactions: Vec<Transaction>,
 }
 
 pub fn decode_raw(raw: &[u8]) -> RawAction {
@@ -172,6 +173,15 @@ impl Block {
                 }
             }
         }
+
+        let mut bloom = Bloom::default();
+        for trx in &self.transactions {
+            for log in trx.logs() {
+                //bloom.accrue(log);
+            }
+            //bloom.accrue(&trx.bloom());
+        }
+
 
         let block_header = Header {
             parent_hash: Default::default(),

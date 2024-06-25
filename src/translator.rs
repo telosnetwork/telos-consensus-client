@@ -9,6 +9,7 @@ use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use futures_util::{SinkExt, StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
 use tokio::net::TcpStream;
+use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 use tracing::{error, info};
 use crate::tasks::{block_deserializer, evm_block_generator};
@@ -77,85 +78,100 @@ impl Translator {
         tokio::task::spawn(block_deserializer(block_queue.clone(), self.block_map.clone()));
         tokio::task::spawn(evm_block_generator(START_BLOCK, self.block_map.clone(), api_client));
 
-        while let Some(msg_result) = ws_rx.next().await {
-            match msg_result {
-                Ok(msg) => {
-                    // ABI is always the first message sent on connect
-                    if self.ship_abi.is_none() {
-                        // TODO: maybe get this working as an ABI again?
-                        //   the problem is that the ABI from ship has invalid table names like `account_metadata`
-                        //   which cause from_string to fail, but if you change AbiTable.name to a String then
-                        //   when you use the ABI struct to pack for a contract deployment, it causes the table
-                        //   lookups via v1/chain/get_table_rows to fail because it doesn't like the string when
-                        //   it's trying to determine the index type of a table
-                        let abi_string = msg.to_string();
-                        //let abi = ABI::from_string(abi_string.as_str()).unwrap();
-                        self.ship_abi = Some(abi_string);
+        // Buffer size here should be the readahead buffer size, in blocks.  This could get large if we are reading
+        //  a block range with larges blocks/trxs, so this should be tuned based on the largest blocks we hit
+        let (reader_tx, mut reader_rx) = mpsc::channel::<Message>(10000);
 
-                        // Send GetStatus request after setting up the ABI
-                        let request = GetStatus(GetStatusRequestV0);
-                        write_message(&mut ws_tx, &request).await;
-                    } else {
-                        // Print received messages after ABI is set
-                        let msg_data = msg.into_data();
-                        //info!("Received message: {:?}", bytes_to_hex(&msg_data));
-                        // TODO: Better threading so we don't block reading while deserialize?
-                        let mut decoder = Decoder::new(msg_data.as_slice());
-                        let ship_result = &mut ShipResult::default();
-                        decoder.unpack(ship_result);
+       let read_task = tokio::spawn(async move {
+           // Read the websocket
+           while let Some(message) = ws_rx.next().await {
+               match message {
+                    Ok(msg) => {
+                        // write to the channel
+                        if reader_tx.send(msg).await.is_err() {
+                            println!("Receiver dropped");
+                            return;
+                        }
+                    },
+                    Err(e) => {
+                        println!("Error receiving message: {}", e);
+                        return;
+                    }
+                }
+            }
+        });
 
-                        match ship_result {
-                            ShipResult::GetStatusResultV0(r) => {
-                                info!("GetStatusResultV0 head: {:?} last_irreversible: {:?}", r.head.block_num, r.last_irreversible.block_num);
-                                self.latest_status = Some(Arc::new(ShipResult::GetStatusResultV0(r.clone())));
-                                write_message(&mut ws_tx, &ShipRequest::GetBlocks(GetBlocksRequestV0 {
-                                    start_block_num: START_BLOCK,
-                                    end_block_num: STOP_BLOCK,
-                                    max_messages_in_flight: 1000,
-                                    have_positions: vec![],
-                                    irreversible_only: true,  // TODO: Fork handling
-                                    fetch_block: true,
-                                    fetch_traces: true,
-                                    fetch_deltas: true,
+
+        while let Some(msg) = reader_rx.recv().await {
+            // ABI is always the first message sent on connect
+            if self.ship_abi.is_none() {
+                // TODO: maybe get this working as an ABI again?
+                //   the problem is that the ABI from ship has invalid table names like `account_metadata`
+                //   which cause from_string to fail, but if you change AbiTable.name to a String then
+                //   when you use the ABI struct to pack for a contract deployment, it causes the table
+                //   lookups via v1/chain/get_table_rows to fail because it doesn't like the string when
+                //   it's trying to determine the index type of a table
+                let abi_string = msg.to_string();
+                //let abi = ABI::from_string(abi_string.as_str()).unwrap();
+                self.ship_abi = Some(abi_string);
+
+                // Send GetStatus request after setting up the ABI
+                let request = GetStatus(GetStatusRequestV0);
+                write_message(&mut ws_tx, &request).await;
+            } else {
+                // Print received messages after ABI is set
+                let msg_data = msg.into_data();
+                //info!("Received message: {:?}", bytes_to_hex(&msg_data));
+                // TODO: Better threading so we don't block reading while deserialize?
+                let mut decoder = Decoder::new(msg_data.as_slice());
+                let ship_result = &mut ShipResult::default();
+                decoder.unpack(ship_result);
+
+                match ship_result {
+                    ShipResult::GetStatusResultV0(r) => {
+                        info!("GetStatusResultV0 head: {:?} last_irreversible: {:?}", r.head.block_num, r.last_irreversible.block_num);
+                        self.latest_status = Some(Arc::new(ShipResult::GetStatusResultV0(r.clone())));
+                        write_message(&mut ws_tx, &ShipRequest::GetBlocks(GetBlocksRequestV0 {
+                            start_block_num: START_BLOCK,
+                            end_block_num: STOP_BLOCK,
+                            max_messages_in_flight: 1000,
+                            have_positions: vec![],
+                            irreversible_only: true,  // TODO: Fork handling
+                            fetch_block: true,
+                            fetch_traces: true,
+                            fetch_deltas: true,
+                        })).await;
+                    }
+                    ShipResult::GetBlocksResultV0(r) => {
+                        unackd_blocks += 1;
+                        if let Some(b) = &r.this_block {
+                            let block = Block::new(CHAIN_ID, b.block_num, b.block_id, r.clone());
+                            block_queue.push(block);
+                            if last_log.elapsed().as_secs_f64() > 10.0 {
+                                info!("Block #{} - rocessed {} blocks/sec", b.block_num, (unlogged_blocks + unackd_blocks) as f64 / last_log.elapsed().as_secs_f64());
+                                info!("Block queue size: {} with capacity: {}", block_queue.len(), block_queue.capacity());
+                                unlogged_blocks = 0;
+                                last_log = Instant::now();
+                            }
+
+                            // TODO: Better logic here, don't just ack every N blocks, do this based on backpressure
+                            if b.block_num % 200 == 0 {
+                                //info!("Acking {} blocks", unackd_blocks);
+                                // TODO: Better threading so we don't block reading while we write?
+                                write_message(&mut ws_tx, &GetBlocksAck(GetBlocksAckRequestV0 {
+                                    num_messages: unackd_blocks
                                 })).await;
-                            }
-                            ShipResult::GetBlocksResultV0(r) => {
-                                unackd_blocks += 1;
-                                if let Some(b) = &r.this_block {
-                                    let block = Block::new(CHAIN_ID, b.block_num, b.block_id, r.clone());
-                                    block_queue.push(block);
-                                    if last_log.elapsed().as_secs_f64() > 10.0 {
-                                        info!("Block #{} - rocessed {} blocks/sec", b.block_num, (unlogged_blocks + unackd_blocks) as f64 / last_log.elapsed().as_secs_f64());
-                                        info!("Block queue size: {} with capacity: {}", block_queue.len(), block_queue.capacity());
-                                        unlogged_blocks = 0;
-                                        last_log = Instant::now();
-                                    }
+                                //info!("Blocks acked");
+                                unlogged_blocks += unackd_blocks;
+                                unackd_blocks = 0;
 
-                                    // TODO: Better logic here, don't just ack every N blocks, do this based on backpressure
-                                    if b.block_num % 200 == 0 {
-                                        //info!("Acking {} blocks", unackd_blocks);
-                                        // TODO: Better threading so we don't block reading while we write?
-                                        write_message(&mut ws_tx, &GetBlocksAck(GetBlocksAckRequestV0 {
-                                            num_messages: unackd_blocks
-                                        })).await;
-                                        //info!("Blocks acked");
-                                        unlogged_blocks += unackd_blocks;
-                                        unackd_blocks = 0;
-
-                                    }
-                                } else {
-                                    // TODO: why would this happen?
-                                    error!("GetBlocksResultV0 without a block");
-                                }
                             }
+                        } else {
+                            // TODO: why would this happen?
+                            error!("GetBlocksResultV0 without a block");
                         }
                     }
-                },
-                Err(e) => {
-                    // Log the error and break the loop
-                    info!("Error: {}", e);
-                    break;
-                },
+                }
             }
         }
 
