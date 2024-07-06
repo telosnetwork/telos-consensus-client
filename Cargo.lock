@@ -2665,7 +2665,7 @@ dependencies = [
 [[package]]
 name = "revm"
 version = "6.1.0"
-source = "git+https://github.com/telosnetwork/telos-revm?branch=telos-main#a140a195f7a18eee42f268de389c6c42e3f8e268"
+source = "git+https://github.com/telosnetwork/telos-revm?branch=telos-main#eba8b8da7ea0188fd31a1d8d142d072d8f70d03d"
 dependencies = [
  "auto_impl",
  "cfg-if",
@@ -2678,7 +2678,7 @@ dependencies = [
 [[package]]
 name = "revm-interpreter"
 version = "3.1.0"
-source = "git+https://github.com/telosnetwork/telos-revm?branch=telos-main#a140a195f7a18eee42f268de389c6c42e3f8e268"
+source = "git+https://github.com/telosnetwork/telos-revm?branch=telos-main#eba8b8da7ea0188fd31a1d8d142d072d8f70d03d"
 dependencies = [
  "revm-primitives",
  "serde",
@@ -2687,7 +2687,7 @@ dependencies = [
 [[package]]
 name = "revm-precompile"
 version = "4.1.0"
-source = "git+https://github.com/telosnetwork/telos-revm?branch=telos-main#a140a195f7a18eee42f268de389c6c42e3f8e268"
+source = "git+https://github.com/telosnetwork/telos-revm?branch=telos-main#eba8b8da7ea0188fd31a1d8d142d072d8f70d03d"
 dependencies = [
  "aurora-engine-modexp",
  "c-kzg",
@@ -2703,7 +2703,7 @@ dependencies = [
 [[package]]
 name = "revm-primitives"
 version = "2.1.0"
-source = "git+https://github.com/telosnetwork/telos-revm?branch=telos-main#a140a195f7a18eee42f268de389c6c42e3f8e268"
+source = "git+https://github.com/telosnetwork/telos-revm?branch=telos-main#eba8b8da7ea0188fd31a1d8d142d072d8f70d03d"
 dependencies = [
  "alloy-primitives",
  "auto_impl",
