@@ -153,10 +153,12 @@ mod std_impl {
         fn decode(buf: &mut &[u8]) -> Result<Self> {
             let bytes = Header::decode_bytes(buf, false)?;
             match bytes.len() {
-                4 => Ok(Self::V4(Ipv4Addr::from(slice_to_array::<4>(bytes).expect("infallible")))),
-                16 => {
-                    Ok(Self::V6(Ipv6Addr::from(slice_to_array::<16>(bytes).expect("infallible"))))
-                }
+                4 => Ok(Self::V4(Ipv4Addr::from(
+                    slice_to_array::<4>(bytes).expect("infallible"),
+                ))),
+                16 => Ok(Self::V6(Ipv6Addr::from(
+                    slice_to_array::<16>(bytes).expect("infallible"),
+                ))),
                 _ => Err(Error::UnexpectedLength),
             }
         }

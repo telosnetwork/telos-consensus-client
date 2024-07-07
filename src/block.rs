@@ -1,13 +1,15 @@
-use std::cmp::Ordering;
+use crate::transaction::Transaction;
+use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
+use crate::types::names::*;
+use crate::types::ship_types::{
+    ActionTrace, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
+};
+use crate::types::types::NameToAddressCache;
 use alloy::primitives::Bloom;
 use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
-use crate::transaction::Transaction;
-use crate::types::evm_types::{RawAction, PrintedReceipt, TransferAction, WithdrawAction};
-use crate::types::ship_types::{ActionTrace, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace};
-use crate::types::names::*;
-use crate::types::types::NameToAddressCache;
+use std::cmp::Ordering;
 
 pub trait BasicTrace {
     fn action_name(&self) -> u64;
@@ -56,6 +58,7 @@ impl BasicTrace for ActionTrace {
 
 #[derive(Clone)]
 pub struct Block {
+    pub sequence: u64,
     pub block_num: u32,
     block_hash: Checksum256,
     chain_id: u64,
@@ -88,8 +91,15 @@ pub fn decode_withdraw(raw: &[u8]) -> WithdrawAction {
 }
 
 impl Block {
-    pub fn new(chain_id: u64, block_num: u32, block_hash: Checksum256, result: GetBlocksResultV0) -> Self {
+    pub fn new(
+        chain_id: u64,
+        sequence: u64,
+        block_num: u32,
+        block_hash: Checksum256,
+        result: GetBlocksResultV0,
+    ) -> Self {
         Self {
+            sequence,
             block_num,
             block_hash,
             chain_id,
@@ -99,6 +109,11 @@ impl Block {
             block_deltas: None,
             transactions: vec![],
         }
+    }
+
+    pub async fn process(&mut self, name_to_address_cache: &NameToAddressCache) {
+        self.deserialize();
+        self.generate_evm_data(name_to_address_cache).await;
     }
 
     pub fn deserialize(&mut self) {
@@ -124,7 +139,11 @@ impl Block {
         }
     }
 
-    async fn handle_action(&mut self, action: Box<dyn BasicTrace + Send>, native_to_evm_cache: &NameToAddressCache) {
+    async fn handle_action(
+        &mut self,
+        action: Box<dyn BasicTrace + Send>,
+        native_to_evm_cache: &NameToAddressCache,
+    ) {
         let action_name = action.action_name();
         let action_account = action.action_account();
         let action_receiver = action.receiver();
@@ -134,23 +153,50 @@ impl Block {
             let raw = decode_raw(&action.data());
             let printed_receipt = PrintedReceipt::from_console(action.console());
             if printed_receipt.is_none() {
-                panic!("No printed receipt found for raw action in block: {}", self.block_num);
+                panic!(
+                    "No printed receipt found for raw action in block: {}",
+                    self.block_num
+                );
             }
-            let transaction = Transaction::from_raw_action(self.chain_id, self.transactions.len(), self.block_hash, raw, printed_receipt.unwrap()).await;
+            let transaction = Transaction::from_raw_action(
+                self.chain_id,
+                self.transactions.len(),
+                self.block_hash,
+                raw,
+                printed_receipt.unwrap(),
+            )
+            .await;
             self.transactions.push(transaction);
         } else if action_account == EOSIO_EVM && action_name == WITHDRAW {
             // Withdrawal from EVM
             let withdraw_action = decode_withdraw(&action.data());
-            let transaction = Transaction::from_withdraw(self.chain_id, self.transactions.len(), self.block_hash, withdraw_action, native_to_evm_cache).await;
+            let transaction = Transaction::from_withdraw(
+                self.chain_id,
+                self.transactions.len(),
+                self.block_hash,
+                withdraw_action,
+                native_to_evm_cache,
+            )
+            .await;
             self.transactions.push(transaction);
-        } else if action_account == EOSIO_TOKEN && action_name == TRANSFER && action_receiver == EOSIO_EVM {
+        } else if action_account == EOSIO_TOKEN
+            && action_name == TRANSFER
+            && action_receiver == EOSIO_EVM
+        {
             // Deposit/transfer to EVM
             let transfer_action = decode_transfer(&action.data());
             if SYSTEM_ACCOUNTS.contains(&transfer_action.from.n) {
                 return;
             }
 
-            let transaction = Transaction::from_transfer(self.chain_id, self.transactions.len(), self.block_hash, transfer_action, native_to_evm_cache).await;
+            let transaction = Transaction::from_transfer(
+                self.chain_id,
+                self.transactions.len(),
+                self.block_hash,
+                transfer_action,
+                native_to_evm_cache,
+            )
+            .await;
             self.transactions.push(transaction.clone());
         } else if action_account == EOSIO_EVM && action_name == DORESOURCES {
             // TODO: Handle doresources action
@@ -158,7 +204,8 @@ impl Block {
     }
 
     pub async fn generate_evm_data(&mut self, native_to_evm_cache: &NameToAddressCache) {
-        if self.signed_block.is_none() || self.block_traces.is_none() || self.block_deltas.is_none() {
+        if self.signed_block.is_none() || self.block_traces.is_none() || self.block_deltas.is_none()
+        {
             panic!("Block::to_evm called on a block with missing data");
         }
 
@@ -168,7 +215,8 @@ impl Block {
             match t {
                 TransactionTrace::V0(t) => {
                     for action in t.action_traces {
-                        self.handle_action(Box::new(action), &native_to_evm_cache).await;
+                        self.handle_action(Box::new(action), &native_to_evm_cache)
+                            .await;
                     }
                 }
             }
@@ -181,7 +229,6 @@ impl Block {
             }
             //bloom.accrue(&trx.bloom());
         }
-
 
         let block_header = Header {
             parent_hash: Default::default(),
@@ -207,7 +254,6 @@ impl Block {
             extra_data: Default::default(),
         };
         //info!("Block hash: {:?}", block_header.hash_slow());
-
     }
 }
 

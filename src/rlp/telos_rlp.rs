@@ -1,8 +1,6 @@
-use ruint::Uint;
-use alloy_rlp::{
-    Error, Header,
-};
 use crate::rlp::decode::TelosDecodable;
+use alloy_rlp::{Error, Header};
+use ruint::Uint;
 
 /// Allows a [`Uint`] to be deserialized from RLP.
 ///

@@ -1,12 +1,12 @@
-use alloy::primitives::{Address, address, B256, Bytes, Log};
-use antelope::serializer::Decoder;
-use antelope::serializer::Encoder;
+use alloy::primitives::{address, Address, Bytes, Log, B256};
 use antelope::chain::asset::Asset;
 use antelope::chain::checksum::{Checksum160, Checksum256};
 use antelope::chain::name::Name;
-use antelope::StructPacker;
 use antelope::chain::Packer;
+use antelope::serializer::Decoder;
+use antelope::serializer::Encoder;
 use antelope::util::hex_to_bytes;
+use antelope::StructPacker;
 use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
@@ -80,7 +80,11 @@ where
     let mut logs = vec![];
     for log in log_helpers {
         let address = log.address();
-        let topics = log.topics.into_iter().map(|topic| to_b256(&topic)).collect();
+        let topics = log
+            .topics
+            .into_iter()
+            .map(|topic| to_b256(&topic))
+            .collect();
         let data = log.data.parse().expect("Invalid data");
         logs.push(Log::new(address, topics, data).unwrap());
     }

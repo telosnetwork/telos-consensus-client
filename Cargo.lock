@@ -3119,6 +3119,7 @@ dependencies = [
  "eyre",
  "futures-util",
  "k256",
+ "log",
  "moka",
  "num-bigint",
  "rlp",

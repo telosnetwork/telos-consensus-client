@@ -24,5 +24,4 @@ fn decode_block() {
             }
         }
     }
-
 }

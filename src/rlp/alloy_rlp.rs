@@ -1,9 +1,9 @@
+use crate::rlp::decode::TelosDecodable;
 use alloy::primitives::private::alloy_rlp::{Decodable, Error, Header};
 use alloy::primitives::{Bytes, Signature, TxKind, U256};
 use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
-use alloy_rlp::Result;
 use alloy_rlp::Error::{InputTooShort, UnexpectedLength};
-use crate::rlp::decode::TelosDecodable;
+use alloy_rlp::Result;
 
 fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy> {
     let nonce = u64::decode(data).expect("Failed to decode nonce");
@@ -25,11 +25,19 @@ fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy> {
 }
 
 pub trait TelosTxDecodable {
-    fn decode_telos_signed_fields(buf: &mut &[u8], sig: Signature) -> alloy::primitives::private::alloy_rlp::Result<Signed<Self>> where Self: Sized;
+    fn decode_telos_signed_fields(
+        buf: &mut &[u8],
+        sig: Signature,
+    ) -> alloy::primitives::private::alloy_rlp::Result<Signed<Self>>
+    where
+        Self: Sized;
 }
 
 impl TelosTxDecodable for TxLegacy {
-    fn decode_telos_signed_fields(buf: &mut &[u8], sig: Signature) -> alloy::primitives::private::alloy_rlp::Result<Signed<Self>> {
+    fn decode_telos_signed_fields(
+        buf: &mut &[u8],
+        sig: Signature,
+    ) -> alloy::primitives::private::alloy_rlp::Result<Signed<Self>> {
         let header = Header::decode(buf)?;
         if !header.list {
             return Err(alloy::primitives::private::alloy_rlp::Error::UnexpectedString);
@@ -53,10 +61,12 @@ impl TelosTxDecodable for TxLegacy {
 
         let signed = tx.into_signed(sig);
         if buf.len() + header.payload_length != original_len {
-            return Err(alloy::primitives::private::alloy_rlp::Error::ListLengthMismatch {
-                expected: header.payload_length,
-                got: original_len - buf.len(),
-            });
+            return Err(
+                alloy::primitives::private::alloy_rlp::Error::ListLengthMismatch {
+                    expected: header.payload_length,
+                    got: original_len - buf.len(),
+                },
+            );
         }
 
         Ok(signed)
@@ -78,9 +88,11 @@ impl TelosDecodable for TxLegacy {
 
         // If we still have data, it should be an eip-155 encoded chain_id
         if !data.is_empty() {
-            transaction.chain_id = Some(TelosDecodable::decode_telos(data).expect("Failed to decode chain id"));
+            transaction.chain_id =
+                Some(TelosDecodable::decode_telos(data).expect("Failed to decode chain id"));
             let _r: U256 = TelosDecodable::decode_telos(data).expect("Failed to decode r value"); // r
-            let _s: U256 = TelosDecodable::decode_telos(data).expect("Failed to decode s value"); // s
+            let _s: U256 = TelosDecodable::decode_telos(data).expect("Failed to decode s value");
+            // s
         }
 
         let decoded = remaining_len - data.len();
@@ -90,7 +102,6 @@ impl TelosDecodable for TxLegacy {
 
         Ok(transaction)
     }
-
 }
 
 impl TelosDecodable for U256 {
