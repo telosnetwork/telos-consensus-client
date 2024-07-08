@@ -98,7 +98,7 @@ impl ArrowFileBlockReader {
         };
 
         let mut txs = Vec::new();
-        match &block[11] {
+        match &block[12] {
             ArrowBatchTypes::StructArray(values) => {
                  for tx_struct_value in values {
                      let tx_struct: TxStruct = serde_json::from_value(tx_struct_value.clone()).unwrap();
