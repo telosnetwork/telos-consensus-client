@@ -42,10 +42,7 @@ impl ArrowFileBlockReader {
         tokio::spawn(async move {
             loop {
                 sleep(Duration::from_secs(5)).await;
-                let mut context = context_clone.lock().unwrap();
-                println!("pre reload: {:?}", context.last_ordinal);
-                context.reload_on_disk_buckets();
-                println!("post reload: {:?}", context.last_ordinal);
+                context_clone.lock().unwrap().reload_on_disk_buckets();
             }
         });
 
@@ -96,6 +93,10 @@ impl ArrowFileBlockReader {
             ArrowBatchTypes::UVar(value) => value.clone().to_string().parse().expect("Gas used is not a valid u64"),
             _ => panic!("Invalid type for receipt_hash")
         };
+        let logs_bloom = match &block[9] {
+            ArrowBatchTypes::Bytes(bloom_bytes) => bloom_bytes,
+            _ => panic!("Invalid type for logs_bloom")
+        };
 
         let mut txs = Vec::new();
         match &block[12] {
@@ -117,7 +118,7 @@ impl ArrowFileBlockReader {
                 fee_recipient: Address::ZERO,
                 state_root: null_hash!(),
                 receipts_root: FixedBytes::from_hex(receipt_hash).unwrap(),
-                logs_bloom: Bloom::default(),
+                logs_bloom: Bloom::from_slice(&logs_bloom),
                 prev_randao: Default::default(),
                 block_number: block_num,
                 gas_limit: 0x7fffffffu64,
