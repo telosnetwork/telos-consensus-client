@@ -300,8 +300,8 @@ mod tests {
     const CREATE_WALLET_BLOCK: u64 = 344680644;
     const OPEN_WALLET_BLOCK: u64 = 348379125;
 
-    #[test]
-    fn test_arrow_block_reader() {
+    #[tokio::test]
+    async fn test_arrow_block_reader() {
         let config = ArrowBatchConfig {
             data_dir: "/data/arrow-data-full".to_string(),
             bucket_size: 10_000_000_u64,

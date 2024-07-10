@@ -6,8 +6,6 @@ use crate::config::{AppConfig, CliArgs};
 use clap::Parser;
 
 mod auth;
-mod block_reader;
-mod sequential_block_reader;
 mod arrow_block_reader;
 mod client;
 mod config;
