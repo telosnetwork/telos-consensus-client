@@ -9,6 +9,7 @@ use reth_primitives::{hex, U256};
 use reth_rpc_types::ExecutionPayloadV1;
 
 use reth_telos::{
+    deserialize_u256,
     TelosAccountTableRow,
     TelosAccountStateTableRow
 };
@@ -60,7 +61,11 @@ pub struct RevisionChange(u64, u64);
  *  ]
  */
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GasPriceChange(u64, String);
+pub struct GasPriceChange(
+    u64,
+    #[serde(deserialize_with = "deserialize_u256")]
+    U256
+);
 
 /* Example OpenWallet:
  * Block 348379125
@@ -210,7 +215,7 @@ impl ArrowFileBlockReader {
 
                     gas_price_changes.push((
                         gas_price_change.0,
-                        U256::from_str_radix(&gas_price_change.1, 16).expect("Invalid string hex U256")
+                        gas_price_change.1
                     ));
                 }
             },
