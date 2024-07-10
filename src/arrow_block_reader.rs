@@ -60,7 +60,7 @@ pub struct RevisionChange(u64, u64);
  *  ]
  */
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GasPriceChange(u64, U256);
+pub struct GasPriceChange(u64, String);
 
 /* Example OpenWallet:
  * Block 348379125
@@ -208,7 +208,10 @@ impl ArrowFileBlockReader {
                     let gas_price_change: GasPriceChange = serde_json::from_value(gas_price_change_value.clone())
                         .expect("Could not deserialize gas change");
 
-                    gas_price_changes.push((gas_price_change.0, gas_price_change.1));
+                    gas_price_changes.push((
+                        gas_price_change.0,
+                        U256::from_str_radix(&gas_price_change.1, 16).expect("Invalid string hex U256")
+                    ));
                 }
             },
             _ => panic!("Invalid type for gas price changes")
@@ -232,7 +235,7 @@ impl ArrowFileBlockReader {
             ArrowBatchTypes::StructArray(values) => {
                 for wallet_event_value in values {
                     let wallet_event: AddressCreationEvent = serde_json::from_value(wallet_event_value.clone())
-                        .expect("Could not deserialize gas change");
+                        .expect("Could not deserialize new open wallet");
 
                     new_addresses_using_openwallet.push((
                         wallet_event.0,
@@ -240,7 +243,7 @@ impl ArrowFileBlockReader {
                     ));
                 }
             },
-            _ => panic!("Invalid type for gas price changes")
+            _ => panic!("Invalid type for new openwallet addresses")
         };
 
         let mut new_addresses_using_create = Vec::new();
@@ -248,7 +251,7 @@ impl ArrowFileBlockReader {
             ArrowBatchTypes::StructArray(values) => {
                 for wallet_event_value in values {
                     let wallet_event: AddressCreationEvent = serde_json::from_value(wallet_event_value.clone())
-                        .expect("Could not deserialize gas change");
+                        .expect("Could not deserialize new create wallet");
 
                     let acc_row: &TelosAccountTableRow = statediffs_account.iter().find(|delta| delta.account == wallet_event.1)
                         .expect("Could not find a matching account delta for the create event");
@@ -256,7 +259,7 @@ impl ArrowFileBlockReader {
                     new_addresses_using_create.push((wallet_event.0, U256::from_be_slice(acc_row.address.as_slice())));
                 }
             },
-            _ => panic!("Invalid type for gas price changes")
+            _ => panic!("Invalid type for new create addresses")
         };
 
 
