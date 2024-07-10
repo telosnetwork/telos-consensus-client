@@ -10,7 +10,7 @@ use reth_rpc_types::{Block, ExecutionPayloadV1};
 use reth_rpc_types::engine::ForkchoiceState;
 use serde_json::json;
 use tokio::time::sleep;
-use crate::arrow_block_reader::ArrowFileBlockReader;
+use crate::arrow_block_reader::{ArrowFileBlockReader, FullExecutionPayload};
 use crate::json_rpc::JsonResponseBody;
 
 pub struct ConsensusClient {
@@ -56,7 +56,7 @@ impl ConsensusClient {
 
         let mut next_block_number = self.latest_valid_executor_block.header.number.unwrap().to::<u64>() + 1;
         let mut batch_count = 0;
-        let mut last_block_number = self.reader.get_latest_block().unwrap().block_number;
+        let mut last_block_number = self.reader.get_latest_block().unwrap().payload.block_number;
 
         let mut last_log_time = std::time::Instant::now();
         loop {
@@ -87,14 +87,14 @@ impl ConsensusClient {
 
     async fn do_batch(&self, from_block: u64, to_block: u64) {
         let mut next_block_number = from_block;
-        let mut new_blocks: Vec<ExecutionPayloadV1>;
+        let mut new_blocks: Vec<FullExecutionPayload>;
 
         while next_block_number < to_block {
             new_blocks = vec![];
 
             while new_blocks.len().as_u64() < BATCH_SIZE {
                 if let Some(block) = self.reader.get_block(next_block_number) {
-                    next_block_number = block.block_number + 1;
+                    next_block_number = block.payload.block_number + 1;
                     new_blocks.push(block);
                 } else {
                     break;
@@ -108,7 +108,15 @@ impl ConsensusClient {
             let rpc_batch = new_blocks.iter().map(|block| {
                 RpcRequest {
                     method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
-                    params: json![vec![block]],
+                    params: json![vec![
+                        block.payload.clone(),
+                        //block.statediffs_account,
+                        //block.statediffs_accountstate,
+                        //block.revision_changes,
+                        //block.gas_price_changes,
+                        //block.new_addresses_using_create,
+                        //block.new_addresses_using_openwallet
+                    ]],
                 }
             }).collect::<Vec<RpcRequest>>();
 
@@ -118,9 +126,9 @@ impl ConsensusClient {
 
             let last_block_sent = new_blocks.last().unwrap();
             let fork_choice_updated_result = self.fork_choice_updated(
-                last_block_sent.block_hash,
-                last_block_sent.block_hash,
-                last_block_sent.block_hash,
+                last_block_sent.payload.block_hash,
+                last_block_sent.payload.block_hash,
+                last_block_sent.payload.block_hash,
             ).await;
 
             // TODO: Check status of fork_choice_updated_result and handle the failure case
@@ -130,7 +138,7 @@ impl ConsensusClient {
     }
 
     fn get_latest_consensus_block(reader: &ArrowFileBlockReader) -> ExecutionPayloadV1 {
-        reader.get_latest_block().unwrap().clone()
+        reader.get_latest_block().unwrap().payload.clone()
     }
 
     async fn fork_choice_updated(&self, head_hash: B256, safe_hash: B256, finalized_hash: B256) -> JsonResponseBody {
@@ -163,11 +171,11 @@ impl ConsensusClient {
                 self.latest_valid_executor_block.header.number.unwrap().to::<u64>(),
             ).unwrap();
 
-        println!("Consensus for latest executor block:\nhash {:?}\nparentHash {:?}\nnumber {:?}", consensus_for_latest_executor_block.block_hash, consensus_for_latest_executor_block.parent_hash, consensus_for_latest_executor_block.block_number);
+        println!("Consensus for latest executor block:\nhash {:?}\nparentHash {:?}\nnumber {:?}", consensus_for_latest_executor_block.payload.block_hash, consensus_for_latest_executor_block.payload.parent_hash, consensus_for_latest_executor_block.payload.block_number);
         println!("Latest executor block:\nhash {:?}\nparentHash {:?}\nnumber {:?}", self.latest_valid_executor_block.header.hash.unwrap(), self.latest_valid_executor_block.header.parent_hash, self.latest_valid_executor_block.header.number.unwrap().to_string());
         let mut count = 0u64;
         let latest_executor_hash = self.latest_valid_executor_block.header.hash.unwrap();
-        let consensus_for_latest_executor_hash = consensus_for_latest_executor_block.block_hash;
+        let consensus_for_latest_executor_hash = consensus_for_latest_executor_block.payload.block_hash;
 
         self.is_forked = latest_executor_hash != consensus_for_latest_executor_hash;
 
@@ -198,7 +206,7 @@ impl ConsensusClient {
                     self.latest_valid_executor_block.header.number.unwrap().to::<u64>(),
                 ).unwrap();
 
-            self.is_forked = consensus_for_latest_executor_block.block_hash
+            self.is_forked = consensus_for_latest_executor_block.payload.block_hash
                 != self.latest_valid_executor_block.header.hash.unwrap();
         }
 
