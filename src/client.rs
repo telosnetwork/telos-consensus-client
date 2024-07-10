@@ -110,12 +110,12 @@ impl ConsensusClient {
                     method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
                     params: json![vec![
                         block.payload.clone(),
-                        //block.statediffs_account,
-                        //block.statediffs_accountstate,
-                        //block.revision_changes,
-                        //block.gas_price_changes,
-                        //block.new_addresses_using_create,
-                        //block.new_addresses_using_openwallet
+                        block.statediffs_account,
+                        block.statediffs_accountstate,
+                        block.revision_changes,
+                        block.gas_price_changes,
+                        block.new_addresses_using_create,
+                        block.new_addresses_using_openwallet
                     ]],
                 }
             }).collect::<Vec<RpcRequest>>();

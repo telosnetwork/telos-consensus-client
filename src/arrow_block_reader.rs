@@ -300,8 +300,9 @@ impl ArrowFileBlockReader {
 #[cfg(test)]
 mod tests {
     use arrowbatch::reader::{ArrowBatchConfig, ArrowBatchContext};
+    use reth_primitives::U256;
 
-    use crate::arrow_block_reader::ArrowFileBlockReader;
+    use crate::arrow_block_reader::{ArrowFileBlockReader, FullExecutionPayload};
 
     const GAS_CHANGE_BLOCK: u64 = 261916623;
     const REV_CHANGE_BLOCK: u64 = 332317496;
@@ -320,16 +321,35 @@ mod tests {
 
         let reader = ArrowFileBlockReader::new(context.clone());
 
-        let mut target_block = reader.get_block(GAS_CHANGE_BLOCK).unwrap();
+        let mut target_block: FullExecutionPayload;
+
+        target_block = reader.get_block(GAS_CHANGE_BLOCK).unwrap();
         assert_eq!(target_block.gas_price_changes.len(), 1);
+        assert_eq!(target_block.gas_price_changes.first().unwrap().0, 0);
+        assert_eq!(
+            target_block.gas_price_changes.first().unwrap().1,
+            U256::from_str_radix("0000000000000000000000000000000000000000000000000000007548a6d7b3", 16).unwrap()
+        );
 
         target_block = reader.get_block(REV_CHANGE_BLOCK).unwrap();
         assert_eq!(target_block.revision_changes.len(), 1);
+        assert_eq!(target_block.revision_changes.first().unwrap().0, 0);
+        assert_eq!(target_block.revision_changes.first().unwrap().1, 1);
 
         target_block = reader.get_block(CREATE_WALLET_BLOCK).unwrap();
         assert_eq!(target_block.new_addresses_using_create.len(), 1);
+        assert_eq!(target_block.new_addresses_using_create.first().unwrap().0, 0);
+        assert_eq!(
+            target_block.new_addresses_using_create.first().unwrap().1,
+            U256::from_str_radix("f42c8cc248b4f6548861e3bae31d065505e379f1", 16).unwrap()
+        );
 
         target_block = reader.get_block(OPEN_WALLET_BLOCK).unwrap();
         assert_eq!(target_block.new_addresses_using_openwallet.len(), 1);
+        assert_eq!(target_block.new_addresses_using_openwallet.first().unwrap().0, 0);
+        assert_eq!(
+            target_block.new_addresses_using_openwallet.first().unwrap().1,
+            U256::from_str_radix("70bffd7e97615c49462e57d63d2d1ed61e68c134", 16).unwrap()
+        );
     }
 }
