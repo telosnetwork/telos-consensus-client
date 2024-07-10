@@ -88,7 +88,7 @@ pub struct GasPriceChange(
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AddressCreationEvent(u64, String, String);
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub struct FullExecutionPayload {
     pub payload: ExecutionPayloadV1,
     pub statediffs_account: Vec<TelosAccountTableRow>,

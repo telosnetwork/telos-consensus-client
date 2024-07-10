@@ -108,15 +108,7 @@ impl ConsensusClient {
             let rpc_batch = new_blocks.iter().map(|block| {
                 RpcRequest {
                     method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
-                    params: json![vec![
-                        block.payload.clone(),
-                        block.statediffs_account,
-                        block.statediffs_accountstate,
-                        block.revision_changes,
-                        block.gas_price_changes,
-                        block.new_addresses_using_create,
-                        block.new_addresses_using_openwallet
-                    ]],
+                    params: json![block],
                 }
             }).collect::<Vec<RpcRequest>>();
 
