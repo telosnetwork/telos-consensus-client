@@ -139,7 +139,10 @@ pub struct AddressMapRecord {
 pub const ADDR_MAP_PATH: &str = "addr_map.csv";
 
 fn read_csv_to_hashmap(file_path: &str) -> Result<HashMap<u64, Address>, Box<dyn std::error::Error>> {
-    let mut rdr = ReaderBuilder::new().from_path(file_path)?;
+    let mut rdr = ReaderBuilder::new()
+        .has_headers(false)
+        .from_path(file_path)?;
+
     let mut map = HashMap::new();
 
     for result in rdr.deserialize() {
@@ -151,19 +154,14 @@ fn read_csv_to_hashmap(file_path: &str) -> Result<HashMap<u64, Address>, Box<dyn
 }
 
 fn append_record_to_csv(file_path: &str, record: &AddressMapRecord) -> Result<(), Box<dyn std::error::Error>> {
-    let file_exists = Path::new(file_path).exists();
     let file = OpenOptions::new()
         .append(true)
         .create(true)
         .open(file_path)?;
 
     let mut wtr = WriterBuilder::new()
-        .has_headers(!file_exists)
+        .has_headers(false)
         .from_writer(file);
-
-    if !file_exists {
-        wtr.write_record(&["index", "address"])?;
-    }
 
     wtr.serialize(record)?;
     wtr.flush()?;
