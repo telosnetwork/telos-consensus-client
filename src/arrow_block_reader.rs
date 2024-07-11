@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+use std::fs::{self, OpenOptions};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use csv::{ReaderBuilder, WriterBuilder};
 use serde::{Serialize, Deserialize};
 use alloy_primitives::{FixedBytes, Address, Bytes, Bloom, B256};
 use alloy_primitives::hex::FromHex;
@@ -41,6 +45,7 @@ pub struct TxStruct {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountDelta {
+    pub index: u64,
     pub address: String,
     pub account: String,
     pub nonce: u64,
@@ -63,15 +68,15 @@ impl AccountDelta {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountStateDelta {
-    pub address: String,
+    pub index: u64,
     pub key: String,
     pub value: String
 }
 
 impl AccountStateDelta {
-    pub fn to_reth_type(&self) -> TelosAccountStateTableRow {
+    pub fn to_reth_type(&self, addr: &Address) -> TelosAccountStateTableRow {
         TelosAccountStateTableRow {
-            address: Address::from_hex(self.address.clone()).expect("Could not parse address on account state delta"),
+            address: addr.clone(),
             key: U256::from_str_radix(&self.key, 16).expect("Could not parse key on account state delta"),
             value: U256::from_str_radix(&self.value, 16).expect("Could not parse value on account state delta")
         }
@@ -125,6 +130,47 @@ pub struct GasPriceChange(
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AddressCreationEvent(u64, String, String);
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AddressMapRecord {
+    index: u64,
+    address: Address
+}
+
+pub const ADDR_MAP_PATH: &str = "addr_map.csv";
+
+fn read_csv_to_hashmap(file_path: &str) -> Result<HashMap<u64, Address>, Box<dyn std::error::Error>> {
+    let mut rdr = ReaderBuilder::new().from_path(file_path)?;
+    let mut map = HashMap::new();
+
+    for result in rdr.deserialize() {
+        let record: AddressMapRecord = result?;
+        map.insert(record.index, record.address);
+    }
+
+    Ok(map)
+}
+
+fn append_record_to_csv(file_path: &str, record: &AddressMapRecord) -> Result<(), Box<dyn std::error::Error>> {
+    let file_exists = Path::new(file_path).exists();
+    let file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(file_path)?;
+
+    let mut wtr = WriterBuilder::new()
+        .has_headers(!file_exists)
+        .from_writer(file);
+
+    if !file_exists {
+        wtr.write_record(&["index", "address"])?;
+    }
+
+    wtr.serialize(record)?;
+    wtr.flush()?;
+
+    Ok(())
+}
+
 #[derive(Serialize, Debug, Clone)]
 pub struct FullExecutionPayload {
     pub payload: ExecutionPayloadV1,
@@ -139,6 +185,7 @@ pub struct FullExecutionPayload {
 pub struct ArrowFileBlockReader {
     last_block: Option<FullExecutionPayload>,
     reader: ArrowBatchReader,
+    addr_map: Arc<Mutex<HashMap<u64, Address>>>
 }
 
 impl ArrowFileBlockReader {
@@ -155,9 +202,16 @@ impl ArrowFileBlockReader {
             }
         });
 
+        let addr_map = if fs::metadata(ADDR_MAP_PATH).is_ok() {
+            read_csv_to_hashmap(ADDR_MAP_PATH).unwrap()
+        } else {
+            HashMap::new()
+        };
+
         ArrowFileBlockReader {
             last_block,
             reader: ArrowBatchReader::new(context.clone()),
+            addr_map: Arc::new(Mutex::new(addr_map))
         }
     }
 
@@ -226,6 +280,16 @@ impl ArrowFileBlockReader {
             ArrowBatchTypes::StructArray(values) => {
                 for acc_delta_value in values {
                     let acc_delta: AccountDelta = serde_json::from_value(acc_delta_value.clone()).unwrap();
+                    let mut addr_map = self.addr_map.lock().unwrap();
+                    if !addr_map.contains_key(&acc_delta.index) {
+                        let record = AddressMapRecord {
+                            index: acc_delta.index,
+                            address: Address::from_hex(acc_delta.address.clone()).expect("Failed to decode account delta address")
+                        };
+                        addr_map.insert(record.index, record.address);
+                        append_record_to_csv(ADDR_MAP_PATH, &record).expect("failed to append record to addr map file");
+                    }
+                    drop(addr_map);
                     statediffs_account.push(acc_delta.to_reth_type());
                 }
             },
@@ -237,7 +301,11 @@ impl ArrowFileBlockReader {
             ArrowBatchTypes::StructArray(values) => {
                 for acc_state_delta_value in values {
                     let acc_state_delta: AccountStateDelta = serde_json::from_value(acc_state_delta_value.clone()).unwrap();
-                    statediffs_accountstate.push(acc_state_delta.to_reth_type());
+                    let addr_map = self.addr_map.lock().unwrap();
+                    let addr = addr_map.get(&acc_state_delta.index)
+                        .expect("Cannot figure out address for account state delta");
+                    statediffs_accountstate.push(acc_state_delta.to_reth_type(addr));
+                    drop(addr_map);
                 }
             },
             _ => panic!("Invalid type for account state deltas")
