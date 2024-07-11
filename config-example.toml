@@ -4,3 +4,5 @@ base_url = "http://localhost:8551"
 jwt_secret = "57ea261c64b8a871e4df3f0c790e12343567890483e3098f30118fd1520"
 # The path to arrow data directory
 arrow_data = "/telos/repos/telos-consensus-client/arrow-data"
+# Blocks between finalize calls
+batch_size = 200

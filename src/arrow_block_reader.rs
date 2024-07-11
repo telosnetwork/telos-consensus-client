@@ -9,7 +9,6 @@ use reth_primitives::{hex, U256};
 use reth_rpc_types::ExecutionPayloadV1;
 
 use reth_telos::{
-    deserialize_u256,
     TelosAccountTableRow,
     TelosAccountStateTableRow
 };
@@ -40,6 +39,44 @@ pub struct TxStruct {
     raw: String
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountDelta {
+    pub address: String,
+    pub account: String,
+    pub nonce: u64,
+    pub code: String,
+    pub balance: String
+}
+
+impl AccountDelta {
+    pub fn to_reth_type(&self) -> TelosAccountTableRow {
+        TelosAccountTableRow {
+            address: Address::from_hex(self.address.clone()).expect("Could not parse address on account delta"),
+            account: self.account.clone(),
+            nonce: self.nonce,
+            code: Bytes::from_hex(self.code.clone()).expect("Could not parse code on account delta"),
+            balance: U256::from_str_radix(&self.balance, 16).expect("Could not parse balance on account delta")
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountStateDelta {
+    pub address: String,
+    pub key: String,
+    pub value: String
+}
+
+impl AccountStateDelta {
+    pub fn to_reth_type(&self) -> TelosAccountStateTableRow {
+        TelosAccountStateTableRow {
+            address: Address::from_hex(self.address.clone()).expect("Could not parse address on account state delta"),
+            key: U256::from_str_radix(&self.key, 16).expect("Could not parse key on account state delta"),
+            value: U256::from_str_radix(&self.value, 16).expect("Could not parse value on account state delta")
+        }
+    }
+}
+
 
 /* Example:
  * Block 332317496
@@ -63,7 +100,6 @@ pub struct RevisionChange(u64, u64);
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GasPriceChange(
     u64,
-    #[serde(deserialize_with = "deserialize_u256")]
     U256
 );
 
@@ -188,8 +224,8 @@ impl ArrowFileBlockReader {
         match &block[13] {
             ArrowBatchTypes::StructArray(values) => {
                 for acc_delta_value in values {
-                    let acc_delta: TelosAccountTableRow = serde_json::from_value(acc_delta_value.clone()).unwrap();
-                    statediffs_account.push(acc_delta);
+                    let acc_delta: AccountDelta = serde_json::from_value(acc_delta_value.clone()).unwrap();
+                    statediffs_account.push(acc_delta.to_reth_type());
                 }
             },
             _ => panic!("Invalid type for account deltas")
@@ -199,8 +235,8 @@ impl ArrowFileBlockReader {
         match &block[14] {
             ArrowBatchTypes::StructArray(values) => {
                 for acc_state_delta_value in values {
-                    let acc_state_delta: TelosAccountStateTableRow = serde_json::from_value(acc_state_delta_value.clone()).unwrap();
-                    statediffs_accountstate.push(acc_state_delta);
+                    let acc_state_delta: AccountStateDelta = serde_json::from_value(acc_state_delta_value.clone()).unwrap();
+                    statediffs_accountstate.push(acc_state_delta.to_reth_type());
                 }
             },
             _ => panic!("Invalid type for account state deltas")

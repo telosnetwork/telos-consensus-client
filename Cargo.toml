@@ -5,7 +5,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-alloy-primitives = "0.6"
+alloy-primitives = { version = "0.6", features = [ "serde" ] }
 reth-primitives = { path = "../telos-reth/crates/primitives", features = [ "telos" ]}
 reth-rpc-types = { path = "../telos-reth/crates/rpc/rpc-types" }
 reth-rpc-types-compat = { path = "../telos-reth/crates/rpc/rpc-types-compat" }

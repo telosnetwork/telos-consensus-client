@@ -18,4 +18,6 @@ pub struct AppConfig {
     pub jwt_secret: String,
     /// The path to the arrow file directory of blocks
     pub arrow_data: String,
+    /// Block count in between finalize block calls
+    pub batch_size: u64,
 }

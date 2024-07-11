@@ -23,9 +23,6 @@ pub struct ConsensusClient {
     is_forked: bool,
 }
 
-// TODO: make this a config parameter
-pub const BATCH_SIZE: u64 = 200;
-
 impl ConsensusClient {
     pub async fn new(config: AppConfig, context: Arc<Mutex<ArrowBatchContext>>) -> Self {
         let my_config = config.clone();
@@ -61,8 +58,8 @@ impl ConsensusClient {
         let mut last_log_time = std::time::Instant::now();
         loop {
             let mut caught_up = false;
-            let to_block = if last_block_number > next_block_number + BATCH_SIZE as u64 {
-                next_block_number + BATCH_SIZE as u64
+            let to_block = if last_block_number > next_block_number + self.config.batch_size {
+                next_block_number + self.config.batch_size
             } else {
                 caught_up = true;
                 last_block_number
@@ -92,7 +89,7 @@ impl ConsensusClient {
         while next_block_number < to_block {
             new_blocks = vec![];
 
-            while new_blocks.len().as_u64() < BATCH_SIZE {
+            while new_blocks.len().as_u64() < self.config.batch_size {
                 if let Some(block) = self.reader.get_block(next_block_number) {
                     next_block_number = block.payload.block_number + 1;
                     new_blocks.push(block);
@@ -106,6 +103,7 @@ impl ConsensusClient {
             }
 
             let rpc_batch = new_blocks.iter().map(|block| {
+                // println!("block: {:?}", block);
                 RpcRequest {
                     method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
                     params: json![block],
@@ -114,7 +112,7 @@ impl ConsensusClient {
 
             let new_payloadv1_result = self.execution_api.rpc_batch(rpc_batch).await.unwrap();
             // TODO: check for VALID status on new_payloadv1_result, and handle the failure case
-            //println!("NewPayloadV1 result: {:?}", new_payloadv1_result);
+            // println!("NewPayloadV1 result: {:?}", new_payloadv1_result);
 
             let last_block_sent = new_blocks.last().unwrap();
             let fork_choice_updated_result = self.fork_choice_updated(
