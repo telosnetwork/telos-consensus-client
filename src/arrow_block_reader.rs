@@ -50,11 +50,12 @@ pub struct AccountDelta {
 
 impl AccountDelta {
     pub fn to_reth_type(&self) -> TelosAccountTableRow {
+        let code_bytes = base64::decode(self.code.clone()).expect("Could not b64 decode code on account delta");
         TelosAccountTableRow {
             address: Address::from_hex(self.address.clone()).expect("Could not parse address on account delta"),
             account: self.account.clone(),
             nonce: self.nonce,
-            code: Bytes::from_hex(self.code.clone()).expect("Could not parse code on account delta"),
+            code: Bytes::from_iter(code_bytes),
             balance: U256::from_str_radix(&self.balance, 16).expect("Could not parse balance on account delta")
         }
     }
