@@ -1,9 +1,14 @@
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use antelope::chain::checksum::{Checksum160, Checksum256};
+use antelope::chain::name::Name;
+use antelope::StructPacker;
+use antelope::chain::Packer;
 use csv::{ReaderBuilder, WriterBuilder};
+use antelope::serializer::Decoder;
+use antelope::serializer::Encoder;
 use serde::{Serialize, Deserialize};
 use alloy_primitives::{FixedBytes, Address, Bytes, Bloom, B256};
 use alloy_primitives::hex::FromHex;
@@ -19,6 +24,22 @@ use reth_telos::{
 
 use arrowbatch::reader::{ArrowBatchContext, ArrowBatchReader};
 use tokio::time::sleep;
+
+use antelope::api::v1::structs::{GetTableRowsParams, IndexPosition, TableIndexType};
+use antelope::api::client::APIClient;
+use antelope::api::default_provider::DefaultProvider;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
+pub struct AccountRow {
+    pub index: u64,
+    pub address: Checksum160,
+    pub account: Name,
+    pub nonce: u64,
+    pub code: Vec<u8>,
+    pub balance: Checksum256,
+}
+
+use crate::config::AppConfig;
 
 extern crate base64;
 
@@ -106,7 +127,7 @@ pub struct RevisionChange(u64, u64);
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GasPriceChange(
     u64,
-    U256
+    String
 );
 
 /* Example OpenWallet:
@@ -135,8 +156,6 @@ pub struct AddressMapRecord {
     index: u64,
     address: Address
 }
-
-pub const ADDR_MAP_PATH: &str = "addr_map.csv";
 
 fn read_csv_to_hashmap(file_path: &str) -> Result<HashMap<u64, Address>, Box<dyn std::error::Error>> {
     let mut rdr = ReaderBuilder::new()
@@ -181,13 +200,15 @@ pub struct FullExecutionPayload {
 }
 
 pub struct ArrowFileBlockReader {
+    config: AppConfig,
     last_block: Option<FullExecutionPayload>,
     reader: ArrowBatchReader,
+    client: APIClient<DefaultProvider>,
     addr_map: Arc<Mutex<HashMap<u64, Address>>>
 }
 
 impl ArrowFileBlockReader {
-    pub fn new(context: Arc<Mutex<ArrowBatchContext>>) -> Self {
+    pub fn new(config: &AppConfig, context: Arc<Mutex<ArrowBatchContext>>) -> Self {
         let last_block = None::<FullExecutionPayload>;
 
         let context_clone = Arc::clone(&context);
@@ -200,26 +221,29 @@ impl ArrowFileBlockReader {
             }
         });
 
-        let addr_map = if fs::metadata(ADDR_MAP_PATH).is_ok() {
-            read_csv_to_hashmap(ADDR_MAP_PATH).unwrap()
+        let addr_map = if fs::metadata(&config.address_map).is_ok() {
+            read_csv_to_hashmap(&config.address_map).unwrap()
         } else {
             HashMap::new()
         };
 
         ArrowFileBlockReader {
+            config: config.clone(),
             last_block,
             reader: ArrowBatchReader::new(context.clone()),
+            client: APIClient::<DefaultProvider>::default_provider(
+                config.chain_endpoint.clone()).expect("Failed to create API client"),
             addr_map: Arc::new(Mutex::new(addr_map))
         }
     }
 
-    pub fn get_latest_block(&self) -> Option<FullExecutionPayload> {
+    pub async fn get_latest_block(&self) -> Option<FullExecutionPayload> {
         // TODO: remove this once websocket live updating is implemented
         let latest_block_num = self.reader.context.lock().unwrap().last_ordinal.unwrap();
-        self.get_block(latest_block_num)
+        self.get_block(latest_block_num).await
     }
 
-    pub fn get_block(&self, block_num: u64) -> Option<FullExecutionPayload> {
+    pub async fn get_block(&self, block_num: u64) -> Option<FullExecutionPayload> {
         if let Some(ref last_block) = self.last_block {
             if last_block.payload.block_number == block_num {
                 return Some(last_block.clone());
@@ -285,7 +309,7 @@ impl ArrowFileBlockReader {
                             address: Address::from_hex(acc_delta.address.clone()).expect("Failed to decode account delta address")
                         };
                         addr_map.insert(record.index, record.address);
-                        append_record_to_csv(ADDR_MAP_PATH, &record).expect("failed to append record to addr map file");
+                        append_record_to_csv(&self.config.address_map, &record).expect("failed to append record to addr map file");
                     }
                     drop(addr_map);
                     statediffs_account.push(acc_delta.to_reth_type());
@@ -299,10 +323,34 @@ impl ArrowFileBlockReader {
             ArrowBatchTypes::StructArray(values) => {
                 for acc_state_delta_value in values {
                     let acc_state_delta: AccountStateDelta = serde_json::from_value(acc_state_delta_value.clone()).unwrap();
-                    let addr_map = self.addr_map.lock().unwrap();
-                    let addr = addr_map.get(&acc_state_delta.index)
-                        .expect("Cannot figure out address for account state delta");
-                    statediffs_accountstate.push(acc_state_delta.to_reth_type(addr));
+                    let mut addr_map = self.addr_map.lock().unwrap();
+                    let maybe_addr = addr_map.get(&acc_state_delta.index);
+                    let addr = if maybe_addr.is_some() {
+                        maybe_addr.unwrap().clone()
+                    } else {
+                        let EVM_CONTRACT = Name::from_u64(6138663583658016768u64);
+                        let ACCOUNT = Name::from_u64(3607749778735104000u64);
+                        let account_result = self.client.v1_chain.get_table_rows::<AccountRow>(
+                            GetTableRowsParams {
+                                code: EVM_CONTRACT,
+                                table: ACCOUNT,
+                                scope: Some(EVM_CONTRACT),
+                                lower_bound: Some(TableIndexType::UINT64(acc_state_delta.index)),
+                                upper_bound: Some(TableIndexType::UINT64(acc_state_delta.index)),
+                                limit: Some(1),
+                                reverse: None,
+                                index_position: Some(IndexPosition::PRIMARY),
+                                show_payer: None,
+                            }
+                        ).await.unwrap();
+                        let address_checksum = account_result.rows[0].address;
+                        let address = Address::from(address_checksum.data);
+                        let record = AddressMapRecord { index: acc_state_delta.index, address };
+                        addr_map.insert(acc_state_delta.index, address);
+                        append_record_to_csv(&self.config.address_map, &record).expect("failed to append record to addr map file");
+                        address
+                    };
+                    statediffs_accountstate.push(acc_state_delta.to_reth_type(&addr));
                     drop(addr_map);
                 }
             },
@@ -318,7 +366,7 @@ impl ArrowFileBlockReader {
 
                     gas_price_changes.push((
                         gas_price_change.0,
-                        gas_price_change.1
+                        U256::from_str_radix(&gas_price_change.1, 16).expect("Could not parse hex string into address on gas price change")
                     ));
                 }
             },
@@ -405,7 +453,7 @@ mod tests {
     use arrowbatch::reader::{ArrowBatchConfig, ArrowBatchContext};
     use reth_primitives::U256;
 
-    use crate::arrow_block_reader::{ArrowFileBlockReader, FullExecutionPayload};
+    use crate::{arrow_block_reader::{ArrowFileBlockReader, FullExecutionPayload}, config::AppConfig};
 
     const GAS_CHANGE_BLOCK: u64 = 261916623;
     const REV_CHANGE_BLOCK: u64 = 332317496;
@@ -422,11 +470,20 @@ mod tests {
 
         let context = ArrowBatchContext::new(config);
 
-        let reader = ArrowFileBlockReader::new(context.clone());
+        let app_config = AppConfig {
+            base_url: "".to_string(),
+            jwt_secret: "".to_string(),
+            arrow_data: "".to_string(),
+            address_map: "address_map.csv".to_string(),
+            batch_size: 0,
+            chain_endpoint: "https://mainnet.telos.net".to_string()
+        };
+
+        let reader = ArrowFileBlockReader::new(&app_config, context.clone());
 
         let mut target_block: FullExecutionPayload;
 
-        target_block = reader.get_block(GAS_CHANGE_BLOCK).unwrap();
+        target_block = reader.get_block(GAS_CHANGE_BLOCK).await.unwrap();
         assert_eq!(target_block.gas_price_changes.len(), 1);
         assert_eq!(target_block.gas_price_changes.first().unwrap().0, 0);
         assert_eq!(
@@ -434,12 +491,12 @@ mod tests {
             U256::from_str_radix("0000000000000000000000000000000000000000000000000000007548a6d7b3", 16).unwrap()
         );
 
-        target_block = reader.get_block(REV_CHANGE_BLOCK).unwrap();
+        target_block = reader.get_block(REV_CHANGE_BLOCK).await.unwrap();
         assert_eq!(target_block.revision_changes.len(), 1);
         assert_eq!(target_block.revision_changes.first().unwrap().0, 0);
         assert_eq!(target_block.revision_changes.first().unwrap().1, 1);
 
-        target_block = reader.get_block(CREATE_WALLET_BLOCK).unwrap();
+        target_block = reader.get_block(CREATE_WALLET_BLOCK).await.unwrap();
         assert_eq!(target_block.new_addresses_using_create.len(), 1);
         assert_eq!(target_block.new_addresses_using_create.first().unwrap().0, 0);
         assert_eq!(
@@ -447,7 +504,7 @@ mod tests {
             U256::from_str_radix("f42c8cc248b4f6548861e3bae31d065505e379f1", 16).unwrap()
         );
 
-        target_block = reader.get_block(OPEN_WALLET_BLOCK).unwrap();
+        target_block = reader.get_block(OPEN_WALLET_BLOCK).await.unwrap();
         assert_eq!(target_block.new_addresses_using_openwallet.len(), 1);
         assert_eq!(target_block.new_addresses_using_openwallet.first().unwrap().0, 0);
         assert_eq!(

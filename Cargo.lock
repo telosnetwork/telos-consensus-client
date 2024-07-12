@@ -246,7 +246,7 @@ version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d8bee09337480dd7937f2d8b1819dfc452e6b213f8f0eee56a1e6625db05d76"
 dependencies = [
- "antelope-client-macros",
+ "antelope-client-macros 0.1.0",
  "base64 0.21.7",
  "bs58",
  "chrono",
@@ -272,10 +272,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "antelope-client"
+version = "0.2.1"
+source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=master#413f45cb6152fd69a716c0f2339610f807222463"
+dependencies = [
+ "antelope-client-macros 0.2.0",
+ "async-trait",
+ "base64 0.21.7",
+ "bs58",
+ "chrono",
+ "digest 0.10.7",
+ "ecdsa",
+ "flate2",
+ "hex",
+ "hmac",
+ "k256",
+ "log",
+ "once_cell",
+ "p256",
+ "rand",
+ "rand_core",
+ "reqwest",
+ "ripemd",
+ "serde",
+ "serde-big-array",
+ "serde_json",
+ "sha2",
+ "signature",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "antelope-client-macros"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "878d5dc6a37c3f74e6a101fb07ce8c5979e5ed596d88b16f9a4674e40debab81"
+dependencies = [
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "antelope-client-macros"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5fe146e985f20989c1c9e9aca87f854ba430b5a5fadaac3f115bc9f81619634"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -634,9 +676,9 @@ dependencies = [
 
 [[package]]
 name = "arrowbatch"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "255c4fc5fa6bd4d2900d02e050382b2d62d07e1866ad3a96117de038392612a9"
+checksum = "88db780124629c2c0e0fbe34e8bc18fa885609502827b50e2335204199b76650"
 dependencies = [
  "arrow",
  "base64 0.22.1",
@@ -655,6 +697,17 @@ dependencies = [
  "tungstenite",
  "uuid",
  "zstd",
+]
+
+[[package]]
+name = "async-trait"
+version = "0.1.81"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e0c28dcc82d7c8ead5cb13beb15405b57b8546e93215673ff8ca0349a028107"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.58",
 ]
 
 [[package]]
@@ -2778,7 +2831,7 @@ name = "reth-telos"
 version = "0.1.0-alpha.21"
 dependencies = [
  "alloy-rpc-types",
- "antelope-client",
+ "antelope-client 0.1.7",
  "clap",
  "reth-primitives",
  "revm",
@@ -3445,6 +3498,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
+ "antelope-client 0.2.1",
  "arrowbatch",
  "base64 0.22.1",
  "chrono",
