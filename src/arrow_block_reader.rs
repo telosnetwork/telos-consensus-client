@@ -9,6 +9,7 @@ use antelope::chain::Packer;
 use csv::{ReaderBuilder, WriterBuilder};
 use antelope::serializer::Decoder;
 use antelope::serializer::Encoder;
+use log::info;
 use serde::{Serialize, Deserialize};
 use alloy_primitives::{FixedBytes, Address, Bytes, Bloom, B256};
 use alloy_primitives::hex::FromHex;
@@ -188,6 +189,53 @@ fn append_record_to_csv(file_path: &str, record: &AddressMapRecord) -> Result<()
     Ok(())
 }
 
+async fn download_address_map(client: &APIClient<DefaultProvider>) -> HashMap<u64, Address> {
+    let EVM_CONTRACT = Name::new_from_str("eosio.evm");
+    let ACCOUNT = Name::new_from_str("account");
+
+    let limit: u32 = 1000;
+    let mut lower_bound: u64 = 0;
+    let mut more_rows = true;
+
+    let mut address_map: HashMap<u64, Address> = HashMap::new();
+
+    info!("downloading address map...");
+
+    while more_rows {
+        let account_result = client.v1_chain.get_table_rows::<AccountRow>(
+            GetTableRowsParams {
+                code: EVM_CONTRACT,
+                table: ACCOUNT,
+                scope: Some(EVM_CONTRACT),
+                lower_bound: Some(TableIndexType::UINT64(lower_bound)),
+                upper_bound: Some(TableIndexType::UINT64(lower_bound + limit as u64)),
+                limit: Some(limit),
+                reverse: None,
+                index_position: Some(IndexPosition::PRIMARY),
+                show_payer: None,
+            }
+        ).await.unwrap();
+
+        info!("lb: {}, got {} rows", lower_bound, account_result.rows.len());
+
+        let mut last = 0;
+        for row in account_result.rows {
+            let address = Address::from(row.address.data);
+            last = row.index;
+            address_map.insert(row.index, address);
+        }
+
+        more_rows = account_result.more;
+        if more_rows {
+            lower_bound = last + 1;
+        }
+    }
+
+    info!("done fetching address map, size: {}", address_map.len());
+
+    address_map
+}
+
 #[derive(Serialize, Debug, Clone)]
 pub struct FullExecutionPayload {
     pub payload: ExecutionPayloadV1,
@@ -208,7 +256,7 @@ pub struct ArrowFileBlockReader {
 }
 
 impl ArrowFileBlockReader {
-    pub fn new(config: &AppConfig, context: Arc<Mutex<ArrowBatchContext>>) -> Self {
+    pub async fn new(config: &AppConfig, context: Arc<Mutex<ArrowBatchContext>>) -> Self {
         let last_block = None::<FullExecutionPayload>;
 
         let context_clone = Arc::clone(&context);
@@ -221,18 +269,34 @@ impl ArrowFileBlockReader {
             }
         });
 
+        let client = APIClient::<DefaultProvider>::default_provider(config.chain_endpoint.clone())
+            .expect("Failed to create API client");
+
         let addr_map = if fs::metadata(&config.address_map).is_ok() {
+            info!("found address map at {}, loading...", config.address_map);
             read_csv_to_hashmap(&config.address_map).unwrap()
         } else {
-            HashMap::new()
+            let map = download_address_map(&client).await;
+            let mut keys = map.keys().collect::<Vec<&u64>>();
+            keys.sort();
+            for key in keys {
+                let value = map.get(key).unwrap();
+                let record = AddressMapRecord {
+                    index: *key,
+                    address: value.clone()
+                };
+                append_record_to_csv(&config.address_map, &record).unwrap();
+            }
+            map
         };
+
+        info!("address map size: {}", addr_map.len());
 
         ArrowFileBlockReader {
             config: config.clone(),
             last_block,
             reader: ArrowBatchReader::new(context.clone()),
-            client: APIClient::<DefaultProvider>::default_provider(
-                config.chain_endpoint.clone()).expect("Failed to create API client"),
+            client,
             addr_map: Arc::new(Mutex::new(addr_map))
         }
     }
@@ -310,6 +374,7 @@ impl ArrowFileBlockReader {
                         };
                         addr_map.insert(record.index, record.address);
                         append_record_to_csv(&self.config.address_map, &record).expect("failed to append record to addr map file");
+                        info!("update address map: {:?}", record);
                     }
                     drop(addr_map);
                     statediffs_account.push(acc_delta.to_reth_type());
@@ -328,8 +393,9 @@ impl ArrowFileBlockReader {
                     let addr = if maybe_addr.is_some() {
                         maybe_addr.unwrap().clone()
                     } else {
-                        let EVM_CONTRACT = Name::from_u64(6138663583658016768u64);
-                        let ACCOUNT = Name::from_u64(3607749778735104000u64);
+                        info!("address for index {} not in map, doing http query...", acc_state_delta.index);
+                        let EVM_CONTRACT = Name::new_from_str("eosio.evm");
+                        let ACCOUNT = Name::new_from_str("account");
                         let account_result = self.client.v1_chain.get_table_rows::<AccountRow>(
                             GetTableRowsParams {
                                 code: EVM_CONTRACT,
@@ -346,8 +412,9 @@ impl ArrowFileBlockReader {
                         let address_checksum = account_result.rows[0].address;
                         let address = Address::from(address_checksum.data);
                         let record = AddressMapRecord { index: acc_state_delta.index, address };
-                        addr_map.insert(acc_state_delta.index, address);
+                        addr_map.insert(record.index, record.address);
                         append_record_to_csv(&self.config.address_map, &record).expect("failed to append record to addr map file");
+                        info!("update address map: {:?}", record);
                         address
                     };
                     statediffs_accountstate.push(acc_state_delta.to_reth_type(&addr));

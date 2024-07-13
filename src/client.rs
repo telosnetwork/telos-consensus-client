@@ -1,8 +1,8 @@
-use std::rc::Weak;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use alloy_primitives::B256;
 use arrowbatch::reader::ArrowBatchContext;
+use log::{debug, error, info, warn};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, RpcRequest};
@@ -28,7 +28,7 @@ impl ConsensusClient {
         let my_config = config.clone();
         let reader_context = context.clone();
 
-        let reader = ArrowFileBlockReader::new(&config, reader_context);
+        let reader = ArrowFileBlockReader::new(&config, reader_context).await;
         let execution_api = ExecutionApiClient::new(config.base_url, config.jwt_secret);
         let latest_consensus_block = ConsensusClient::get_latest_consensus_block(&reader).await;
         let latest_executor_block =
@@ -47,7 +47,7 @@ impl ConsensusClient {
 
     pub async fn run(&mut self) {
         if !self.sync_block_info().await.unwrap_or(false) {
-            println!("Failed to sync block info");
+            error!("Failed to sync block info");
             return;
         }
 
@@ -70,13 +70,13 @@ impl ConsensusClient {
             // do_batch is exclusive of to_block so we do NOT need to increment by 1
             next_block_number = to_block;
             if caught_up {
-                println!("Caught up to latest block {}, sleeping for 5 seconds", next_block_number);
+                info!("Caught up to latest block {}, sleeping for 5 seconds", next_block_number);
                 // TODO: make this more live & fork aware
                 sleep(Duration::from_secs(5)).await;
             } else {
                 if last_log_time.elapsed().as_secs() > 5 {
                     last_log_time = std::time::Instant::now();
-                    println!("Processed batch {}, up to block {}, sleeping for 1 second", batch_count, next_block_number);
+                    info!("Processed batch {}, up to block {}, sleeping for 1 second", batch_count, next_block_number);
                 }
             }
         }
@@ -112,7 +112,7 @@ impl ConsensusClient {
 
             let new_payloadv1_result = self.execution_api.rpc_batch(rpc_batch).await.unwrap();
             // TODO: check for VALID status on new_payloadv1_result, and handle the failure case
-            // println!("NewPayloadV1 result: {:?}", new_payloadv1_result);
+            debug!("NewPayloadV1 result: {:?}", new_payloadv1_result);
 
             let last_block_sent = new_blocks.last().unwrap();
             let fork_choice_updated_result = self.fork_choice_updated(
@@ -122,8 +122,8 @@ impl ConsensusClient {
             ).await;
 
             // TODO: Check status of fork_choice_updated_result and handle the failure case
-            //println!("Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}", last_block_sent.block_hash, last_block_sent.parent_hash, last_block_sent.block_number);
-            //println!("fork_choice_updated_result for block number {}: {:?}", last_block_sent.block_number, fork_choice_updated_result);
+            debug!("Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}", last_block_sent.payload.block_hash, last_block_sent.payload.parent_hash, last_block_sent.payload.block_number);
+            debug!("fork_choice_updated_result for block number {}: {:?}", last_block_sent.payload.block_number, fork_choice_updated_result);
         }
     }
 
@@ -161,8 +161,8 @@ impl ConsensusClient {
                 self.latest_valid_executor_block.header.number.unwrap().to::<u64>(),
             ).await.unwrap();
 
-        println!("Consensus for latest executor block:\nhash {:?}\nparentHash {:?}\nnumber {:?}", consensus_for_latest_executor_block.payload.block_hash, consensus_for_latest_executor_block.payload.parent_hash, consensus_for_latest_executor_block.payload.block_number);
-        println!("Latest executor block:\nhash {:?}\nparentHash {:?}\nnumber {:?}", self.latest_valid_executor_block.header.hash.unwrap(), self.latest_valid_executor_block.header.parent_hash, self.latest_valid_executor_block.header.number.unwrap().to_string());
+        info!("Consensus for latest executor block:\nhash {:?}\nparentHash {:?}\nnumber {:?}", consensus_for_latest_executor_block.payload.block_hash, consensus_for_latest_executor_block.payload.parent_hash, consensus_for_latest_executor_block.payload.block_number);
+        info!("Latest executor block:\nhash {:?}\nparentHash {:?}\nnumber {:?}", self.latest_valid_executor_block.header.hash.unwrap(), self.latest_valid_executor_block.header.parent_hash, self.latest_valid_executor_block.header.number.unwrap().to_string());
         let mut count = 0u64;
         let latest_executor_hash = self.latest_valid_executor_block.header.hash.unwrap();
         let consensus_for_latest_executor_hash = consensus_for_latest_executor_block.payload.block_hash;
@@ -173,13 +173,13 @@ impl ConsensusClient {
             let latest_valid_executor_block_number =
                 self.latest_valid_executor_block.header.number.unwrap().to::<u64>();
 
-            println!("Forked and latest executor block number is {}, executor hash is {} but consensus hash is {}",
+            warn!("Forked and latest executor block number is {}, executor hash is {} but consensus hash is {}",
                      latest_valid_executor_block_number,
                      self.latest_valid_executor_block.header.hash.unwrap(),
                      consensus_for_latest_executor_hash);
 
             if self.latest_valid_executor_block.header.number.unwrap().to::<u64>() == 0 {
-                println!("Forked all the way back to execution block 0, cannot go back further");
+                error!("Forked all the way back to execution block 0, cannot go back further");
                 return Err(
                     "Forked all the way back to execution block 0, cannot go back further"
                         .to_string(),

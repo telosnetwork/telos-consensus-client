@@ -1,9 +1,8 @@
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use arrowbatch::reader::{ArrowBatchConfig, ArrowBatchContext};
 use crate::client::ConsensusClient;
 use crate::config::{AppConfig, CliArgs};
 use clap::Parser;
+use env_logger;
 
 mod auth;
 mod arrow_block_reader;
@@ -17,6 +16,7 @@ async fn main() {
     let cli_args = CliArgs::parse();
     let config_contents = std::fs::read_to_string(cli_args.config).unwrap();
     let config: AppConfig = toml::from_str(&config_contents).unwrap();
+    env_logger::init();
 
     let arrow_config = ArrowBatchConfig {
         data_dir: config.arrow_data.clone(),
