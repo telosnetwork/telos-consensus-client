@@ -24,4 +24,6 @@ pub struct AppConfig {
     pub batch_size: u64,
     /// Nodeos http endpoint
     pub chain_endpoint: String,
+
+    pub stop_block: u64,
 }

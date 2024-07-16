@@ -53,7 +53,15 @@ impl ConsensusClient {
 
         let mut next_block_number = self.latest_valid_executor_block.header.number.unwrap().to::<u64>() + 1;
         let mut batch_count = 0;
-        let mut last_block_number = self.reader.get_latest_block().await.unwrap().payload.block_number;
+        let mut last_block_number = std::cmp::min(
+            self.reader.get_latest_block().await.unwrap().payload.block_number,
+            self.config.stop_block
+        );
+
+        if next_block_number > self.config.stop_block {
+            info!("executor block past config stop block... exit...");
+            return;
+        }
 
         let mut last_log_time = std::time::Instant::now();
         loop {
@@ -65,6 +73,10 @@ impl ConsensusClient {
                 last_block_number
             };
             self.do_batch(next_block_number, to_block).await;
+            if to_block == self.config.stop_block {
+                info!("reached stop block, exit...");
+                break;
+            }
             batch_count += 1;
 
             // do_batch is exclusive of to_block so we do NOT need to increment by 1
