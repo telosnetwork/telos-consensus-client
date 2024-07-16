@@ -91,6 +91,7 @@ impl AccountDelta {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountStateDelta {
     pub index: u64,
+    pub scope: String,
     pub key: String,
     pub value: String
 }
@@ -389,7 +390,8 @@ impl ArrowFileBlockReader {
                 for acc_state_delta_value in values {
                     let acc_state_delta: AccountStateDelta = serde_json::from_value(acc_state_delta_value.clone()).unwrap();
                     let mut addr_map = self.addr_map.lock().unwrap();
-                    let maybe_addr = addr_map.get(&acc_state_delta.index);
+                    let account_index = Name::new_from_str(&acc_state_delta.scope).n;
+                    let maybe_addr = addr_map.get(&account_index);
                     let addr = if maybe_addr.is_some() {
                         maybe_addr.unwrap().clone()
                     } else {
@@ -409,6 +411,9 @@ impl ArrowFileBlockReader {
                                 show_payer: None,
                             }
                         ).await.unwrap();
+                        if account_result.rows.len() == 0 {
+                            panic!("get_table_rows returned 0 rows!");
+                        }
                         let address_checksum = account_result.rows[0].address;
                         let address = Address::from(address_checksum.data);
                         let record = AddressMapRecord { index: acc_state_delta.index, address };
