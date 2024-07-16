@@ -677,9 +677,9 @@ dependencies = [
 
 [[package]]
 name = "arrowbatch"
-version = "1.12.0"
+version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c6518b1dab3307f795b8b2acaa75f6353390c94adfa65a06d3aa7604f696775"
+checksum = "c206f67dc3e76fc8257ef2ea31a85bb00e3a87a68e995a54dfa683d9b9820ebf"
 dependencies = [
  "arrow",
  "base64 0.22.1",

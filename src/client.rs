@@ -67,7 +67,7 @@ impl ConsensusClient {
         loop {
             let mut caught_up = false;
             let to_block = if last_block_number > next_block_number + self.config.batch_size {
-                next_block_number + self.config.batch_size
+                std::cmp::min(next_block_number + self.config.batch_size, self.config.stop_block)
             } else {
                 caught_up = true;
                 last_block_number
@@ -101,7 +101,7 @@ impl ConsensusClient {
         while next_block_number < to_block {
             new_blocks = vec![];
 
-            while new_blocks.len().as_u64() < self.config.batch_size {
+            while new_blocks.len().as_u64() < (to_block - from_block + 1) {
                 if let Some(block) = self.reader.get_block(next_block_number).await {
                     next_block_number = block.payload.block_number + 1;
                     new_blocks.push(block);
