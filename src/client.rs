@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use alloy_primitives::B256;
-use arrowbatch::reader::ArrowBatchContext;
+use arrowbatch::reader::{ArrowBatchContext, ArrowBatchSequentialReader};
 use log::{debug, error, info, warn};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use crate::config::AppConfig;
@@ -63,6 +63,8 @@ impl ConsensusClient {
             return;
         }
 
+        let block_iter = self.reader.reader.iter(next_block_number, self.config.stop_block);
+
         let mut last_log_time = std::time::Instant::now();
         loop {
             let mut caught_up = false;
@@ -72,7 +74,7 @@ impl ConsensusClient {
                 caught_up = true;
                 last_block_number
             };
-            self.do_batch(next_block_number, to_block).await;
+            self.do_batch(next_block_number, to_block, &block_iter).await;
             if to_block == self.config.stop_block {
                 info!("reached stop block, exit...");
                 break;
@@ -94,7 +96,7 @@ impl ConsensusClient {
         }
     }
 
-    async fn do_batch(&self, from_block: u64, to_block: u64) {
+    async fn do_batch(&self, from_block: u64, to_block: u64, reader: &ArrowBatchSequentialReader) {
         let mut next_block_number = from_block;
         let mut new_blocks: Vec<FullExecutionPayload>;
 
@@ -102,12 +104,16 @@ impl ConsensusClient {
             new_blocks = vec![];
 
             while new_blocks.len().as_u64() < (to_block - from_block + 1) {
-                if let Some(block) = self.reader.get_block(next_block_number).await {
-                    next_block_number = block.payload.block_number + 1;
-                    new_blocks.push(block);
-                } else {
+                let next_row = reader.imut_next();
+
+                if next_row.is_none() {
                     break;
                 }
+
+                let block = self.reader.decode_row(&next_row.unwrap()).await;
+
+                next_block_number = block.payload.block_number + 1;
+                new_blocks.push(block);
             }
 
             if new_blocks.is_empty() {

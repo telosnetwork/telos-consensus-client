@@ -23,7 +23,7 @@ use reth_telos::{
     TelosAccountStateTableRow
 };
 
-use arrowbatch::reader::{ArrowBatchContext, ArrowBatchReader};
+use arrowbatch::reader::{ArrowBatchContext, ArrowBatchReader, ArrowRow};
 use tokio::time::sleep;
 
 use antelope::api::v1::structs::{GetTableRowsParams, IndexPosition, TableIndexType};
@@ -251,7 +251,7 @@ pub struct FullExecutionPayload {
 pub struct ArrowFileBlockReader {
     config: AppConfig,
     last_block: Option<FullExecutionPayload>,
-    reader: ArrowBatchReader,
+    pub reader: ArrowBatchReader,
     client: APIClient<DefaultProvider>,
     addr_map: Arc<Mutex<HashMap<u64, Address>>>
 }
@@ -308,48 +308,42 @@ impl ArrowFileBlockReader {
         self.get_block(latest_block_num).await
     }
 
-    pub async fn get_block(&self, block_num: u64) -> Option<FullExecutionPayload> {
-        if let Some(ref last_block) = self.last_block {
-            if last_block.payload.block_number == block_num {
-                return Some(last_block.clone());
-            }
-            if last_block.payload.block_number > block_num {
-                return None;
-            }
-        }
-        let block = self.reader.get_row(block_num)?;
-
-        let timestamp = match block[2] {
+    pub async fn decode_row(&self, row: &ArrowRow) -> FullExecutionPayload {
+        let block_num = match row[1] {
+            ArrowBatchTypes::U64(value) => value,
+            _ => panic!("Invalid type for evm block num")
+        };
+        let timestamp = match row[2] {
             ArrowBatchTypes::U64(value) => value,
             _ => panic!("Invalid type for timestamp")
         };
-        let block_hash = match &block[3] {
+        let block_hash = match &row[3] {
             ArrowBatchTypes::Checksum256(value) => value.clone(),
             _ => panic!("Invalid type for block_hash")
         };
-        let evm_block_hash = match &block[4] {
+        let evm_block_hash = match &row[4] {
             ArrowBatchTypes::Checksum256(value) => value.clone(),
             _ => panic!("Invalid type for evm_block_hash")
         };
-        let evm_parent_block_hash = match &block[5] {
+        let evm_parent_block_hash = match &row[5] {
             ArrowBatchTypes::Checksum256(value) => value.clone(),
             _ => panic!("Invalid type for evm_parent_block_hash")
         };
-        let receipt_hash = match &block[6] {
+        let receipt_hash = match &row[6] {
             ArrowBatchTypes::Checksum256(value) => value.clone(),
             _ => panic!("Invalid type for receipt_hash")
         };
-        let gas_used = match &block[8] {
+        let gas_used = match &row[8] {
             ArrowBatchTypes::UVar(value) => value.clone().to_string().parse().expect("Gas used is not a valid u64"),
             _ => panic!("Invalid type for receipt_hash")
         };
-        let logs_bloom = match &block[9] {
+        let logs_bloom = match &row[9] {
             ArrowBatchTypes::Bytes(bloom_bytes) => bloom_bytes,
             _ => panic!("Invalid type for logs_bloom")
         };
 
         let mut txs = Vec::new();
-        match &block[12] {
+        match &row[12] {
             ArrowBatchTypes::StructArray(values) => {
                  for tx_struct_value in values {
                      let tx_struct: TxStruct = serde_json::from_value(tx_struct_value.clone()).unwrap();
@@ -363,7 +357,7 @@ impl ArrowFileBlockReader {
             Bytes::copy_from_slice(hex::decode(block_hash.as_str()).unwrap().as_slice());
 
         let mut statediffs_account: Vec<TelosAccountTableRow> = Vec::new();
-        match &block[13] {
+        match &row[13] {
             ArrowBatchTypes::StructArray(values) => {
                 for acc_delta_value in values {
                     let acc_delta: AccountDelta = serde_json::from_value(acc_delta_value.clone()).unwrap();
@@ -385,7 +379,7 @@ impl ArrowFileBlockReader {
         };
 
         let mut statediffs_accountstate = Vec::new();
-        match &block[14] {
+        match &row[14] {
             ArrowBatchTypes::StructArray(values) => {
                 for acc_state_delta_value in values {
                     let acc_state_delta: AccountStateDelta = serde_json::from_value(acc_state_delta_value.clone()).unwrap();
@@ -430,7 +424,7 @@ impl ArrowFileBlockReader {
         };
 
         let mut gas_price_changes = Vec::new();
-        match &block[15] {
+        match &row[15] {
             ArrowBatchTypes::StructArray(values) => {
                 for gas_price_change_value in values {
                     let gas_price_change: GasPriceChange = serde_json::from_value(gas_price_change_value.clone())
@@ -446,7 +440,7 @@ impl ArrowFileBlockReader {
         };
 
         let mut revision_changes = Vec::new();
-        match &block[16] {
+        match &row[16] {
             ArrowBatchTypes::StructArray(values) => {
                 for rev_change_value in values {
                     let rev_change: RevisionChange = serde_json::from_value(rev_change_value.clone())
@@ -459,7 +453,7 @@ impl ArrowFileBlockReader {
         };
 
         let mut new_addresses_using_openwallet = Vec::new();
-        match &block[17] {
+        match &row[17] {
             ArrowBatchTypes::StructArray(values) => {
                 for wallet_event_value in values {
                     let wallet_event: AddressCreationEvent = serde_json::from_value(wallet_event_value.clone())
@@ -475,7 +469,7 @@ impl ArrowFileBlockReader {
         };
 
         let mut new_addresses_using_create = Vec::new();
-        match &block[18] {
+        match &row[18] {
             ArrowBatchTypes::StructArray(values) => {
                 for wallet_event_value in values {
                     let wallet_event: AddressCreationEvent = serde_json::from_value(wallet_event_value.clone())
@@ -491,32 +485,44 @@ impl ArrowFileBlockReader {
         };
 
 
-        Some(
-            FullExecutionPayload {
-                payload: ExecutionPayloadV1 {
-                    parent_hash: FixedBytes::from_hex(evm_parent_block_hash).unwrap(),
-                    fee_recipient: Address::ZERO,
-                    state_root: null_hash!(),
-                    receipts_root: FixedBytes::from_hex(receipt_hash).unwrap(),
-                    logs_bloom: Bloom::from_slice(&logs_bloom),
-                    prev_randao: Default::default(),
-                    block_number: block_num,
-                    gas_limit: 0x7fffffffu64,
-                    gas_used,
-                    timestamp,
-                    extra_data,
-                    base_fee_per_gas: MIN_PROTOCOL_BASE_FEE_U256,
-                    block_hash: FixedBytes::from_hex(evm_block_hash).unwrap(),
-                    transactions: txs
-                },
-                statediffs_account,
-                statediffs_accountstate,
-                revision_changes,
-                gas_price_changes,
-                new_addresses_using_create,
-                new_addresses_using_openwallet
+        FullExecutionPayload {
+            payload: ExecutionPayloadV1 {
+                parent_hash: FixedBytes::from_hex(evm_parent_block_hash).unwrap(),
+                fee_recipient: Address::ZERO,
+                state_root: null_hash!(),
+                receipts_root: FixedBytes::from_hex(receipt_hash).unwrap(),
+                logs_bloom: Bloom::from_slice(&logs_bloom),
+                prev_randao: Default::default(),
+                block_number: block_num,
+                gas_limit: 0x7fffffffu64,
+                gas_used,
+                timestamp,
+                extra_data,
+                base_fee_per_gas: MIN_PROTOCOL_BASE_FEE_U256,
+                block_hash: FixedBytes::from_hex(evm_block_hash).unwrap(),
+                transactions: txs
+            },
+            statediffs_account,
+            statediffs_accountstate,
+            revision_changes,
+            gas_price_changes,
+            new_addresses_using_create,
+            new_addresses_using_openwallet
+        }
+    }
+
+    pub async fn get_block(&self, block_num: u64) -> Option<FullExecutionPayload> {
+        if let Some(ref last_block) = self.last_block {
+            if last_block.payload.block_number == block_num {
+                return Some(last_block.clone());
             }
-        )
+            if last_block.payload.block_number > block_num {
+                return None;
+            }
+        }
+        let row = self.reader.get_row(block_num)?;
+
+        Some(self.decode_row(&row).await)
     }
 }
 

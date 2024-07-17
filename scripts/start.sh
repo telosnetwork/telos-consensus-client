@@ -1,4 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+export RUST_BACKTRACE=1
+export RUST_LOG=info
 
 INSTALL_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 OG_DIR="$(pwd)"

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 INSTALL_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 PID_FILE="$INSTALL_ROOT/telos-consensus.pid"
