@@ -39,6 +39,10 @@ pub const STOP_BLOCK: u32 = 301_000_000;
 pub const CHAIN_ID: u64 = 40;
 pub const RAW_DS_THREADS: u8 = 4;
 pub const BLOCK_PROCESS_THREADS: u8 = 4;
+pub const RAW_MESSAGE_CHANNEL_SIZE: usize = 10000;
+pub const BLOCK_PROCESS_CHANNEL_SIZE: usize = 1000;
+pub const MESSAGE_ORDERER_CHANNEL_SIZE: usize = 1000;
+pub const MESSAGE_FINALIZER_CHANNEL_SIZE: usize = 1000;
 
 pub async fn write_message(
     tx_stream: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>>>,
@@ -89,10 +93,10 @@ impl Translator {
 
         // Buffer size here should be the readahead buffer size, in blocks.  This could get large if we are reading
         //  a block range with larges blocks/trxs, so this should be tuned based on the largest blocks we hit
-        let (raw_ds_tx, raw_ds_rx) = mpsc::channel::<RawMessage>(10000);
-        let (process_tx, process_rx) = mpsc::channel::<Block>(1000);
-        let (order_tx, order_rx) = mpsc::channel::<BlockOrSkip>(1000);
-        let (finalize_tx, finalize_rx) = mpsc::channel::<Block>(1000);
+        let (raw_ds_tx, raw_ds_rx) = mpsc::channel::<RawMessage>(RAW_MESSAGE_CHANNEL_SIZE);
+        let (process_tx, process_rx) = mpsc::channel::<Block>(BLOCK_PROCESS_CHANNEL_SIZE);
+        let (order_tx, order_rx) = mpsc::channel::<BlockOrSkip>(MESSAGE_ORDERER_CHANNEL_SIZE);
+        let (finalize_tx, finalize_rx) = mpsc::channel::<Block>(MESSAGE_FINALIZER_CHANNEL_SIZE);
 
         tokio::task::spawn(ship_reader(ws_rx, raw_ds_tx));
 
