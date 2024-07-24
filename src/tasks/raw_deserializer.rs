@@ -1,5 +1,5 @@
 use crate::block::Block;
-use crate::translator::write_message;
+use crate::translator::{write_message, TranslatorConfig};
 use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::ship_types::{
     GetBlocksAckRequestV0, GetBlocksRequestV0, GetStatusRequestV0, ShipRequest, ShipResult,
@@ -19,6 +19,7 @@ use tracing::{debug, error, info};
 
 pub async fn raw_deserializer(
     thread_id: u8,
+    config: TranslatorConfig,
     mut raw_ds_rx: Arc<Mutex<Receiver<RawMessage>>>,
     mut ws_tx: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, Message>>>,
     block_deserializer_tx: Sender<Block>,
@@ -74,8 +75,8 @@ pub async fn raw_deserializer(
                         write_message(
                             ws_tx.clone(),
                             &ShipRequest::GetBlocks(GetBlocksRequestV0 {
-                                start_block_num: crate::translator::START_BLOCK,
-                                end_block_num: crate::translator::STOP_BLOCK,
+                                start_block_num: config.start_block,
+                                end_block_num: config.stop_block.unwrap_or(u32::MAX),
                                 max_messages_in_flight: 10000,
                                 have_positions: vec![],
                                 irreversible_only: true, // TODO: Fork handling
@@ -91,7 +92,7 @@ pub async fn raw_deserializer(
                         unackd_blocks += 1;
                         if let Some(b) = &r.this_block {
                             let block = Block::new(
-                                crate::translator::CHAIN_ID,
+                                config.chain_id,
                                 msg.sequence,
                                 b.block_num,
                                 b.block_id,

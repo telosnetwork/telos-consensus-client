@@ -22,27 +22,37 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::{error, info};
+use serde::{Deserialize, Serialize};
 
-// Deposit block
-//const START_BLOCK: u32 = 300000965;
 
-// Withdraw block
-// const START_BLOCK: u32 = 302247479;
+pub const DEFAULT_RAW_DS_THREADS: u8 = 4;
+pub const DEFAULT_BLOCK_PROCESS_THREADS: u8 = 4;
 
-// Short address in log
-// const START_BLOCK: u32 = 300056989;
+pub const DEFAULT_RAW_MESSAGE_CHANNEL_SIZE: usize = 10000;
+pub const DEFAULT_BLOCK_PROCESS_CHANNEL_SIZE: usize = 1000;
+pub const DEFAULT_MESSAGE_ORDERER_CHANNEL_SIZE: usize = 1000;
+pub const DEFAULT_MESSAGE_FINALIZER_CHANNEL_SIZE: usize = 1000;
 
-// Tx decode issue
-pub const START_BLOCK: u32 = 300062700;
-//const START_BLOCK: u32 = 300_000_000;
-pub const STOP_BLOCK: u32 = 301_000_000;
-pub const CHAIN_ID: u64 = 40;
-pub const RAW_DS_THREADS: u8 = 4;
-pub const BLOCK_PROCESS_THREADS: u8 = 4;
-pub const RAW_MESSAGE_CHANNEL_SIZE: usize = 10000;
-pub const BLOCK_PROCESS_CHANNEL_SIZE: usize = 1000;
-pub const MESSAGE_ORDERER_CHANNEL_SIZE: usize = 1000;
-pub const MESSAGE_FINALIZER_CHANNEL_SIZE: usize = 1000;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranslatorConfig {
+    pub chain_id: u64,
+    pub start_block: u32,
+    pub stop_block: Option<u32>,
+    pub block_delta: u32,
+    pub prev_hash: String,
+    pub validate_hash: Option<String>,
+
+    pub http_endpoint: String,
+    pub ship_endpoint: String,
+
+    pub raw_ds_threads: Option<u8>,
+    pub block_process_threads: Option<u8>,
+
+    pub raw_message_channel_size: Option<usize>,
+    pub block_message_channel_size: Option<usize>,
+    pub order_message_channel_size: Option<usize>,
+    pub final_message_channel_size: Option<usize>,
+}
 
 pub async fn write_message(
     tx_stream: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>>>,
@@ -53,18 +63,16 @@ pub async fn write_message(
 }
 
 pub struct Translator {
-    http_endpoint: String,
-    ship_endpoint: String,
+    config: TranslatorConfig,
     ship_abi: Option<String>,
     latest_status: Option<Arc<ShipResult>>,
     block_map: Arc<DashMap<u32, Block>>,
 }
 
 impl Translator {
-    pub async fn new(http_endpoint: String, ship_endpoint: String) -> Result<Self> {
+    pub async fn new(config: TranslatorConfig) -> Result<Self> {
         Ok(Self {
-            http_endpoint,
-            ship_endpoint,
+            config,
             ship_abi: None,
             latest_status: None,
             block_map: Arc::new(DashMap::new()),
@@ -73,14 +81,14 @@ impl Translator {
 
     pub async fn launch(&mut self) -> Result<()> {
         let api_client: APIClient<DefaultProvider> =
-            APIClient::<DefaultProvider>::default_provider(self.http_endpoint.clone())
+            APIClient::<DefaultProvider>::default_provider(self.config.http_endpoint.clone())
                 .expect("Failed to create API client");
 
-        let connect_result = connect_async(&self.ship_endpoint).await;
+        let connect_result = connect_async(&self.config.ship_endpoint).await;
         if connect_result.is_err() {
             error!(
                 "Failed to connect to ship at endpoint {}",
-                &self.ship_endpoint
+                &self.config.ship_endpoint
             );
             return Err(eyre::eyre!("Failed to connect to ship"));
         }
@@ -93,10 +101,17 @@ impl Translator {
 
         // Buffer size here should be the readahead buffer size, in blocks.  This could get large if we are reading
         //  a block range with larges blocks/trxs, so this should be tuned based on the largest blocks we hit
-        let (raw_ds_tx, raw_ds_rx) = mpsc::channel::<RawMessage>(RAW_MESSAGE_CHANNEL_SIZE);
-        let (process_tx, process_rx) = mpsc::channel::<Block>(BLOCK_PROCESS_CHANNEL_SIZE);
-        let (order_tx, order_rx) = mpsc::channel::<BlockOrSkip>(MESSAGE_ORDERER_CHANNEL_SIZE);
-        let (finalize_tx, finalize_rx) = mpsc::channel::<Block>(MESSAGE_FINALIZER_CHANNEL_SIZE);
+        let (raw_ds_tx, raw_ds_rx) = mpsc::channel::<RawMessage>(
+            self.config.raw_message_channel_size.unwrap_or(DEFAULT_RAW_MESSAGE_CHANNEL_SIZE));
+
+        let (process_tx, process_rx) = mpsc::channel::<Block>(
+            self.config.block_message_channel_size.unwrap_or(DEFAULT_BLOCK_PROCESS_CHANNEL_SIZE));
+
+        let (order_tx, order_rx) = mpsc::channel::<BlockOrSkip>(
+            self.config.order_message_channel_size.unwrap_or(DEFAULT_MESSAGE_ORDERER_CHANNEL_SIZE));
+
+        let (finalize_tx, finalize_rx) = mpsc::channel::<Block>(
+            self.config.final_message_channel_size.unwrap_or(DEFAULT_MESSAGE_FINALIZER_CHANNEL_SIZE));
 
         tokio::task::spawn(ship_reader(ws_rx, raw_ds_tx));
 
@@ -104,13 +119,13 @@ impl Translator {
         let ws_tx = Arc::new(Mutex::new(ws_tx));
         let process_rx = Arc::new(Mutex::new(process_rx));
 
-        for thread_id in 0..RAW_DS_THREADS {
+        for thread_id in 0..self.config.raw_ds_threads.unwrap_or(DEFAULT_RAW_DS_THREADS) {
             let raw_ds_rx = raw_ds_rx.clone();
             let ws_tx = ws_tx.clone();
-            tokio::task::spawn(raw_deserializer(thread_id, raw_ds_rx, ws_tx, process_tx.clone(), order_tx.clone()));
+            tokio::task::spawn(raw_deserializer(thread_id, self.config.clone(), raw_ds_rx, ws_tx, process_tx.clone(), order_tx.clone()));
         }
 
-        for _ in 0..BLOCK_PROCESS_THREADS {
+        for _ in 0..self.config.block_process_threads.unwrap_or(DEFAULT_BLOCK_PROCESS_THREADS) {
             tokio::task::spawn(evm_block_processor(
                 process_rx.clone(),
                 order_tx.clone(),
