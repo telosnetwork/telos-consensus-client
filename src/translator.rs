@@ -7,6 +7,7 @@ use crate::types::ship_types::{
     GetBlocksAckRequestV0, GetBlocksRequestV0, GetStatusRequestV0, ShipRequest, ShipResult,
 };
 use crate::types::types::{BlockOrSkip, PriorityQueue, RawMessage, WebsocketTransmitter};
+use alloy::primitives::FixedBytes;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
 use antelope::chain::{Decoder, Encoder};
@@ -79,7 +80,7 @@ impl Translator {
         })
     }
 
-    pub async fn launch(&mut self) -> Result<()> {
+    pub async fn launch(&mut self, output_tx: Option<mpsc::Sender<(FixedBytes<32>, Block)>>) -> Result<()> {
         let api_client: APIClient<DefaultProvider> =
             APIClient::<DefaultProvider>::default_provider(self.config.http_endpoint.clone())
                 .expect("Failed to create API client");
@@ -128,8 +129,7 @@ impl Translator {
         for _ in 0..self.config.block_process_threads.unwrap_or(DEFAULT_BLOCK_PROCESS_THREADS) {
             tokio::task::spawn(evm_block_processor(
                 process_rx.clone(),
-                order_tx.clone(),
-                api_client.clone(),
+                order_tx.clone()
             ));
         }
 
@@ -141,12 +141,7 @@ impl Translator {
         tokio::spawn(order_preserving_queue(order_rx, finalize_tx, queue_clone));
 
         // Start the final processing task
-        tokio::spawn(final_processor(finalize_rx));
-
-        // Keep the main thread alive
-        loop {
-            tokio::task::yield_now().await;
-        }
+        tokio::spawn(final_processor(self.config.clone(), api_client, finalize_rx, output_tx));
 
         Ok(())
     }

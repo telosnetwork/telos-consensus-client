@@ -23,8 +23,13 @@ async fn main() {
         .expect("Could not parse config as toml");
 
     let mut translator = Translator::new(config).await.unwrap();
-    match translator.launch().await {
+    match translator.launch(None).await {
         Ok(_) => info!("Translator launched successfully"),
         Err(e) => error!("Failed to launch translator: {:?}", e),
+    }
+
+    // Keep the main thread alive
+    loop {
+        tokio::task::yield_now().await;
     }
 }

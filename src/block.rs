@@ -5,7 +5,8 @@ use crate::types::ship_types::{
     ActionTrace, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
 use crate::types::types::NameToAddressCache;
-use alloy::primitives::Bloom;
+use alloy::primitives::{Bloom, Bytes, FixedBytes};
+use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
@@ -111,11 +112,6 @@ impl Block {
         }
     }
 
-    pub async fn process(&mut self, name_to_address_cache: &NameToAddressCache) {
-        self.deserialize();
-        self.generate_evm_data(name_to_address_cache).await;
-    }
-
     pub fn deserialize(&mut self) {
         if let Some(b) = &self.result.block {
             let mut decoder = Decoder::new(b.as_slice());
@@ -203,7 +199,7 @@ impl Block {
         }
     }
 
-    pub async fn generate_evm_data(&mut self, native_to_evm_cache: &NameToAddressCache) {
+    pub async fn generate_evm_data(&mut self, parent_hash: FixedBytes<32>, block_delta: u32, native_to_evm_cache: &NameToAddressCache) -> Header {
         if self.signed_block.is_none() || self.block_traces.is_none() || self.block_deltas.is_none()
         {
             panic!("Block::to_evm called on a block with missing data");
@@ -222,28 +218,28 @@ impl Block {
             }
         }
 
-        let mut bloom = Bloom::default();
-        for trx in &self.transactions {
-            for log in trx.logs() {
-                //bloom.accrue(log);
-            }
-            //bloom.accrue(&trx.bloom());
-        }
+        // let mut bloom = Bloom::default();
+        // for trx in &self.transactions {
+        //     for log in trx.logs() {
+        //         //bloom.accrue(log);
+        //     }
+        //     //bloom.accrue(&trx.bloom());
+        // }
 
-        let block_header = Header {
-            parent_hash: Default::default(),
-            ommers_hash: Default::default(),
+        Header {
+            parent_hash,
+            ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: Default::default(),
-            state_root: Default::default(),
-            transactions_root: Default::default(),
-            receipts_root: Default::default(),
+            state_root: EMPTY_ROOT_HASH,
+            transactions_root: EMPTY_ROOT_HASH,
+            receipts_root: EMPTY_ROOT_HASH,
             withdrawals_root: None,
             logs_bloom: Default::default(),
             difficulty: Default::default(),
-            number: 0,
-            gas_limit: 0,
+            number: (self.block_num - block_delta) as u64,
+            gas_limit: 0x7fffffff,
             gas_used: 0,
-            timestamp: 0,
+            timestamp: self.signed_block.clone().unwrap().header.header.timestamp as u64,
             mix_hash: Default::default(),
             nonce: Default::default(),
             base_fee_per_gas: None,
@@ -251,9 +247,8 @@ impl Block {
             excess_blob_gas: None,
             parent_beacon_block_root: None,
             requests_root: None,
-            extra_data: Default::default(),
-        };
-        //info!("Block hash: {:?}", block_header.hash_slow());
+            extra_data: Bytes::from(self.block_hash.data),
+        }
     }
 }
 

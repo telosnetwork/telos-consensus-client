@@ -7,6 +7,7 @@ async fn generate_block(
     chain_id: u64,
     http_endpoint: String,
     block_num: u32,
+    sequence: u64,
 ) -> Block {
     let api_client: APIClient<DefaultProvider> = APIClient::<DefaultProvider>::default_provider(
         http_endpoint.clone()
@@ -44,7 +45,8 @@ async fn generate_block(
 
     Block::new(
         chain_id,
-        block_num as u64,
+        sequence,
+        block_num,
         block_pos.block_id,
         GetBlocksResultV0 {
             head: block_pos.clone(),
@@ -62,6 +64,7 @@ async fn generate_block(
 #[tokio::test]
 async fn genesis_mainnet() {
     let evm_chain_id_mainnet = 40;
+    let evm_delta = 36;
     let http_endpoint = "https://mainnet.telos.net".to_string();
 
     let native_to_evm_cache = NameToAddressCache::new(
@@ -69,12 +72,13 @@ async fn genesis_mainnet() {
     let zero_bytes = FixedBytes::from_slice(
         &vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
-    let mut block = generate_block(evm_chain_id_mainnet, http_endpoint, 36).await;
+    let mut block = generate_block(evm_chain_id_mainnet, http_endpoint, 36, 0).await;
 
     block.deserialize();
 
     let evm_genesis = block.generate_evm_data(
         zero_bytes.clone(),
+        evm_delta,
         &native_to_evm_cache
     ).await;
 
