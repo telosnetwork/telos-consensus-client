@@ -6,6 +6,9 @@ use lazy_static::lazy_static;
 use crate::translator::TranslatorConfig;
 
 
+pub const ANTELOPE_EPOCH_MS: u64 = 946684800000;
+pub const ANTELOPE_INTERVAL_MS: u64 = 500;
+
 pub const ZERO_HASH_HEX: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
 lazy_static! {

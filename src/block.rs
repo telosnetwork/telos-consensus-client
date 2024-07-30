@@ -1,4 +1,5 @@
 use crate::transaction::Transaction;
+use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
 use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::names::*;
 use crate::types::ship_types::{
@@ -239,7 +240,7 @@ impl Block {
             number: (self.block_num - block_delta) as u64,
             gas_limit: 0x7fffffff,
             gas_used: 0,
-            timestamp: self.signed_block.clone().unwrap().header.header.timestamp as u64,
+            timestamp: (((self.signed_block.clone().unwrap().header.header.timestamp as u64) * ANTELOPE_INTERVAL_MS) + ANTELOPE_EPOCH_MS) / 1000,
             mix_hash: Default::default(),
             nonce: Default::default(),
             base_fee_per_gas: None,

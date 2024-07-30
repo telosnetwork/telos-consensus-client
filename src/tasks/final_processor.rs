@@ -17,7 +17,15 @@ pub async fn final_processor(
     let mut unlogged_transactions = 0;
 
     let mut parent_hash = FixedBytes::from_str(&config.prev_hash)
-        .expect("Prev hash config is not valid 32 byte hex string");
+        .expect("Prev hash config is not a valid 32 byte hex string");
+
+    let validate_hash = if config.validate_hash.is_some() {
+        Some(FixedBytes::from_str(&config.validate_hash.unwrap())
+            .expect("Validate hash config is not a valid 32 byte hex string"))
+    } else {
+        None
+    };
+    let mut validated = false;
 
     let native_to_evm_cache = NameToAddressCache::new(api_client);
 
@@ -25,8 +33,21 @@ pub async fn final_processor(
         unlogged_blocks += 1;
         unlogged_transactions += block.transactions.len();
         debug!("Finalizing block #{}", block.block_num);
+
         let header = block.generate_evm_data(parent_hash, config.block_delta, &native_to_evm_cache).await;
+
         let block_hash = header.hash_slow();
+
+        if !validated && validate_hash.is_some() {
+            if validate_hash.unwrap() == block_hash {
+                validated = true;
+            } else {
+                error!("Initial hash validation failed!, expected: \"{}\" got: \"{}\"", validate_hash.unwrap(), block_hash);
+                error!("{:#?}", header);
+                panic!("Initial hash validation failed!");
+            }
+        }
+
         if last_log.elapsed().as_secs_f64() > 1.0 {
             let blocks_sec = unlogged_blocks as f64 / last_log.elapsed().as_secs_f64();
             let trx_sec = unlogged_transactions as f64 / last_log.elapsed().as_secs_f64();

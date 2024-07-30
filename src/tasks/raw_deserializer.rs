@@ -20,13 +20,12 @@ use tracing::{debug, error, info};
 pub async fn raw_deserializer(
     thread_id: u8,
     config: TranslatorConfig,
-    mut raw_ds_rx: Arc<Mutex<Receiver<RawMessage>>>,
-    mut ws_tx: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, Message>>>,
+    ship_abi_received: Arc<Mutex<bool>>,
+    raw_ds_rx: Arc<Mutex<Receiver<RawMessage>>>,
+    ws_tx: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, Message>>>,
     block_deserializer_tx: Sender<Block>,
     orderer_tx: Sender<BlockOrSkip>,
 ) {
-    let mut ship_abi_received = false;
-    let mut latest_status = None;
     let mut unackd_blocks = 0;
     let mut last_log = Instant::now();
     let mut unlogged_blocks = 0;
@@ -38,9 +37,9 @@ pub async fn raw_deserializer(
             rx.recv().await
         };
         debug!("raw deserializer #{} got message, decoding...", thread_id);
+        let mut abi_lock = ship_abi_received.lock().await;
         if let Some(msg) = raw {
-            // ABI is always the first message sent on connect
-            if !ship_abi_received {
+            if !(*abi_lock) {
                 // TODO: maybe get this working as an ABI again?
                 //   the problem is that the ABI from ship has invalid table names like `account_metadata`
                 //   which cause from_string to fail, but if you change AbiTable.name to a String then
@@ -51,7 +50,7 @@ pub async fn raw_deserializer(
                 //let abi = ABI::from_string(abi_string.as_str()).unwrap();
                 //self.ship_abi = Some(abi_string);
 
-                ship_abi_received = true;
+                *abi_lock = true;
 
                 // Send GetStatus request after setting up the ABI
                 let request = GetStatus(GetStatusRequestV0);
@@ -71,7 +70,6 @@ pub async fn raw_deserializer(
                             "GetStatusResultV0 head: {:?} last_irreversible: {:?}",
                             r.head.block_num, r.last_irreversible.block_num
                         );
-                        latest_status = Some(Arc::new(ShipResult::GetStatusResultV0(r.clone())));
                         write_message(
                             ws_tx.clone(),
                             &ShipRequest::GetBlocks(GetBlocksRequestV0 {

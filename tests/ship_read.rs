@@ -19,5 +19,6 @@ async fn evm_deploy() {
 
     while let Some((block_hash, block)) = rx.recv().await {
         debug!("{}:{}", block.block_num, hex::encode(block_hash));
+        break;
     }
 }
