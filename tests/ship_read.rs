@@ -1,11 +1,46 @@
 use alloy::primitives::FixedBytes;
+use antelope::api::client::{APIClient, DefaultProvider};
+use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
+use testcontainers::core::ContainerPort::Tcp;
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 use telos_translator_rs::{block::Block, translator::Translator, types::env::MAINNET_DEPLOY_CONFIG};
+use telos_translator_rs::translator::TranslatorConfig;
+use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
 
 #[tokio::test]
 async fn evm_deploy() {
-    let config = MAINNET_DEPLOY_CONFIG.clone();
+    let container: ContainerAsync<GenericImage> = GenericImage::new("telosnetwork/testcontainer-nodeos-evm", "latest")
+        .with_exposed_port(Tcp(8888))
+        .with_exposed_port(Tcp(18999))
+        .start()
+        .await
+        .unwrap();
+
+    let api_client = APIClient::<DefaultProvider>::default_provider(
+        format!("http://localhost:{}", container.get_host_port_ipv4(8888).await.unwrap())
+    ).unwrap();
+
+    let mut last_block = 0;
+
+    loop {
+        let get_info = api_client.v1_chain.get_info().await;
+        if let Ok(info) = get_info {
+            if last_block != 0 && info.head_block_num > last_block {
+                break;
+            }
+            last_block = info.head_block_num;
+        }
+        println!("Waiting for telos node to produce blocks...");
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    }
+
+    let config = TranslatorConfig {
+        http_endpoint: format!("http://localhost:{}", container.get_host_port_ipv4(8888).await.unwrap()),
+        ship_endpoint: format!("ws://localhost:{}", container.get_host_port_ipv4(18999).await.unwrap()),
+        validate_hash: None,
+        ..TESTNET_GENESIS_CONFIG.clone()
+    };
 
     tracing_subscriber::fmt::init();
 
@@ -18,7 +53,10 @@ async fn evm_deploy() {
     }
 
     while let Some((block_hash, block)) = rx.recv().await {
+        // TODO: Make logging work
+        // TODO: Add some example assertions against blocks/transactions
         debug!("{}:{}", block.block_num, hex::encode(block_hash));
+        info!("Received block: {}", block.block_num);
         break;
     }
 }

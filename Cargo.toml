@@ -34,3 +34,4 @@ hex = "0.4.3"
 
 [dev-dependencies]
 async-trait = "0.1.80"
+testcontainers = "0.21.0"
