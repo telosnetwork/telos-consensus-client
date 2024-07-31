@@ -1,19 +1,35 @@
+use std::fs;
+
 use clap::Parser;
-use telos_translator_rs::translator::Translator;
+use tracing::{error, info};
+use telos_translator_rs::translator::{Translator, TranslatorConfig};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(long, default_value = "http://localhost:8888")]
-    http_endpoint: String,
-    #[arg(short, long, default_value = "ws://localhost:18999")]
-    ship_endpoint: String,
+    #[arg(long, default_value = "config.toml")]
+    config: String,
 }
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
+
     tracing_subscriber::fmt::init();
-    let mut translator = Translator::new(args.http_endpoint, args.ship_endpoint).await.unwrap();
-    translator.launch().await.unwrap();
+
+    let config_contents = fs::read_to_string(args.config)
+        .expect("Could not read config file");
+    let config: TranslatorConfig = toml::from_str(&config_contents)
+        .expect("Could not parse config as toml");
+
+    let mut translator = Translator::new(config).await.unwrap();
+    match translator.launch(None).await {
+        Ok(_) => info!("Translator launched successfully"),
+        Err(e) => error!("Failed to launch translator: {:?}", e),
+    }
+
+    // Keep the main thread alive
+    loop {
+        tokio::task::yield_now().await;
+    }
 }

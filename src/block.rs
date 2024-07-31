@@ -1,18 +1,17 @@
-use std::cmp::Ordering;
-use alloy::primitives::Address;
+use crate::transaction::Transaction;
+use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
+use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
+use crate::types::names::*;
+use crate::types::ship_types::{
+    ActionTrace, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
+};
+use crate::types::types::NameToAddressCache;
+use alloy::primitives::{Bloom, Bytes, FixedBytes};
+use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::Header;
-use antelope::api::default_provider::DefaultProvider;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
-use antelope::chain::name::Name;
-use antelope::name;
-use moka::sync::Cache;
-use tracing::info;
-use crate::transaction::Transaction;
-use crate::types::evm_types::{RawAction, PrintedReceipt, TransferAction, WithdrawAction};
-use crate::types::ship_types::{ActionTrace, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace};
-use crate::types::names::*;
-use crate::types::types::NameToAddressCache;
+use std::cmp::Ordering;
 
 pub trait BasicTrace {
     fn action_name(&self) -> u64;
@@ -61,6 +60,7 @@ impl BasicTrace for ActionTrace {
 
 #[derive(Clone)]
 pub struct Block {
+    pub sequence: u64,
     pub block_num: u32,
     block_hash: Checksum256,
     chain_id: u64,
@@ -68,7 +68,7 @@ pub struct Block {
     signed_block: Option<SignedBlock>,
     block_traces: Option<Vec<TransactionTrace>>,
     block_deltas: Option<Vec<TableDelta>>,
-    transactions: Vec<Transaction>,
+    pub transactions: Vec<Transaction>,
 }
 
 pub fn decode_raw(raw: &[u8]) -> RawAction {
@@ -93,8 +93,15 @@ pub fn decode_withdraw(raw: &[u8]) -> WithdrawAction {
 }
 
 impl Block {
-    pub fn new(chain_id: u64, block_num: u32, block_hash: Checksum256, result: GetBlocksResultV0) -> Self {
+    pub fn new(
+        chain_id: u64,
+        sequence: u64,
+        block_num: u32,
+        block_hash: Checksum256,
+        result: GetBlocksResultV0,
+    ) -> Self {
         Self {
+            sequence,
             block_num,
             block_hash,
             chain_id,
@@ -108,28 +115,32 @@ impl Block {
 
     pub fn deserialize(&mut self) {
         if let Some(b) = &self.result.block {
-            let mut decoder = Decoder::new(b.as_slice().clone());
+            let mut decoder = Decoder::new(b.as_slice());
             let signed_block = &mut SignedBlock::default();
             decoder.unpack(signed_block);
             self.signed_block = Some(signed_block.clone());
         }
 
         if let Some(t) = &self.result.traces {
-            let mut decoder = Decoder::new(t.as_slice().clone());
+            let mut decoder = Decoder::new(t.as_slice());
             let block_traces: &mut Vec<TransactionTrace> = &mut vec![];
             decoder.unpack(block_traces);
             self.block_traces = Some(block_traces.to_vec());
         }
 
         if let Some(d) = &self.result.deltas {
-            let mut decoder = Decoder::new(d.as_slice().clone());
+            let mut decoder = Decoder::new(d.as_slice());
             let block_deltas: &mut Vec<TableDelta> = &mut vec![];
             decoder.unpack(block_deltas);
             self.block_deltas = Some(block_deltas.to_vec());
         }
     }
 
-    async fn handle_action(&mut self, action: Box<dyn BasicTrace + Send>, native_to_evm_cache: &NameToAddressCache) {
+    async fn handle_action(
+        &mut self,
+        action: Box<dyn BasicTrace + Send>,
+        native_to_evm_cache: &NameToAddressCache,
+    ) {
         let action_name = action.action_name();
         let action_account = action.action_account();
         let action_receiver = action.receiver();
@@ -139,32 +150,59 @@ impl Block {
             let raw = decode_raw(&action.data());
             let printed_receipt = PrintedReceipt::from_console(action.console());
             if printed_receipt.is_none() {
-                panic!("No printed receipt found for raw action in block: {}", self.block_num);
+                panic!(
+                    "No printed receipt found for raw action in block: {}",
+                    self.block_num
+                );
             }
-            let transaction = Transaction::from_raw_action(raw, printed_receipt.unwrap(), native_to_evm_cache).await;
+            let transaction = Transaction::from_raw_action(
+                self.chain_id,
+                self.transactions.len(),
+                self.block_hash,
+                raw,
+                printed_receipt.unwrap(),
+            )
+            .await;
             self.transactions.push(transaction);
         } else if action_account == EOSIO_EVM && action_name == WITHDRAW {
             // Withdrawal from EVM
             let withdraw_action = decode_withdraw(&action.data());
-            let transaction = Transaction::from_withdraw(self.chain_id, self.transactions.len(), self.block_hash, withdraw_action, native_to_evm_cache).await;
+            let transaction = Transaction::from_withdraw(
+                self.chain_id,
+                self.transactions.len(),
+                self.block_hash,
+                withdraw_action,
+                native_to_evm_cache,
+            )
+            .await;
             self.transactions.push(transaction);
-        } else if action_account == EOSIO_TOKEN && action_name == TRANSFER && action_receiver == EOSIO_EVM {
+        } else if action_account == EOSIO_TOKEN
+            && action_name == TRANSFER
+            && action_receiver == EOSIO_EVM
+        {
             // Deposit/transfer to EVM
             let transfer_action = decode_transfer(&action.data());
             if SYSTEM_ACCOUNTS.contains(&transfer_action.from.n) {
                 return;
             }
 
-            let transaction = Transaction::from_transfer(self.chain_id, self.transactions.len(), self.block_hash, transfer_action, native_to_evm_cache).await;
+            let transaction = Transaction::from_transfer(
+                self.chain_id,
+                self.transactions.len(),
+                self.block_hash,
+                transfer_action,
+                native_to_evm_cache,
+            )
+            .await;
             self.transactions.push(transaction.clone());
-            info!("Deposit hash: {}", transaction.hash());
         } else if action_account == EOSIO_EVM && action_name == DORESOURCES {
             // TODO: Handle doresources action
         }
     }
 
-    pub async fn generate_evm_data(&mut self, native_to_evm_cache: &NameToAddressCache) {
-        if self.signed_block.is_none() || self.block_traces.is_none() || self.block_deltas.is_none() {
+    pub async fn generate_evm_data(&mut self, parent_hash: FixedBytes<32>, block_delta: u32, native_to_evm_cache: &NameToAddressCache) -> Header {
+        if self.signed_block.is_none() || self.block_traces.is_none() || self.block_deltas.is_none()
+        {
             panic!("Block::to_evm called on a block with missing data");
         }
 
@@ -174,26 +212,35 @@ impl Block {
             match t {
                 TransactionTrace::V0(t) => {
                     for action in t.action_traces {
-                        self.handle_action(Box::new(action), &native_to_evm_cache).await;
+                        self.handle_action(Box::new(action), &native_to_evm_cache)
+                            .await;
                     }
                 }
             }
         }
 
-        let block_header = Header {
-            parent_hash: Default::default(),
-            ommers_hash: Default::default(),
+        // let mut bloom = Bloom::default();
+        // for trx in &self.transactions {
+        //     for log in trx.logs() {
+        //         //bloom.accrue(log);
+        //     }
+        //     //bloom.accrue(&trx.bloom());
+        // }
+
+        Header {
+            parent_hash,
+            ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: Default::default(),
-            state_root: Default::default(),
-            transactions_root: Default::default(),
-            receipts_root: Default::default(),
+            state_root: EMPTY_ROOT_HASH,
+            transactions_root: EMPTY_ROOT_HASH,
+            receipts_root: EMPTY_ROOT_HASH,
             withdrawals_root: None,
             logs_bloom: Default::default(),
             difficulty: Default::default(),
-            number: 0,
-            gas_limit: 0,
+            number: (self.block_num - block_delta) as u64,
+            gas_limit: 0x7fffffff,
             gas_used: 0,
-            timestamp: 0,
+            timestamp: (((self.signed_block.clone().unwrap().header.header.timestamp as u64) * ANTELOPE_INTERVAL_MS) + ANTELOPE_EPOCH_MS) / 1000,
             mix_hash: Default::default(),
             nonce: Default::default(),
             base_fee_per_gas: None,
@@ -201,10 +248,8 @@ impl Block {
             excess_blob_gas: None,
             parent_beacon_block_root: None,
             requests_root: None,
-            extra_data: Default::default(),
-        };
-        //info!("Block hash: {:?}", block_header.hash_slow());
-
+            extra_data: Bytes::from(self.block_hash.data),
+        }
     }
 }
 

@@ -1,24 +1,48 @@
-use std::collections::BinaryHeap;
-use std::sync::{Arc, Mutex};
+use crate::block::Block;
+use crate::types::evm_types::AccountRow;
+use crate::types::names::EOSIO_EVM;
 use alloy::primitives::Address;
 use antelope::api::client::{APIClient, DefaultProvider};
 use antelope::api::v1::structs::{GetTableRowsParams, IndexPosition, TableIndexType};
 use antelope::chain::name::Name;
+use futures_util::stream::{SplitSink, SplitStream};
 use moka::sync::Cache;
-use crate::block::Block;
-use crate::types::evm_types::AccountRow;
-use crate::types::names::EOSIO_EVM;
+use std::collections::BinaryHeap;
+use std::net::TcpStream;
+use std::sync::{Arc, Mutex};
+use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use crate::types::ship_types::GetStatusResultV0;
+
+pub type WebsocketTransmitter = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
+pub type WebsocketReceiver = SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
 
 pub struct NameToAddressCache {
     cache: Cache<u64, Address>,
-    api_client: APIClient<DefaultProvider>
+    api_client: APIClient<DefaultProvider>,
+}
+
+pub enum BlockOrSkip {
+    Block(Block),
+    Skip(u64)
+}
+
+pub struct RawMessage {
+    pub sequence: u64,
+    pub bytes: Vec<u8>,
+}
+
+impl RawMessage {
+    pub fn new(sequence: u64, bytes: Vec<u8>) -> Self {
+        RawMessage { sequence, bytes }
+    }
 }
 
 impl NameToAddressCache {
     pub fn new(api_client: APIClient<DefaultProvider>) -> Self {
         NameToAddressCache {
             cache: Cache::new(10_000),
-            api_client
+            api_client,
         }
     }
 
@@ -27,22 +51,25 @@ impl NameToAddressCache {
         if let Some(cached) = cached {
             Some(cached.clone())
         } else {
-            let EVM_CONTRACT = Name::from_u64(EOSIO_EVM);
+            let evm_contract = Name::from_u64(EOSIO_EVM);
             // TODO: hardcode this in names.rs for performance
-            let ACCOUNT = Name::new_from_str("account");
-            let account_result = self.api_client.v1_chain.get_table_rows::<AccountRow>(
-                GetTableRowsParams {
-                    code: EVM_CONTRACT,
-                    table: ACCOUNT,
-                    scope: Some(EVM_CONTRACT),
+            let account = Name::new_from_str("account");
+            let account_result = self
+                .api_client
+                .v1_chain
+                .get_table_rows::<AccountRow>(GetTableRowsParams {
+                    code: evm_contract,
+                    table: account,
+                    scope: Some(evm_contract),
                     lower_bound: Some(TableIndexType::UINT64(name)),
                     upper_bound: Some(TableIndexType::UINT64(name)),
                     limit: Some(1),
                     reverse: None,
                     index_position: Some(IndexPosition::TERTIARY),
                     show_payer: None,
-                }
-            ).await.unwrap();
+                })
+                .await
+                .unwrap();
             if account_result.rows.len() == 0 {
                 return None;
             }

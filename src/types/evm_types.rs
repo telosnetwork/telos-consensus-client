@@ -1,12 +1,12 @@
-use alloy::primitives::{Address, address, B256, Bytes, Log};
-use antelope::serializer::Decoder;
-use antelope::serializer::Encoder;
+use alloy::primitives::{address, Address, Bytes, Log, B256};
 use antelope::chain::asset::Asset;
 use antelope::chain::checksum::{Checksum160, Checksum256};
 use antelope::chain::name::Name;
-use antelope::StructPacker;
 use antelope::chain::Packer;
+use antelope::serializer::Decoder;
+use antelope::serializer::Encoder;
 use antelope::util::hex_to_bytes;
+use antelope::StructPacker;
 use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
@@ -52,7 +52,6 @@ pub struct PrintedReceipt {
     pub gasused: String,
     #[serde(deserialize_with = "deserialize_logs")]
     pub logs: Vec<Log>,
-    // pub logs: any[], // Define struct for this
     pub output: String,
     // pub errors: Option<any[],  // Define struct for this
     // pub itxs: any[], // Define struct for this
@@ -70,11 +69,22 @@ where
         topics: Vec<String>,
     }
 
+    impl LogHelper {
+        fn address(&self) -> Address {
+            let padded = format!("{:0>40}", self.address);
+            padded.parse().expect("Invalid address")
+        }
+    }
+
     let log_helpers = Vec::<LogHelper>::deserialize(deserializer)?;
     let mut logs = vec![];
     for log in log_helpers {
-        let address = log.address.parse().expect("Invalid address");
-        let topics = log.topics.into_iter().map(|topic| to_b256(&topic)).collect();
+        let address = log.address();
+        let topics = log
+            .topics
+            .into_iter()
+            .map(|topic| to_b256(&topic))
+            .collect();
         let data = log.data.parse().expect("Invalid data");
         logs.push(Log::new(address, topics, data).unwrap());
     }
@@ -102,7 +112,6 @@ impl PrintedReceipt {
                 let end_index = start_index + end;
                 let extracted = &console[start_index..end_index];
                 let printed_receipt = serde_json::from_str::<PrintedReceipt>(extracted).unwrap();
-                println!("{:?}", printed_receipt);
                 Some(printed_receipt)
             } else {
                 println!("End pattern not found.");
