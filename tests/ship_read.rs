@@ -10,7 +10,9 @@ use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
 
 #[tokio::test]
 async fn evm_deploy() {
-    let container: ContainerAsync<GenericImage> = GenericImage::new("telosnetwork/testcontainer-nodeos-evm", "latest")
+
+    // Change this container to a local image if using new ship data, then make sure to update the ship data in the testcontainer-nodeos-evm repo and build a new version
+    let container: ContainerAsync<GenericImage> = GenericImage::new("ghcr.io/telosnetwork/testcontainer-nodeos-evm", "v0.1.0")
         .with_exposed_port(Tcp(8888))
         .with_exposed_port(Tcp(18999))
         .start()
