@@ -77,7 +77,6 @@ impl Transaction {
         action: TransferAction,
         native_to_evm_cache: &NameToAddressCache,
     ) -> Self {
-
         let address: Address = if action.memo.starts_with("0x") {
             action.memo.parse().unwrap()
         } else {

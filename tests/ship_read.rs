@@ -1,7 +1,9 @@
 use alloy::primitives::FixedBytes;
+use telos_translator_rs::{
+    block::Block, translator::Translator, types::env::MAINNET_DEPLOY_CONFIG,
+};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
-use telos_translator_rs::{block::Block, translator::Translator, types::env::MAINNET_DEPLOY_CONFIG};
 
 #[tokio::test]
 async fn evm_deploy() {
@@ -14,7 +16,7 @@ async fn evm_deploy() {
     let mut translator = Translator::new(config).await.unwrap();
     match translator.launch(Some(tx)).await {
         Ok(_) => info!("Translator launched successfully"),
-        Err(e) => panic!("Failed to launch translator: {:?}", e)
+        Err(e) => panic!("Failed to launch translator: {:?}", e),
     }
 
     while let Some((block_hash, block)) = rx.recv().await {

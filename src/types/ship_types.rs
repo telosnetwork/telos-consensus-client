@@ -61,7 +61,7 @@ impl Packer for GetStatusRequestV0 {
         0
     }
 
-    fn unpack<'a>(&mut self, _data: &'a [u8]) -> usize {
+    fn unpack(&mut self, _data: &[u8]) -> usize {
         0
     }
 }

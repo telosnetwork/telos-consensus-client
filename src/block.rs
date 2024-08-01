@@ -200,7 +200,12 @@ impl Block {
         }
     }
 
-    pub async fn generate_evm_data(&mut self, parent_hash: FixedBytes<32>, block_delta: u32, native_to_evm_cache: &NameToAddressCache) -> Header {
+    pub async fn generate_evm_data(
+        &mut self,
+        parent_hash: FixedBytes<32>,
+        block_delta: u32,
+        native_to_evm_cache: &NameToAddressCache,
+    ) -> Header {
         if self.signed_block.is_none() || self.block_traces.is_none() || self.block_deltas.is_none()
         {
             panic!("Block::to_evm called on a block with missing data");
@@ -240,7 +245,10 @@ impl Block {
             number: (self.block_num - block_delta) as u64,
             gas_limit: 0x7fffffff,
             gas_used: 0,
-            timestamp: (((self.signed_block.clone().unwrap().header.header.timestamp as u64) * ANTELOPE_INTERVAL_MS) + ANTELOPE_EPOCH_MS) / 1000,
+            timestamp: (((self.signed_block.clone().unwrap().header.header.timestamp as u64)
+                * ANTELOPE_INTERVAL_MS)
+                + ANTELOPE_EPOCH_MS)
+                / 1000,
             mix_hash: Default::default(),
             nonce: Default::default(),
             base_fee_per_gas: None,

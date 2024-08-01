@@ -1,16 +1,16 @@
 use crate::{block::Block, translator::TranslatorConfig, types::types::NameToAddressCache};
-use std::{str::FromStr, time::Instant};
 use alloy::primitives::FixedBytes;
 use antelope::api::client::{APIClient, DefaultProvider};
+use hex::encode;
+use std::{str::FromStr, time::Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
-use hex::encode;
 
 pub async fn final_processor(
     config: TranslatorConfig,
     api_client: APIClient<DefaultProvider>,
     mut rx: mpsc::Receiver<Block>,
-    tx: Option<mpsc::Sender<(FixedBytes<32>, Block)>>
+    tx: Option<mpsc::Sender<(FixedBytes<32>, Block)>>,
 ) {
     let mut last_log = std::time::Instant::now();
     let mut unlogged_blocks = 0;
@@ -20,8 +20,10 @@ pub async fn final_processor(
         .expect("Prev hash config is not a valid 32 byte hex string");
 
     let validate_hash = if config.validate_hash.is_some() {
-        Some(FixedBytes::from_str(&config.validate_hash.unwrap())
-            .expect("Validate hash config is not a valid 32 byte hex string"))
+        Some(
+            FixedBytes::from_str(&config.validate_hash.unwrap())
+                .expect("Validate hash config is not a valid 32 byte hex string"),
+        )
     } else {
         None
     };
@@ -34,7 +36,9 @@ pub async fn final_processor(
         unlogged_transactions += block.transactions.len();
         debug!("Finalizing block #{}", block.block_num);
 
-        let header = block.generate_evm_data(parent_hash, config.block_delta, &native_to_evm_cache).await;
+        let header = block
+            .generate_evm_data(parent_hash, config.block_delta, &native_to_evm_cache)
+            .await;
 
         let block_hash = header.hash_slow();
 
@@ -42,7 +46,11 @@ pub async fn final_processor(
             if validate_hash.unwrap() == block_hash {
                 validated = true;
             } else {
-                error!("Initial hash validation failed!, expected: \"{}\" got: \"{}\"", validate_hash.unwrap(), block_hash);
+                error!(
+                    "Initial hash validation failed!, expected: \"{}\" got: \"{}\"",
+                    validate_hash.unwrap(),
+                    block_hash
+                );
                 error!("{:#?}", header);
                 panic!("Initial hash validation failed!");
             }
@@ -53,7 +61,10 @@ pub async fn final_processor(
             let trx_sec = unlogged_transactions as f64 / last_log.elapsed().as_secs_f64();
             info!(
                 "Block #{} 0x{} - processed {} blocks/sec and {} tx/sec",
-                block.block_num, encode(block_hash), blocks_sec, trx_sec
+                block.block_num,
+                encode(block_hash),
+                blocks_sec,
+                trx_sec
             );
             //info!("Block map is {} long", block_map.len());
             unlogged_blocks = 0;

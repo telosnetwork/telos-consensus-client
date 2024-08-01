@@ -6,11 +6,11 @@ use crate::types::ship_types::{
 };
 use crate::types::types::{BlockOrSkip, RawMessage};
 use antelope::chain::Decoder;
-use futures_util::stream::{SplitSink};
+use futures_util::stream::SplitSink;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{Mutex};
+use tokio::sync::Mutex;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::{debug, error, info};
@@ -53,7 +53,10 @@ pub async fn raw_deserializer(
                 // Send GetStatus request after setting up the ABI
                 let request = GetStatus(GetStatusRequestV0);
                 write_message(ws_tx.clone(), &request).await;
-                orderer_tx.send(BlockOrSkip::Skip(msg.sequence)).await.unwrap();
+                orderer_tx
+                    .send(BlockOrSkip::Skip(msg.sequence))
+                    .await
+                    .unwrap();
             } else {
                 // Print received messages after ABI is set
                 //info!("Received message: {:?}", bytes_to_hex(&msg_data));
@@ -82,7 +85,10 @@ pub async fn raw_deserializer(
                             }),
                         )
                         .await;
-                        orderer_tx.send(BlockOrSkip::Skip(msg.sequence)).await.unwrap();
+                        orderer_tx
+                            .send(BlockOrSkip::Skip(msg.sequence))
+                            .await
+                            .unwrap();
                     }
                     ShipResult::GetBlocksResultV0(r) => {
                         unackd_blocks += 1;

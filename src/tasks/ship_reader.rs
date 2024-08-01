@@ -1,10 +1,10 @@
 use crate::types::types::RawMessage;
 use futures_util::stream::SplitStream;
 use futures_util::StreamExt;
+use log::debug;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use log::debug;
 
 pub async fn ship_reader(
     mut ws_rx: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
@@ -17,7 +17,10 @@ pub async fn ship_reader(
         sequence += 1;
         match message {
             Ok(msg) => {
-                debug!("Received message with sequence {}, sending to raw ds pool...", sequence);
+                debug!(
+                    "Received message with sequence {}, sending to raw ds pool...",
+                    sequence
+                );
                 // write to the channel
                 if raw_ds_tx
                     .send(RawMessage::new(sequence, msg.into_data()))

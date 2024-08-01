@@ -23,7 +23,7 @@ pub struct NameToAddressCache {
 
 pub enum BlockOrSkip {
     Block(Block),
-    Skip(u64)
+    Skip(u64),
 }
 
 pub struct RawMessage {

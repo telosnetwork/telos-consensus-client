@@ -1,13 +1,13 @@
-use std::sync::Arc;
 use crate::block::Block;
-use crate::types::types::{BlockOrSkip};
+use crate::types::types::BlockOrSkip;
+use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Mutex;
 use tracing::{debug, error};
 
 pub async fn evm_block_processor(
     block_rx: Arc<Mutex<Receiver<Block>>>,
-    block_tx: Sender<BlockOrSkip>
+    block_tx: Sender<BlockOrSkip>,
 ) {
     while let Some(mut block) = block_rx.lock().await.recv().await {
         debug!("Processing block {}", block.block_num);
