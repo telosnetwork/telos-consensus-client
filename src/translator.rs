@@ -20,7 +20,6 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::error;
 
-pub const DEFAULT_RAW_DS_THREADS: u8 = 4;
 pub const DEFAULT_BLOCK_PROCESS_THREADS: u8 = 4;
 
 pub const DEFAULT_RAW_MESSAGE_CHANNEL_SIZE: usize = 10000;
@@ -47,19 +46,6 @@ pub struct TranslatorConfig {
     pub block_message_channel_size: Option<usize>,
     pub order_message_channel_size: Option<usize>,
     pub final_message_channel_size: Option<usize>,
-}
-
-pub async fn write_message(
-    tx_stream: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>>>,
-    message: &ShipRequest,
-) {
-    let bytes = Encoder::pack(message);
-    tx_stream
-        .lock()
-        .await
-        .send(Message::Binary(bytes))
-        .await
-        .unwrap();
 }
 
 pub struct Translator {
@@ -120,24 +106,19 @@ impl Translator {
         tokio::task::spawn(ship_reader(ws_rx, raw_ds_tx));
 
         let raw_ds_rx = Arc::new(Mutex::new(raw_ds_rx));
-        let ws_tx = Arc::new(Mutex::new(ws_tx));
         let process_rx = Arc::new(Mutex::new(process_rx));
 
         let ship_abi_received = Arc::new(Mutex::new(false));
 
-        for thread_id in 0..self.config.raw_ds_threads.unwrap_or(DEFAULT_RAW_DS_THREADS) {
-            let raw_ds_rx = raw_ds_rx.clone();
-            let ws_tx = ws_tx.clone();
-            tokio::task::spawn(raw_deserializer(
-                thread_id,
-                self.config.clone(),
-                ship_abi_received.clone(),
-                raw_ds_rx,
-                ws_tx,
-                process_tx.clone(),
-                order_tx.clone(),
-            ));
-        }
+        tokio::task::spawn(raw_deserializer(
+            0,
+            self.config.clone(),
+            ship_abi_received.clone(),
+            raw_ds_rx.clone(),
+            ws_tx,
+            process_tx.clone(),
+            order_tx.clone(),
+        ));
 
         for _ in 0..self
             .config
