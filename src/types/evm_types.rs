@@ -73,7 +73,7 @@ pub struct WithdrawAction {
 pub struct PrintedReceipt {
     pub charged_gas: String,
     pub trx_index: u16,
-    pub block: u32,
+    pub block: u64,
     pub status: u8,
     pub epoch: u64,
     pub createdaddr: String,

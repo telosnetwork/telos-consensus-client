@@ -1,11 +1,10 @@
 use alloy::primitives::FixedBytes;
 use antelope::api::client::{APIClient, DefaultProvider};
-use serde::__private::de::Content::U64;
-use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt};
+use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use testcontainers::core::ContainerPort::Tcp;
 use tokio::sync::mpsc;
 use tracing::{debug, info};
-use telos_translator_rs::{block::Block, translator::Translator, types::env::MAINNET_DEPLOY_CONFIG};
+use telos_translator_rs::{block::Block, translator::Translator};
 use telos_translator_rs::translator::TranslatorConfig;
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
 
@@ -19,10 +18,9 @@ async fn evm_deploy() {
     //   and should be the tag for linux/amd64
     let container: ContainerAsync<GenericImage> = GenericImage::new(
         "ghcr.io/telosnetwork/testcontainer-nodeos-evm",
-        "v0.1.2@sha256:b73946d5857e208c9eb019c3c0501f032d19e20a7bba25456bb7b133739acc59")
+        "v0.1.3@sha256:d9f198f0885498936bf731bf6d84a1e1b425d79d4ef8249f8bd2b6b6aa534314")
         .with_exposed_port(Tcp(8888))
         .with_exposed_port(Tcp(18999))
-        //.with_env_var("DOCKER_DEFAULT_PLATFORM", "linux/amd64")
         .start()
         .await
         .unwrap();
@@ -49,10 +47,9 @@ async fn evm_deploy() {
         http_endpoint: format!("http://localhost:{}", container.get_host_port_ipv4(8888).await.unwrap()),
         ship_endpoint: format!("ws://localhost:{}", container.get_host_port_ipv4(18999).await.unwrap()),
         validate_hash: None,
-        // TODO: figure out correct offset and start block
         start_block: 30,
         stop_block: Some(75),
-        block_delta: 30,
+        block_delta: 0,
         ..TESTNET_GENESIS_CONFIG.clone()
     };
 
