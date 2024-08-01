@@ -71,13 +71,13 @@ pub struct Translator {
 }
 
 impl Translator {
-    pub async fn new(config: TranslatorConfig) -> Result<Self> {
-        Ok(Self {
+    pub fn new(config: TranslatorConfig) -> Self {
+        Self {
             config,
             _ship_abi: None,
             _latest_status: None,
             _block_map: Arc::new(DashMap::new()),
-        })
+        }
     }
 
     pub async fn launch(

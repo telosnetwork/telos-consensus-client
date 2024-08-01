@@ -13,8 +13,7 @@ async fn evm_deploy() {
 
     let (tx, mut rx) = mpsc::channel::<(FixedBytes<32>, Block)>(1000);
 
-    let mut translator = Translator::new(config).await.unwrap();
-    match translator.launch(Some(tx)).await {
+    match Translator::new(config).launch(Some(tx)).await {
         Ok(_) => info!("Translator launched successfully"),
         Err(e) => panic!("Failed to launch translator: {:?}", e),
     }

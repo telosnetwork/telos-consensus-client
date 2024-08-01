@@ -21,8 +21,7 @@ async fn main() {
     let config: TranslatorConfig =
         toml::from_str(&config_contents).expect("Could not parse config as toml");
 
-    let mut translator = Translator::new(config).await.unwrap();
-    match translator.launch(None).await {
+    match Translator::new(config).launch(None).await {
         Ok(_) => info!("Translator launched successfully"),
         Err(e) => error!("Failed to launch translator: {:?}", e),
     }
