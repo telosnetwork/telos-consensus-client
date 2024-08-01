@@ -25,27 +25,30 @@ async fn evm_deploy() {
         .await
         .unwrap();
 
-    let api_client = APIClient::<DefaultProvider>::default_provider(
-        format!("http://localhost:{}", container.get_host_port_ipv4(8888).await.unwrap())
-    ).unwrap();
+    let port_8888 = container.get_host_port_ipv4(8888).await.unwrap();
+    let port_18999 = container.get_host_port_ipv4(18999).await.unwrap();
+
+    let api_base_url = format!("http://localhost:{port_8888}");
+    let api_client = APIClient::<DefaultProvider>::default_provider(api_base_url).unwrap();
 
     let mut last_block = 0;
 
     loop {
-        let get_info = api_client.v1_chain.get_info().await;
-        if let Ok(info) = get_info {
-            if last_block != 0 && info.head_block_num > last_block {
-                break;
-            }
-            last_block = info.head_block_num;
+        let Ok(info) = api_client.v1_chain.get_info().await else {
+            println!("Waiting for telos node to produce blocks...");
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            continue;
+        };
+        if last_block != 0 && info.head_block_num > last_block {
+            break;
         }
-        info!("Waiting for telos node to produce blocks...");
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        last_block = info.head_block_num;
     }
 
+
     let config = TranslatorConfig {
-        http_endpoint: format!("http://localhost:{}", container.get_host_port_ipv4(8888).await.unwrap()),
-        ship_endpoint: format!("ws://localhost:{}", container.get_host_port_ipv4(18999).await.unwrap()),
+        http_endpoint: format!("http://localhost:{port_8888}",),
+        ship_endpoint: format!("ws://localhost:{port_18999}",),
         validate_hash: None,
         start_block: 30,
         stop_block: Some(75),
