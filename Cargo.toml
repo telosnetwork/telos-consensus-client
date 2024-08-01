@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-antelope-client = { git = "https://github.com/telosnetwork/antelope-rs.git", branch = "serialization" }
+antelope-client = { git = "https://github.com/telosnetwork/antelope-rs.git", branch = "finish_table_rows_params" }
 # antelope-client = { path = "../antelope-rs/crates/antelope" }
 alloy = { git = "https://github.com/alloy-rs/alloy", rev = "v0.1.1" }
 alloy-rlp = { git = "https://github.com/alloy-rs/rlp", rev = "v0.3.5" }

@@ -490,7 +490,7 @@ dependencies = [
 [[package]]
 name = "antelope-client"
 version = "0.2.1"
-source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=serialization#4bb0af2b4dab220b8185e450ba84f008209df896"
+source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=finish_table_rows_params#57fbdb7b982e87b4914124019f675747256945a8"
 dependencies = [
  "antelope-client-macros",
  "async-trait",

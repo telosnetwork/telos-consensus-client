@@ -64,7 +64,7 @@ impl NameToAddressCache {
                     upper_bound: Some(TableIndexType::UINT64(name)),
                     limit: Some(1),
                     reverse: None,
-                    index_position: Some(3),
+                    index_position: Some(IndexPosition::TERTIARY),
                     show_payer: None,
                 })
                 .await
