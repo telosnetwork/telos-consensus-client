@@ -1,8 +1,10 @@
 use alloy::primitives::{address, Address, Bytes, Log, B256};
+use alloy::primitives::aliases::BlockTimestamp;
 use antelope::chain::asset::Asset;
 use antelope::chain::checksum::{Checksum160, Checksum256};
 use antelope::chain::name::Name;
 use antelope::chain::Packer;
+use antelope::chain::time::TimePoint;
 use antelope::serializer::Decoder;
 use antelope::serializer::Encoder;
 use antelope::util::hex_to_bytes;
@@ -33,6 +35,32 @@ pub struct AccountRow {
     pub nonce: u64,
     pub code: Vec<u8>,
     pub balance: Checksum256,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
+pub struct GlobalTable {
+    max_ram_size: u64,
+    total_ram_bytes_reserved: u64,
+    total_ram_stake: i64,
+    last_producer_schedule_update: BlockTimestamp,
+    last_proposed_schedule_update: BlockTimestamp,
+    last_pervote_bucket_fill: TimePoint,
+    pervote_bucket: i64,
+    perblock_bucket: i64,
+    total_unpaid_blocks: u32,
+    total_activated_stake: i64,
+    thresh_activated_stake_time: TimePoint,
+    last_producer_schedule_size: u16,
+    total_producer_vote_weight: f64,
+    last_name_close: BlockTimestamp,
+    block_num: u32,
+    last_claimrewards: u32,
+    next_payment: u32,
+    new_ram_per_block: u16,
+    last_ram_increase: BlockTimestamp,
+    last_block_num: BlockTimestamp,
+    total_producer_votepay_share: f64,
+    revision: u8,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
