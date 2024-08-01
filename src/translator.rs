@@ -2,15 +2,14 @@ use crate::block::Block;
 use crate::tasks::{
     evm_block_processor, final_processor, order_preserving_queue, raw_deserializer, ship_reader,
 };
-use crate::types::ship_types::{ShipRequest, ShipResult};
+use crate::types::ship_types::ShipRequest;
 use crate::types::types::{BlockOrSkip, RawMessage};
 use alloy::primitives::FixedBytes;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
 use antelope::chain::Encoder;
-use dashmap::DashMap;
 use eyre::Result;
-use futures_util::stream::{SplitSink, SplitStream};
+use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
@@ -65,26 +64,18 @@ pub async fn write_message(
 
 pub struct Translator {
     config: TranslatorConfig,
-    _ship_abi: Option<String>,
-    _latest_status: Option<Arc<ShipResult>>,
-    _block_map: Arc<DashMap<u32, Block>>,
 }
 
 impl Translator {
     pub fn new(config: TranslatorConfig) -> Self {
-        Self {
-            config,
-            _ship_abi: None,
-            _latest_status: None,
-            _block_map: Arc::new(DashMap::new()),
-        }
+        Self { config }
     }
 
     pub async fn launch(
         &mut self,
         output_tx: Option<mpsc::Sender<(FixedBytes<32>, Block)>>,
     ) -> Result<()> {
-        let api_client: APIClient<DefaultProvider> =
+        let api_client =
             APIClient::<DefaultProvider>::default_provider(self.config.http_endpoint.clone())
                 .expect("Failed to create API client");
 
@@ -98,10 +89,7 @@ impl Translator {
         }
 
         let (ws_stream, _) = connect_result.unwrap();
-        let (ws_tx, ws_rx): (
-            SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-            SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-        ) = ws_stream.split();
+        let (ws_tx, ws_rx) = ws_stream.split();
 
         // Buffer size here should be the readahead buffer size, in blocks.  This could get large if we are reading
         //  a block range with larges blocks/trxs, so this should be tuned based on the largest blocks we hit
