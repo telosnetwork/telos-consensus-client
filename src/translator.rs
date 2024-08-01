@@ -105,16 +105,12 @@ impl Translator {
 
         tokio::task::spawn(ship_reader(ws_rx, raw_ds_tx));
 
-        let raw_ds_rx = Arc::new(Mutex::new(raw_ds_rx));
         let process_rx = Arc::new(Mutex::new(process_rx));
-
-        let ship_abi_received = Arc::new(Mutex::new(false));
 
         tokio::task::spawn(raw_deserializer(
             0,
             self.config.clone(),
-            ship_abi_received.clone(),
-            raw_ds_rx.clone(),
+            raw_ds_rx,
             ws_tx,
             process_tx.clone(),
             order_tx.clone(),
