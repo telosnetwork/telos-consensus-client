@@ -1,14 +1,11 @@
 use crate::rlp::alloy_rlp::TelosTxDecodable;
-use crate::rlp::decode::TelosDecodable;
 use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::types::NameToAddressCache;
 use alloy::primitives::TxKind::Call;
 use alloy::primitives::{Address, Log, Signature, B256, U256};
 use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
 use antelope::chain::checksum::Checksum256;
-use antelope::util::bytes_to_hex;
 use num_bigint::{BigUint, ToBigUint};
-use tracing::info;
 
 pub fn make_unique_vrs(
     block_hash_native: Checksum256,
@@ -34,7 +31,7 @@ pub enum Transaction {
 
 impl Transaction {
     pub async fn from_raw_action(
-        chain_id: u64,
+        _chain_id: u64,
         trx_index: usize,
         block_hash: Checksum256,
         raw: RawAction,
@@ -80,15 +77,15 @@ impl Transaction {
         action: TransferAction,
         native_to_evm_cache: &NameToAddressCache,
     ) -> Self {
-        let address: Address;
-        if action.memo.starts_with("0x") {
-            address = action.memo.parse().unwrap();
+
+        let address: Address = if action.memo.starts_with("0x") {
+            action.memo.parse().unwrap()
         } else {
-            address = native_to_evm_cache
+            native_to_evm_cache
                 .get(action.from.n)
                 .await
-                .expect("Failed to get address");
-        }
+                .expect("Failed to get address")
+        };
 
         let value = U256::from(action.quantity.amount()) * U256::from(100_000_000_000_000i64);
 
@@ -146,7 +143,7 @@ impl Transaction {
 
     pub fn hash(&self) -> &B256 {
         match self {
-            Transaction::LegacySigned(signed_legacy, receipt) => signed_legacy.hash(),
+            Transaction::LegacySigned(signed_legacy, _receipt) => signed_legacy.hash(),
         }
     }
 

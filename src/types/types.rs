@@ -12,7 +12,6 @@ use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use crate::types::ship_types::GetStatusResultV0;
 
 pub type WebsocketTransmitter = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 pub type WebsocketReceiver = SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
@@ -49,7 +48,7 @@ impl NameToAddressCache {
     pub async fn get(&self, name: u64) -> Option<Address> {
         let cached = self.cache.get(&name);
         if let Some(cached) = cached {
-            Some(cached.clone())
+            Some(cached)
         } else {
             let evm_contract = Name::from_u64(EOSIO_EVM);
             // TODO: hardcode this in names.rs for performance
@@ -70,7 +69,7 @@ impl NameToAddressCache {
                 })
                 .await
                 .unwrap();
-            if account_result.rows.len() == 0 {
+            if account_result.rows.is_empty() {
                 return None;
             }
 

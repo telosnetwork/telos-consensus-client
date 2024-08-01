@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use crate::block::Block;
-use crate::types::types::{BlockOrSkip, NameToAddressCache};
-use antelope::api::client::{APIClient, DefaultProvider};
+use crate::types::types::{BlockOrSkip};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Mutex;
 use tracing::{debug, error};

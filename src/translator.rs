@@ -2,27 +2,25 @@ use crate::block::Block;
 use crate::tasks::{
     evm_block_processor, final_processor, order_preserving_queue, raw_deserializer, ship_reader,
 };
-use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::ship_types::{
-    GetBlocksAckRequestV0, GetBlocksRequestV0, GetStatusRequestV0, ShipRequest, ShipResult,
+    ShipRequest, ShipResult,
 };
-use crate::types::types::{BlockOrSkip, PriorityQueue, RawMessage, WebsocketTransmitter};
+use crate::types::types::{BlockOrSkip, RawMessage};
 use alloy::primitives::FixedBytes;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
-use antelope::chain::{Decoder, Encoder};
+use antelope::chain::{Encoder};
 use dashmap::DashMap;
 use eyre::Result;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use std::collections::BinaryHeap;
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
-use tracing::{error, info};
+use tracing::{error};
 use serde::{Deserialize, Serialize};
 
 
@@ -65,18 +63,18 @@ pub async fn write_message(
 
 pub struct Translator {
     config: TranslatorConfig,
-    ship_abi: Option<String>,
-    latest_status: Option<Arc<ShipResult>>,
-    block_map: Arc<DashMap<u32, Block>>,
+    _ship_abi: Option<String>,
+    _latest_status: Option<Arc<ShipResult>>,
+    _block_map: Arc<DashMap<u32, Block>>,
 }
 
 impl Translator {
     pub async fn new(config: TranslatorConfig) -> Result<Self> {
         Ok(Self {
             config,
-            ship_abi: None,
-            latest_status: None,
-            block_map: Arc::new(DashMap::new()),
+            _ship_abi: None,
+            _latest_status: None,
+            _block_map: Arc::new(DashMap::new()),
         })
     }
 
@@ -95,7 +93,7 @@ impl Translator {
         }
 
         let (ws_stream, _) = connect_result.unwrap();
-        let (mut ws_tx, mut ws_rx): (
+        let (ws_tx, ws_rx): (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
             SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
         ) = ws_stream.split();

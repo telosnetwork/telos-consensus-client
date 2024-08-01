@@ -6,7 +6,7 @@ use crate::types::ship_types::{
     ActionTrace, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
 use crate::types::types::NameToAddressCache;
-use alloy::primitives::{Bloom, Bytes, FixedBytes};
+use alloy::primitives::{Bytes, FixedBytes};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
@@ -212,7 +212,7 @@ impl Block {
             match t {
                 TransactionTrace::V0(t) => {
                     for action in t.action_traces {
-                        self.handle_action(Box::new(action), &native_to_evm_cache)
+                        self.handle_action(Box::new(action), native_to_evm_cache)
                             .await;
                     }
                 }

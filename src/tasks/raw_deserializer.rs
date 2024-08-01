@@ -4,15 +4,13 @@ use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::ship_types::{
     GetBlocksAckRequestV0, GetBlocksRequestV0, GetStatusRequestV0, ShipRequest, ShipResult,
 };
-use crate::types::types::{BlockOrSkip, RawMessage, WebsocketReceiver, WebsocketTransmitter};
+use crate::types::types::{BlockOrSkip, RawMessage};
 use antelope::chain::Decoder;
-use futures_util::stream::{SplitSink, SplitStream};
-use futures_util::{SinkExt, StreamExt};
-use std::net::TcpStream;
+use futures_util::stream::{SplitSink};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::{debug, error, info};
