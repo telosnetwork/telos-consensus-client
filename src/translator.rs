@@ -2,22 +2,17 @@ use crate::block::Block;
 use crate::tasks::{
     evm_block_processor, final_processor, order_preserving_queue, raw_deserializer, ship_reader,
 };
-use crate::types::ship_types::ShipRequest;
 use crate::types::types::{BlockOrSkip, RawMessage};
 use alloy::primitives::FixedBytes;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
-use antelope::chain::Encoder;
 use eyre::Result;
-use futures_util::stream::SplitSink;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
 use std::sync::Arc;
-use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
-use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::connect_async;
 use tracing::error;
 
 pub const DEFAULT_BLOCK_PROCESS_THREADS: u8 = 4;
