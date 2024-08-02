@@ -91,6 +91,12 @@ pub struct PriorityQueue {
     heap: Arc<Mutex<BinaryHeap<Block>>>,
 }
 
+impl Default for PriorityQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PriorityQueue {
     pub fn new() -> Self {
         PriorityQueue {
@@ -111,6 +117,11 @@ impl PriorityQueue {
     pub fn len(&self) -> usize {
         let heap = self.heap.lock().unwrap();
         heap.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        let heap = self.heap.lock().unwrap();
+        heap.is_empty()
     }
 
     pub fn capacity(&self) -> usize {

@@ -4,7 +4,7 @@ use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::ship_types::{
     GetBlocksAckRequestV0, GetBlocksRequestV0, GetStatusRequestV0, ShipRequest, ShipResult,
 };
-use crate::types::types::{BlockOrSkip, RawMessage};
+use crate::types::translator_types::{BlockOrSkip, RawMessage};
 use antelope::chain::Decoder;
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;

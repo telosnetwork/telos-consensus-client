@@ -1,7 +1,7 @@
 use alloy::{hex::FromHex, primitives::FixedBytes};
 use antelope::{
     api::client::{APIClient, DefaultProvider},
-    chain::{checksum::Checksum256, name::Name, time, Encoder},
+    chain::{checksum::Checksum256, Encoder},
 };
 use telos_translator_rs::{
     block::Block,
@@ -10,7 +10,7 @@ use telos_translator_rs::{
         ship_types::{
             BlockHeader, BlockPosition, GetBlocksResultV0, SignedBlock, SignedBlockHeader,
         },
-        types::NameToAddressCache,
+        translator_types::NameToAddressCache,
     },
 };
 
@@ -85,17 +85,15 @@ async fn genesis_mainnet() {
         APIClient::<DefaultProvider>::default_provider(http_endpoint.clone())
             .expect("Failed to create API client"),
     );
-    let zero_bytes = FixedBytes::from_slice(&vec![
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0,
-    ]);
+    let zero_bytes = FixedBytes::from_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0]);
 
     let mut block = generate_block(evm_chain_id_mainnet, http_endpoint, 36, 0).await;
 
     block.deserialize();
 
     let evm_block = block
-        .generate_evm_data(zero_bytes.clone(), evm_delta, &native_to_evm_cache)
+        .generate_evm_data(zero_bytes, evm_delta, &native_to_evm_cache)
         .await;
 
     println!("genesis: {:#?}", evm_block);
@@ -131,7 +129,7 @@ async fn deploy_mainnet() {
     block.deserialize();
 
     let evm_block = block
-        .generate_evm_data(parent_hash.clone(), evm_delta, &native_to_evm_cache)
+        .generate_evm_data(parent_hash, evm_delta, &native_to_evm_cache)
         .await;
 
     println!("block: {:#?}", evm_block);
@@ -139,6 +137,6 @@ async fn deploy_mainnet() {
 
     assert_eq!(
         evm_block.hash_slow(),
-        FixedBytes::from_hex(&MAINNET_DEPLOY_CONFIG.validate_hash.clone().unwrap()).unwrap()
+        FixedBytes::from_hex(MAINNET_DEPLOY_CONFIG.validate_hash.clone().unwrap()).unwrap()
     );
 }

@@ -1,5 +1,5 @@
 use crate::block::Block;
-use crate::types::types::BlockOrSkip;
+use crate::types::translator_types::BlockOrSkip;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Mutex;

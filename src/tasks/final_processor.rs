@@ -1,4 +1,4 @@
-use crate::{block::Block, translator::TranslatorConfig, types::types::NameToAddressCache};
+use crate::{block::Block, translator::TranslatorConfig, types::translator_types::NameToAddressCache};
 use alloy::primitives::FixedBytes;
 use antelope::api::client::{APIClient, DefaultProvider};
 use hex::encode;

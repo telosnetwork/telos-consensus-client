@@ -1,5 +1,5 @@
 use crate::block::Block;
-use crate::types::types::BlockOrSkip;
+use crate::types::translator_types::BlockOrSkip;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::sync::Arc;

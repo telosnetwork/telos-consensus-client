@@ -1,6 +1,6 @@
 use crate::rlp::alloy_rlp::TelosTxDecodable;
 use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
-use crate::types::types::NameToAddressCache;
+use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::TxKind::Call;
 use alloy::primitives::{Address, Log, Signature, B256, U256};
 use alloy_consensus::{SignableTransaction, Signed, TxLegacy};

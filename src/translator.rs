@@ -2,7 +2,7 @@ use crate::block::Block;
 use crate::tasks::{
     evm_block_processor, final_processor, order_preserving_queue, raw_deserializer, ship_reader,
 };
-use crate::types::types::{BlockOrSkip, RawMessage};
+use crate::types::translator_types::{BlockOrSkip, RawMessage};
 use alloy::primitives::FixedBytes;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;

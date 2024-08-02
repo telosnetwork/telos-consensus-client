@@ -1,33 +1,11 @@
-use alloy::primitives::B256;
-use antelope::api::client::{APIClient, Provider};
+use antelope::api::client::{APIClient};
 use antelope::chain::asset::{Asset, Symbol};
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::util::hex_to_bytes;
 use telos_translator_rs::transaction::Transaction;
 use telos_translator_rs::types::evm_types::{TransferAction, WithdrawAction};
-use telos_translator_rs::types::types::NameToAddressCache;
-
-#[derive(Debug, Default, Clone)]
-struct MockProvider {
-    debug: bool,
-}
-
-#[async_trait::async_trait]
-impl Provider for MockProvider {
-    async fn post(&self, path: String, body: Option<String>) -> Result<String, String> {
-        // TODO: Mock this for tests
-        return Ok("".to_string());
-    }
-
-    fn set_debug(&mut self, debug: bool) {
-        self.debug = debug;
-    }
-
-    async fn get(&self, path: String) -> Result<String, String> {
-        todo!()
-    }
-}
+use telos_translator_rs::types::translator_types::NameToAddressCache;
 
 #[tokio::test]
 async fn test_deposit() {

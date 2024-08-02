@@ -1,4 +1,4 @@
-use crate::types::types::RawMessage;
+use crate::types::translator_types::RawMessage;
 use futures_util::stream::SplitStream;
 use futures_util::StreamExt;
 use log::debug;

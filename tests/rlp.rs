@@ -18,7 +18,7 @@ fn test_unsigned_trx() {
             "Failed to decode unsigned transaction: {:?}",
             tx.clone().err()
         );
-        assert!(false, "Failed to decode unsigned transaction");
+        panic!("Failed to decode unsigned transaction");
     }
     let (tx, sig, _hash) = tx.unwrap().into_parts();
     assert_eq!(tx.value, U256::ZERO);
