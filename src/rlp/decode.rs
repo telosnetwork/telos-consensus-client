@@ -127,8 +127,6 @@ macro_rules! wrap_impl {
 }
 
 wrap_impl! {
-    #[cfg(feature = "arrayvec")]
-    [const N: usize] <arrayvec::ArrayVec<u8, N>>::from([u8; N]),
     [T: ?Sized + TelosDecodable] <Box<T>>::new(T),
     [T: ?Sized + TelosDecodable] <Rc<T>>::new(T),
     [T: ?Sized + TelosDecodable] <Arc<T>>::new(T),
