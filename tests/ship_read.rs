@@ -3,7 +3,7 @@ use antelope::api::client::{APIClient, DefaultProvider};
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use testcontainers::core::ContainerPort::Tcp;
 use tokio::sync::mpsc;
-use tracing::{debug, info};
+use tracing::{info};
 use telos_translator_rs::{block::Block, translator::Translator};
 use telos_translator_rs::translator::TranslatorConfig;
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
@@ -60,7 +60,7 @@ async fn evm_deploy() {
 
     let (tx, mut rx) = mpsc::channel::<(FixedBytes<32>, Block)>(1000);
 
-    let mut translator = Translator::new(config).await.unwrap();
+    let mut translator = Translator::new(config);
     match translator.launch(Some(tx)).await {
         Ok(_) => info!("Translator launched successfully"),
         Err(e) => panic!("Failed to launch translator: {:?}", e)
