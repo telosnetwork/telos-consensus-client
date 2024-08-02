@@ -7,7 +7,6 @@ use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
 use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
 
-
 pub fn make_unique_vrs(
     block_hash_native: Checksum256,
     sender_address: Address,
@@ -42,8 +41,7 @@ impl Transaction {
         // TODO: Set trx_index properly for signed and unsigned transactions
         let tx_raw = &mut raw.tx.as_slice();
 
-        if tx_raw[0] == 0 {
-
+        if tx_raw[0] >= 0xc0 && tx_raw[0] <= 0xfe {
             let signed_legacy_result = TxLegacy::decode_signed_fields(tx_raw);
             if signed_legacy_result.is_err() {
                 let address = Address::from(
@@ -73,8 +71,8 @@ impl Transaction {
 
             Transaction::LegacySigned(signed_legacy, Some(receipt))
         } else {
-          // TODO: Handle other tx types
-          panic!("Other tx types other than legacy not implemented yet!");
+            // TODO: Handle other tx types
+            panic!("Other tx types other than legacy not implemented yet!");
         }
     }
 

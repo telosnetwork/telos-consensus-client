@@ -9,7 +9,9 @@ use telos_translator_rs::types::evm_types::{TransferAction, WithdrawAction};
 use telos_translator_rs::types::types::NameToAddressCache;
 
 #[derive(Debug, Default, Clone)]
-struct MockProvider { debug: bool }
+struct MockProvider {
+    debug: bool,
+}
 
 #[async_trait::async_trait]
 impl Provider for MockProvider {

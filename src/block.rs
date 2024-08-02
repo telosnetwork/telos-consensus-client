@@ -2,7 +2,9 @@ use crate::transaction::Transaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
 use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::names::*;
-use crate::types::ship_types::{ActionTrace, ContractRow,GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace};
+use crate::types::ship_types::{
+    ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
+};
 use crate::types::types::NameToAddressCache;
 use alloy::primitives::{Bytes, FixedBytes};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
@@ -196,7 +198,9 @@ impl Block {
         {
             // Deposit/transfer to EVM
             let transfer_action = decode_transfer(&action.data());
-            if SYSTEM_ACCOUNTS.contains(&transfer_action.from.n) {
+            if transfer_action.to.n != EOSIO_EVM
+                || SYSTEM_ACCOUNTS.contains(&transfer_action.from.n)
+            {
                 return;
             }
 
@@ -214,8 +218,15 @@ impl Block {
         }
     }
 
-    pub async fn generate_evm_data(&mut self, parent_hash: FixedBytes<32>, block_delta: u32, native_to_evm_cache: &NameToAddressCache) -> Header {
-        if self.signed_block.is_none() || self.block_traces.is_none() || self.contract_rows.is_none()
+    pub async fn generate_evm_data(
+        &mut self,
+        parent_hash: FixedBytes<32>,
+        block_delta: u32,
+        native_to_evm_cache: &NameToAddressCache,
+    ) -> Header {
+        if self.signed_block.is_none()
+            || self.block_traces.is_none()
+            || self.contract_rows.is_none()
         {
             panic!("Block::to_evm called on a block with missing data");
         }

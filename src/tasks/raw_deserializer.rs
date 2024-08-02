@@ -74,6 +74,7 @@ pub async fn raw_deserializer(
                     fetch_deltas: true,
                 });
                 ws_tx.send(request.into()).await.unwrap();
+                debug!("GetBlocks request sent");
                 orderer_tx
                     .send(BlockOrSkip::Skip(msg.sequence))
                     .await

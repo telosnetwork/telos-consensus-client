@@ -1,16 +1,15 @@
 use alloy::primitives::FixedBytes;
 use antelope::api::client::{APIClient, DefaultProvider};
-use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
-use testcontainers::core::ContainerPort::Tcp;
-use tokio::sync::mpsc;
-use tracing::{info};
-use telos_translator_rs::{block::Block, translator::Translator};
 use telos_translator_rs::translator::TranslatorConfig;
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
+use telos_translator_rs::{block::Block, translator::Translator};
+use testcontainers::core::ContainerPort::Tcp;
+use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
+use tokio::sync::mpsc;
+use tracing::info;
 
 #[tokio::test]
 async fn evm_deploy() {
-
     // Change this container to a local image if using new ship data,
     //   then make sure to update the ship data in the testcontainer-nodeos-evm repo and build a new version
 
@@ -18,12 +17,13 @@ async fn evm_deploy() {
     //   and should be the tag for linux/amd64
     let container: ContainerAsync<GenericImage> = GenericImage::new(
         "ghcr.io/telosnetwork/testcontainer-nodeos-evm",
-        "v0.1.3@sha256:d9f198f0885498936bf731bf6d84a1e1b425d79d4ef8249f8bd2b6b6aa534314")
-        .with_exposed_port(Tcp(8888))
-        .with_exposed_port(Tcp(18999))
-        .start()
-        .await
-        .unwrap();
+        "v0.1.3@sha256:d9f198f0885498936bf731bf6d84a1e1b425d79d4ef8249f8bd2b6b6aa534314",
+    )
+    .with_exposed_port(Tcp(8888))
+    .with_exposed_port(Tcp(18999))
+    .start()
+    .await
+    .unwrap();
 
     let port_8888 = container.get_host_port_ipv4(8888).await.unwrap();
     let port_18999 = container.get_host_port_ipv4(18999).await.unwrap();
@@ -45,7 +45,6 @@ async fn evm_deploy() {
         last_block = info.head_block_num;
     }
 
-
     let config = TranslatorConfig {
         http_endpoint: format!("http://localhost:{port_8888}",),
         ship_endpoint: format!("ws://localhost:{port_18999}",),
@@ -63,7 +62,7 @@ async fn evm_deploy() {
     let mut translator = Translator::new(config);
     match translator.launch(Some(tx)).await {
         Ok(_) => info!("Translator launched successfully"),
-        Err(e) => panic!("Failed to launch translator: {:?}", e)
+        Err(e) => panic!("Failed to launch translator: {:?}", e),
     }
 
     while let Some((block_hash, block)) = rx.recv().await {

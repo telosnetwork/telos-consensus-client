@@ -1,10 +1,10 @@
-use alloy::primitives::{Address, Log, B256};
 use alloy::primitives::aliases::BlockTimestamp;
+use alloy::primitives::{Address, Log, B256};
 use antelope::chain::asset::Asset;
 use antelope::chain::checksum::{Checksum160, Checksum256};
 use antelope::chain::name::Name;
-use antelope::chain::Packer;
 use antelope::chain::time::TimePoint;
+use antelope::chain::Packer;
 use antelope::serializer::Decoder;
 use antelope::serializer::Encoder;
 use antelope::util::hex_to_bytes;
