@@ -1,10 +1,8 @@
 use crate::transaction::Transaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
-use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
+use crate::types::evm_types::{GlobalTable, PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::names::*;
-use crate::types::ship_types::{
-    ActionTrace, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
-};
+use crate::types::ship_types::{ActionTrace, ContractRow, ContractRowV0, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace};
 use crate::types::types::NameToAddressCache;
 use alloy::primitives::{Bytes, FixedBytes};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
@@ -12,6 +10,8 @@ use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
 use std::cmp::Ordering;
+use antelope::chain::name::Name;
+use tracing::info;
 
 pub trait BasicTrace {
     fn action_name(&self) -> u64;
@@ -67,7 +67,7 @@ pub struct Block {
     result: GetBlocksResultV0,
     signed_block: Option<SignedBlock>,
     block_traces: Option<Vec<TransactionTrace>>,
-    block_deltas: Option<Vec<TableDelta>>,
+    contract_rows: Option<Vec<ContractRow>>,
     pub transactions: Vec<Transaction>,
 }
 
@@ -108,7 +108,7 @@ impl Block {
             result,
             signed_block: None,
             block_traces: None,
-            block_deltas: None,
+            contract_rows: None,
             transactions: vec![],
         }
     }
@@ -131,8 +131,24 @@ impl Block {
         if let Some(d) = &self.result.deltas {
             let mut decoder = Decoder::new(d.as_slice());
             let block_deltas: &mut Vec<TableDelta> = &mut vec![];
+            let contract_rows: &mut Vec<ContractRow> = &mut vec![];
             decoder.unpack(block_deltas);
-            self.block_deltas = Some(block_deltas.to_vec());
+            for delta in block_deltas.iter_mut() {
+                match delta {
+                    TableDelta::V0(d) => {
+                        if d.name == "contract_row" {
+                            for row in d.rows.iter_mut() {
+                                // TODO: Handle present: false here?  How to account for empty/deleted rows?
+                                let mut row_decoder = Decoder::new(row.data.as_slice());
+                                let contract_row = &mut ContractRow::default();
+                                row_decoder.unpack(contract_row);
+                                contract_rows.push(contract_row.clone());
+                            }
+                        }
+                    }
+                }
+            }
+            self.contract_rows = Some(contract_rows.to_vec());
         }
     }
 
@@ -200,13 +216,8 @@ impl Block {
         }
     }
 
-    pub async fn generate_evm_data(
-        &mut self,
-        parent_hash: FixedBytes<32>,
-        block_delta: u32,
-        native_to_evm_cache: &NameToAddressCache,
-    ) -> Header {
-        if self.signed_block.is_none() || self.block_traces.is_none() || self.block_deltas.is_none()
+    pub async fn generate_evm_data(&mut self, parent_hash: FixedBytes<32>, block_delta: u32, native_to_evm_cache: &NameToAddressCache) -> Header {
+        if self.signed_block.is_none() || self.block_traces.is_none() || self.contract_rows.is_none()
         {
             panic!("Block::to_evm called on a block with missing data");
         }
@@ -223,6 +234,23 @@ impl Block {
                 }
             }
         }
+
+        // let row_deltas = self.contract_rows.clone().unwrap();
+
+        // TODO: Decode contract rows better, only decode what we need
+        //   this is getting the global table to attempt to determine the block_delta value for this devnet chain
+        // for r in row_deltas {
+        //     match r {
+        //         ContractRow::V0(r) => {
+        //             if r.table == Name::new_from_str("global") {
+        //                 let mut decoder = Decoder::new(r.value.as_slice());
+        //                 let decoded_row = &mut GlobalTable::default();
+        //                 decoder.unpack(decoded_row);
+        //                 info!("Global table: {:?}", decoded_row);
+        //             }
+        //         }
+        //     }
+        // }
 
         // let mut bloom = Bloom::default();
         // for trx in &self.transactions {

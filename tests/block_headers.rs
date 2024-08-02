@@ -112,8 +112,7 @@ async fn genesis_mainnet() {
 async fn deploy_mainnet() {
     let evm_chain_id_mainnet = 40;
     let evm_delta = 36;
-    // let http_endpoint = "https://mainnet.telos.net".to_string();
-    let http_endpoint = "http://127.0.0.1:8888".to_string();
+    let http_endpoint = "https://mainnet.telos.net".to_string();
 
     let native_to_evm_cache = NameToAddressCache::new(
         APIClient::<DefaultProvider>::default_provider(http_endpoint.clone())

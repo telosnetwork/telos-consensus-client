@@ -7,6 +7,7 @@ use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
 use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
 
+
 pub fn make_unique_vrs(
     block_hash_native: Checksum256,
     sender_address: Address,
@@ -38,36 +39,43 @@ impl Transaction {
         receipt: PrintedReceipt,
     ) -> Self {
         // TODO: Check for unsigned transactions and handle correctly
-        // TODO: Handle 1559
         // TODO: Set trx_index properly for signed and unsigned transactions
-        let signed_legacy_result = TxLegacy::decode_signed_fields(&mut raw.tx.clone().as_slice());
-        if signed_legacy_result.is_err() {
-            let address = Address::from(
-                raw.sender
-                    .expect("Failed to get address from sender in unsigned transaction")
-                    .data,
-            );
-            let sig = make_unique_vrs(block_hash, address, trx_index);
-            let unsigned_legacy =
-                TxLegacy::decode_telos_signed_fields(&mut raw.tx.clone().as_slice(), sig);
-            return Transaction::LegacySigned(unsigned_legacy.unwrap(), Some(receipt));
-        }
+        let tx_raw = &mut raw.tx.as_slice();
 
-        let signed_legacy = signed_legacy_result.unwrap();
-        // Align with contract, if BOTH are zero it's zero and raw.sender is used
-        //   https://github.com/telosnetwork/telos.evm/blob/9f2024a2a65e7c6b9bb98b36b368c359e24e6885/eosio.evm/include/eosio.evm/transaction.hpp#L205
-        if signed_legacy.signature().r().is_zero() && signed_legacy.signature().s().is_zero() {
-            let address = Address::from(
-                raw.sender
-                    .expect("Failed to get address from sender in unsigned transaction")
-                    .data,
-            );
-            let sig = make_unique_vrs(block_hash, address, trx_index);
-            let unsigned_legacy = signed_legacy.strip_signature().into_signed(sig);
-            return Transaction::LegacySigned(unsigned_legacy, Some(receipt));
-        }
+        if tx_raw[0] == 0 {
 
-        Transaction::LegacySigned(signed_legacy, Some(receipt))
+            let signed_legacy_result = TxLegacy::decode_signed_fields(tx_raw);
+            if signed_legacy_result.is_err() {
+                let address = Address::from(
+                    raw.sender
+                        .expect("Failed to get address from sender in unsigned transaction")
+                        .data,
+                );
+                let sig = make_unique_vrs(block_hash, address, trx_index);
+                let unsigned_legacy =
+                    TxLegacy::decode_telos_signed_fields(&mut raw.tx.clone().as_slice(), sig);
+                return Transaction::LegacySigned(unsigned_legacy.unwrap(), Some(receipt));
+            }
+
+            let signed_legacy = signed_legacy_result.unwrap();
+            // Align with contract, if BOTH are zero it's zero and raw.sender is used
+            //   https://github.com/telosnetwork/telos.evm/blob/9f2024a2a65e7c6b9bb98b36b368c359e24e6885/eosio.evm/include/eosio.evm/transaction.hpp#L205
+            if signed_legacy.signature().r().is_zero() && signed_legacy.signature().s().is_zero() {
+                let address = Address::from(
+                    raw.sender
+                        .expect("Failed to get address from sender in unsigned transaction")
+                        .data,
+                );
+                let sig = make_unique_vrs(block_hash, address, trx_index);
+                let unsigned_legacy = signed_legacy.strip_signature().into_signed(sig);
+                return Transaction::LegacySigned(unsigned_legacy, Some(receipt));
+            }
+
+            return Transaction::LegacySigned(signed_legacy, Some(receipt));
+        } else {
+          // TODO: Handle other tx types
+          panic!("Other tx types other than legacy not implemented yet!");
+        }
     }
 
     pub async fn from_transfer(
