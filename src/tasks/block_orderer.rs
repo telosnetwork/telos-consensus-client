@@ -2,14 +2,13 @@ use crate::block::Block;
 use crate::types::translator_types::BlockOrSkip;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
-use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 use tracing::debug;
 
 pub async fn order_preserving_queue(
     mut rx: mpsc::Receiver<BlockOrSkip>,
     tx: mpsc::Sender<Block>,
-    queue: Arc<Mutex<BinaryHeap<Reverse<Block>>>>,
+    mut queue: BinaryHeap<Reverse<Block>>,
 ) {
     let mut next_sequence = 1;
 
@@ -26,7 +25,6 @@ pub async fn order_preserving_queue(
             "Handling order for block #{} with sequence #{}, next sequence is {}",
             block.block_num, block.sequence, next_sequence
         );
-        let mut queue = queue.lock().await;
         queue.push(Reverse(block));
 
         while let Some(Reverse(block)) = queue.peek() {

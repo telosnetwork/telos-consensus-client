@@ -10,8 +10,7 @@ use eyre::Result;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
-use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 use tokio_tungstenite::connect_async;
 use tracing::error;
 
@@ -99,9 +98,6 @@ impl Translator {
         );
 
         tokio::task::spawn(ship_reader(ws_rx, raw_ds_tx));
-
-        let process_rx = Arc::new(Mutex::new(process_rx));
-
         tokio::task::spawn(raw_deserializer(
             0,
             self.config.clone(),
@@ -111,20 +107,13 @@ impl Translator {
             order_tx.clone(),
         ));
 
-        for _ in 0..self
-            .config
-            .block_process_threads
-            .unwrap_or(DEFAULT_BLOCK_PROCESS_THREADS)
-        {
-            tokio::task::spawn(evm_block_processor(process_rx.clone(), order_tx.clone()));
-        }
+        tokio::task::spawn(evm_block_processor(process_rx, order_tx.clone()));
 
         // Shared queue for order preservation
-        let queue = Arc::new(Mutex::new(BinaryHeap::new()));
+        let queue = BinaryHeap::new();
 
         // Start the order-preserving queue task
-        let queue_clone = queue.clone();
-        tokio::spawn(order_preserving_queue(order_rx, finalize_tx, queue_clone));
+        tokio::spawn(order_preserving_queue(order_rx, finalize_tx, queue));
 
         // Start the final processing task
         tokio::spawn(final_processor(

@@ -4,8 +4,8 @@ use crate::{
 use alloy::primitives::FixedBytes;
 use antelope::api::client::{APIClient, DefaultProvider};
 use hex::encode;
-use std::{str::FromStr, time::Instant};
-use tokio::sync::mpsc;
+use std::str::FromStr;
+use tokio::{sync::mpsc, time::Instant};
 use tracing::{debug, error, info};
 
 pub async fn final_processor(
@@ -14,7 +14,7 @@ pub async fn final_processor(
     mut rx: mpsc::Receiver<Block>,
     tx: Option<mpsc::Sender<(FixedBytes<32>, Block)>>,
 ) {
-    let mut last_log = std::time::Instant::now();
+    let mut last_log = Instant::now();
     let mut unlogged_blocks = 0;
     let mut unlogged_transactions = 0;
 
@@ -36,7 +36,11 @@ pub async fn final_processor(
     while let Some(mut block) = rx.recv().await {
         unlogged_blocks += 1;
         unlogged_transactions += block.transactions.len();
-        debug!("Finalizing block #{}", block.block_num);
+        debug!(
+            "Finalizing block #{} with #{} transactions",
+            block.block_num,
+            block.transactions.len()
+        );
 
         let header = block
             .generate_evm_data(parent_hash, config.block_delta, &native_to_evm_cache)
