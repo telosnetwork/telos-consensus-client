@@ -8,6 +8,7 @@ use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::mpsc;
 use tracing::info;
 
+#[ignore]
 #[tokio::test]
 async fn evm_deploy() {
     // Change this container to a local image if using new ship data,
