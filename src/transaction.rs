@@ -71,7 +71,7 @@ impl Transaction {
                 return Transaction::LegacySigned(unsigned_legacy, Some(receipt));
             }
 
-            return Transaction::LegacySigned(signed_legacy, Some(receipt));
+            Transaction::LegacySigned(signed_legacy, Some(receipt))
         } else {
           // TODO: Handle other tx types
           panic!("Other tx types other than legacy not implemented yet!");

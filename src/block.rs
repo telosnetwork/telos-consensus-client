@@ -1,8 +1,8 @@
 use crate::transaction::Transaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
-use crate::types::evm_types::{GlobalTable, PrintedReceipt, RawAction, TransferAction, WithdrawAction};
+use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::names::*;
-use crate::types::ship_types::{ActionTrace, ContractRow, ContractRowV0, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace};
+use crate::types::ship_types::{ActionTrace, ContractRow,GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace};
 use crate::types::types::NameToAddressCache;
 use alloy::primitives::{Bytes, FixedBytes};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
@@ -10,8 +10,6 @@ use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
 use std::cmp::Ordering;
-use antelope::chain::name::Name;
-use tracing::info;
 
 pub trait BasicTrace {
     fn action_name(&self) -> u64;
