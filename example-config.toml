@@ -5,5 +5,5 @@ chain_id = 40
 start_block = 0
 block_delta = 36
 prev_hash =  "0000000000000000000000000000000000000000000000000000000000000000"
-http_endpoint = "http://192.168.0.20:8883"
-ship_endpoint = "http://192.168.0.20:18989"
+http_endpoint = "http://localhost:8888"
+ship_endpoint = "ws://localhost:18999"
