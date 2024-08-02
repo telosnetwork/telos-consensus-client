@@ -144,43 +144,6 @@ where
     }
 }
 
-#[cfg(feature = "std")]
-mod std_impl {
-    use super::*;
-    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-
-    impl TelosDecodable for IpAddr {
-        fn decode(buf: &mut &[u8]) -> Result<Self> {
-            let bytes = Header::decode_bytes(buf, false)?;
-            match bytes.len() {
-                4 => Ok(Self::V4(Ipv4Addr::from(
-                    slice_to_array::<4>(bytes).expect("infallible"),
-                ))),
-                16 => Ok(Self::V6(Ipv6Addr::from(
-                    slice_to_array::<16>(bytes).expect("infallible"),
-                ))),
-                _ => Err(Error::UnexpectedLength),
-            }
-        }
-    }
-
-    impl TelosDecodable for Ipv4Addr {
-        #[inline]
-        fn decode(buf: &mut &[u8]) -> Result<Self> {
-            let bytes = Header::decode_bytes(buf, false)?;
-            slice_to_array::<4>(bytes).map(Self::from)
-        }
-    }
-
-    impl TelosDecodable for Ipv6Addr {
-        #[inline]
-        fn decode(buf: &mut &[u8]) -> Result<Self> {
-            let bytes = Header::decode_bytes(buf, false)?;
-            slice_to_array::<16>(bytes).map(Self::from)
-        }
-    }
-}
-
 /// Left-pads a slice to a statically known size array.
 ///
 /// # Errors
@@ -205,10 +168,4 @@ pub(crate) fn static_left_pad<const N: usize>(data: &[u8]) -> Result<[u8; N]> {
     // SAFETY: length checked above
     unsafe { v.get_unchecked_mut(N - data.len()..) }.copy_from_slice(data);
     Ok(v)
-}
-
-#[cfg(feature = "std")]
-#[inline]
-fn slice_to_array<const N: usize>(slice: &[u8]) -> Result<[u8; N]> {
-    slice.try_into().map_err(|_| Error::UnexpectedLength)
 }
