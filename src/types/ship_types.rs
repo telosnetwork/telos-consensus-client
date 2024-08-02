@@ -45,6 +45,11 @@ pub enum TableDelta {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, EnumPacker)]
+pub enum ContractRow {
+    V0(ContractRowV0),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, EnumPacker)]
 pub enum ActionReceipt {
     V0(ActionReceiptV0),
 }

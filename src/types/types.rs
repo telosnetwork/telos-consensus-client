@@ -12,7 +12,6 @@ use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use crate::types::ship_types::GetStatusResultV0;
 
 pub type WebsocketTransmitter = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 pub type WebsocketReceiver = SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;

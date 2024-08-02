@@ -9,13 +9,17 @@ use telos_translator_rs::types::evm_types::{TransferAction, WithdrawAction};
 use telos_translator_rs::types::types::NameToAddressCache;
 
 #[derive(Debug, Default, Clone)]
-struct MockProvider;
+struct MockProvider { debug: bool }
 
 #[async_trait::async_trait]
 impl Provider for MockProvider {
     async fn post(&self, path: String, body: Option<String>) -> Result<String, String> {
         // TODO: Mock this for tests
         return Ok("".to_string());
+    }
+
+    fn set_debug(&mut self, debug: bool) {
+        self.debug = debug;
     }
 
     async fn get(&self, path: String) -> Result<String, String> {
