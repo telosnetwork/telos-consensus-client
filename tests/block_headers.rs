@@ -85,8 +85,10 @@ async fn genesis_mainnet() {
         APIClient::<DefaultProvider>::default_provider(http_endpoint.clone())
             .expect("Failed to create API client"),
     );
-    let zero_bytes = FixedBytes::from_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0]);
+    let zero_bytes = FixedBytes::from_slice(&[
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0,
+    ]);
 
     let mut block = generate_block(evm_chain_id_mainnet, http_endpoint, 36, 0).await;
 

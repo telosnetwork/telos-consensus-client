@@ -1,4 +1,4 @@
-use antelope::api::client::{APIClient};
+use antelope::api::client::APIClient;
 use antelope::chain::asset::{Asset, Symbol};
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
