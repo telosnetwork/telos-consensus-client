@@ -1,4 +1,4 @@
-use alloy::primitives::{address, Address, Bytes, Log, B256};
+use alloy::primitives::{Address, Log, B256};
 use alloy::primitives::aliases::BlockTimestamp;
 use antelope::chain::asset::Asset;
 use antelope::chain::checksum::{Checksum160, Checksum256};

@@ -1,17 +1,15 @@
 use crate::transaction::Transaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
-use crate::types::evm_types::{GlobalTable, PrintedReceipt, RawAction, TransferAction, WithdrawAction};
+use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::names::*;
-use crate::types::ship_types::{ActionTrace, ContractRow, ContractRowV0, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace};
+use crate::types::ship_types::{ActionTrace, ContractRow,GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace};
 use crate::types::types::NameToAddressCache;
-use alloy::primitives::{Bloom, Bytes, FixedBytes};
+use alloy::primitives::{Bytes, FixedBytes};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
 use std::cmp::Ordering;
-use antelope::chain::name::Name;
-use tracing::info;
 
 pub trait BasicTrace {
     fn action_name(&self) -> u64;
@@ -228,7 +226,7 @@ impl Block {
             match t {
                 TransactionTrace::V0(t) => {
                     for action in t.action_traces {
-                        self.handle_action(Box::new(action), &native_to_evm_cache)
+                        self.handle_action(Box::new(action), native_to_evm_cache)
                             .await;
                     }
                 }
@@ -273,7 +271,10 @@ impl Block {
             number: (self.block_num - block_delta) as u64,
             gas_limit: 0x7fffffff,
             gas_used: 0,
-            timestamp: (((self.signed_block.clone().unwrap().header.header.timestamp as u64) * ANTELOPE_INTERVAL_MS) + ANTELOPE_EPOCH_MS) / 1000,
+            timestamp: (((self.signed_block.clone().unwrap().header.header.timestamp as u64)
+                * ANTELOPE_INTERVAL_MS)
+                + ANTELOPE_EPOCH_MS)
+                / 1000,
             mix_hash: Default::default(),
             nonce: Default::default(),
             base_fee_per_gas: None,

@@ -23,7 +23,7 @@ pub struct NameToAddressCache {
 
 pub enum BlockOrSkip {
     Block(Block),
-    Skip(u64)
+    Skip(u64),
 }
 
 pub struct RawMessage {
@@ -48,7 +48,7 @@ impl NameToAddressCache {
     pub async fn get(&self, name: u64) -> Option<Address> {
         let cached = self.cache.get(&name);
         if let Some(cached) = cached {
-            Some(cached.clone())
+            Some(cached)
         } else {
             let evm_contract = Name::from_u64(EOSIO_EVM);
             // TODO: hardcode this in names.rs for performance
@@ -69,7 +69,7 @@ impl NameToAddressCache {
                 })
                 .await
                 .unwrap();
-            if account_result.rows.len() == 0 {
+            if account_result.rows.is_empty() {
                 return None;
             }
 

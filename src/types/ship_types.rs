@@ -9,12 +9,19 @@ use antelope::serializer::Packer;
 use antelope::{EnumPacker, StructPacker};
 use serde::{Deserialize, Serialize};
 use std::option::Option;
+use tokio_tungstenite::tungstenite::Message;
 
 #[derive(Debug, Clone, Serialize, Deserialize, EnumPacker)]
 pub enum ShipRequest {
     GetStatus(GetStatusRequestV0),
     GetBlocks(GetBlocksRequestV0),
     GetBlocksAck(GetBlocksAckRequestV0),
+}
+
+impl From<&ShipRequest> for Message {
+    fn from(value: &ShipRequest) -> Self {
+        Message::Binary(Encoder::pack(value))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, EnumPacker)]
@@ -66,7 +73,7 @@ impl Packer for GetStatusRequestV0 {
         0
     }
 
-    fn unpack<'a>(&mut self, _data: &'a [u8]) -> usize {
+    fn unpack(&mut self, _data: &[u8]) -> usize {
         0
     }
 }

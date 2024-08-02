@@ -32,7 +32,7 @@ pub enum Transaction {
 
 impl Transaction {
     pub async fn from_raw_action(
-        chain_id: u64,
+        _chain_id: u64,
         trx_index: usize,
         block_hash: Checksum256,
         raw: RawAction,
@@ -71,7 +71,7 @@ impl Transaction {
                 return Transaction::LegacySigned(unsigned_legacy, Some(receipt));
             }
 
-            return Transaction::LegacySigned(signed_legacy, Some(receipt));
+            Transaction::LegacySigned(signed_legacy, Some(receipt))
         } else {
           // TODO: Handle other tx types
           panic!("Other tx types other than legacy not implemented yet!");
@@ -85,15 +85,14 @@ impl Transaction {
         action: TransferAction,
         native_to_evm_cache: &NameToAddressCache,
     ) -> Self {
-        let address: Address;
-        if action.memo.starts_with("0x") {
-            address = action.memo.parse().unwrap();
+        let address: Address = if action.memo.starts_with("0x") {
+            action.memo.parse().unwrap()
         } else {
-            address = native_to_evm_cache
+            native_to_evm_cache
                 .get(action.from.n)
                 .await
-                .expect("Failed to get address");
-        }
+                .expect("Failed to get address")
+        };
 
         let value = U256::from(action.quantity.amount()) * U256::from(100_000_000_000_000i64);
 
@@ -151,7 +150,7 @@ impl Transaction {
 
     pub fn hash(&self) -> &B256 {
         match self {
-            Transaction::LegacySigned(signed_legacy, receipt) => signed_legacy.hash(),
+            Transaction::LegacySigned(signed_legacy, _receipt) => signed_legacy.hash(),
         }
     }
 
