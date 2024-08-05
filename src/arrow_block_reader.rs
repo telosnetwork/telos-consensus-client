@@ -98,7 +98,7 @@ pub struct AccountStateDelta {
 impl AccountStateDelta {
     pub fn to_reth_type(&self, addr: &Address) -> TelosAccountStateTableRow {
         TelosAccountStateTableRow {
-            address: addr.clone(),
+            address: *addr,
             key: U256::from_str_radix(&self.key, 16)
                 .expect("Could not parse key on account state delta"),
             value: U256::from_str_radix(&self.value, 16)
@@ -290,7 +290,7 @@ impl ArrowFileBlockReader {
                 let value = map.get(key).unwrap();
                 let record = AddressMapRecord {
                     index: *key,
-                    address: value.clone(),
+                    address: *value,
                 };
                 append_record_to_csv(&config.address_map, &record).unwrap();
             }
@@ -402,7 +402,7 @@ impl ArrowFileBlockReader {
                     let account_index = Name::new_from_str(&acc_state_delta.scope).n;
                     let maybe_addr = addr_map.get(&account_index);
                     let addr = if maybe_addr.is_some() {
-                        maybe_addr.unwrap().clone()
+                        *maybe_addr.unwrap()
                     } else {
                         info!(
                             "address for index {} not in map, doing http query...",
@@ -426,7 +426,7 @@ impl ArrowFileBlockReader {
                             })
                             .await
                             .unwrap();
-                        if account_result.rows.len() == 0 {
+                        if account_result.rows.is_empty() {
                             panic!("get_table_rows returned 0 rows!");
                         }
                         let address_checksum = account_result.rows[0].address;
@@ -526,7 +526,7 @@ impl ArrowFileBlockReader {
                 fee_recipient: Address::ZERO,
                 state_root: null_hash!(),
                 receipts_root: FixedBytes::from_hex(receipt_hash).unwrap(),
-                logs_bloom: Bloom::from_slice(&logs_bloom),
+                logs_bloom: Bloom::from_slice(logs_bloom),
                 prev_randao: Default::default(),
                 block_number: block_num,
                 gas_limit: 0x7fffffffu64,

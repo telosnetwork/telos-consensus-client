@@ -59,7 +59,7 @@ impl ConsensusClient {
             .to::<u64>()
             + 1;
         let mut batch_count = 0;
-        let mut last_block_number = std::cmp::min(
+        let last_block_number = std::cmp::min(
             self.reader
                 .get_latest_block()
                 .await
@@ -108,14 +108,12 @@ impl ConsensusClient {
                 );
                 // TODO: make this more live & fork aware
                 sleep(Duration::from_secs(5)).await;
-            } else {
-                if last_log_time.elapsed().as_secs() > 5 {
-                    last_log_time = std::time::Instant::now();
-                    info!(
-                        "Processed batch {}, up to block {}, sleeping for 1 second",
-                        batch_count, next_block_number
-                    );
-                }
+            } else if last_log_time.elapsed().as_secs() > 5 {
+                last_log_time = std::time::Instant::now();
+                info!(
+                    "Processed batch {}, up to block {}, sleeping for 1 second",
+                    batch_count, next_block_number
+                );
             }
         }
     }
@@ -198,16 +196,16 @@ impl ConsensusClient {
             finalized_block_hash: finalized_hash,
         };
 
-        let fork_choice_updated_result = self
+        
+
+        self
             .execution_api
             .rpc(RpcRequest {
                 method: crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
                 params: json![vec![fork_choice_state]],
             })
             .await
-            .unwrap();
-
-        fork_choice_updated_result
+            .unwrap()
     }
 
     async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Block {

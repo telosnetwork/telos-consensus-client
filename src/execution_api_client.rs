@@ -77,7 +77,7 @@ impl ExecutionApiClient {
         &self,
         rpc_requests: Vec<RpcRequest>,
     ) -> Result<Vec<JsonResponseBody>, String> {
-        let mut counter = 0;
+        let counter = 0;
         const JSONRPC: &str = "2.0";
         let mut batch_requests = vec![];
         for rpc_request in rpc_requests {

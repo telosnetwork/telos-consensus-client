@@ -2,7 +2,6 @@ use crate::client::ConsensusClient;
 use crate::config::{AppConfig, CliArgs};
 use arrowbatch::reader::{ArrowBatchConfig, ArrowBatchContext};
 use clap::Parser;
-use env_logger;
 
 mod arrow_block_reader;
 mod auth;
@@ -24,7 +23,7 @@ async fn main() {
         dump_size: 100_000_u64,
     };
 
-    let mut context = ArrowBatchContext::new(arrow_config);
+    let context = ArrowBatchContext::new(arrow_config);
     context.lock().unwrap().reload_on_disk_buckets();
 
     let mut client = ConsensusClient::new(config, context).await;
