@@ -2851,11 +2851,9 @@ dependencies = [
 name = "reth-telos"
 version = "0.1.0-alpha.21"
 dependencies = [
- "alloy-rpc-types",
  "antelope-client 0.1.7",
  "clap",
  "reth-primitives",
- "revm",
  "serde",
 ]
 

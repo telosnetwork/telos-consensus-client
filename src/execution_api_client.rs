@@ -50,10 +50,7 @@ impl ExecutionApiClient {
         }
     }
 
-    pub async fn rpc(
-        &self,
-        rpc_request: RpcRequest
-    ) -> Result<JsonResponseBody, String> {
+    pub async fn rpc(&self, rpc_request: RpcRequest) -> Result<JsonResponseBody, String> {
         let id: Value = json!(1);
         const JSONRPC: &str = "2.0";
         let method = rpc_request.method.to_string();
@@ -78,7 +75,7 @@ impl ExecutionApiClient {
 
     pub async fn rpc_batch(
         &self,
-        rpc_requests: Vec<RpcRequest>
+        rpc_requests: Vec<RpcRequest>,
     ) -> Result<Vec<JsonResponseBody>, String> {
         let mut counter = 0;
         const JSONRPC: &str = "2.0";
@@ -123,7 +120,7 @@ impl ExecutionApiClient {
         let response = self
             .rpc(RpcRequest {
                 method: ExecutionApiMethod::BlockNumber,
-                params: json!([])
+                params: json!([]),
             })
             .await
             .unwrap();
