@@ -566,7 +566,6 @@ impl ArrowFileBlockReader {
     }
 }
 
-#[ignore]
 #[cfg(test)]
 mod tests {
     use arrowbatch::reader::{ArrowBatchConfig, ArrowBatchContext};
@@ -582,6 +581,7 @@ mod tests {
     const CREATE_WALLET_BLOCK: u64 = 344680644;
     const OPEN_WALLET_BLOCK: u64 = 348379125;
 
+    #[ignore]
     #[tokio::test]
     async fn test_arrow_block_reader() {
         let config = ArrowBatchConfig {
