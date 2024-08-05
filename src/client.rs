@@ -194,10 +194,7 @@ impl ConsensusClient {
             finalized_block_hash: finalized_hash,
         };
 
-        
-
-        self
-            .execution_api
+        self.execution_api
             .rpc(RpcRequest {
                 method: crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
                 params: json![vec![fork_choice_state]],

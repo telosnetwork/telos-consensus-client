@@ -10,8 +10,8 @@ use antelope::serializer::Decoder;
 use antelope::serializer::Encoder;
 use antelope::StructPacker;
 use arrowbatch::proto::ArrowBatchTypes;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use csv::{ReaderBuilder, WriterBuilder};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use log::info;
 use reth_primitives::constants::MIN_PROTOCOL_BASE_FEE_U256;
 use reth_primitives::{hex, U256};
@@ -77,8 +77,9 @@ pub struct AccountDelta {
 
 impl AccountDelta {
     pub fn to_reth_type(&self) -> TelosAccountTableRow {
-        let code_bytes =
-            STANDARD.decode(self.code.clone()).expect("Could not b64 decode code on account delta");
+        let code_bytes = STANDARD
+            .decode(self.code.clone())
+            .expect("Could not b64 decode code on account delta");
         TelosAccountTableRow {
             address: Address::from_hex(self.address.clone())
                 .expect("Could not parse address on account delta"),
