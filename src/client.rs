@@ -16,7 +16,6 @@ use tokio::time::sleep;
 pub struct ConsensusClient {
     pub config: AppConfig,
     reader: ArrowFileBlockReader,
-    context: Arc<Mutex<ArrowBatchContext>>,
     execution_api: ExecutionApiClient,
     latest_consensus_block: ExecutionPayloadV1,
     latest_valid_executor_block: Block,
@@ -37,7 +36,6 @@ impl ConsensusClient {
         Self {
             config: my_config,
             reader,
-            context,
             execution_api,
             latest_consensus_block,
             latest_valid_executor_block: latest_executor_block,
@@ -218,7 +216,7 @@ impl ConsensusClient {
 
     async fn sync_block_info(&mut self) -> Result<bool, String> {
         self.latest_consensus_block =
-            ConsensusClient::get_latest_consensus_block(&mut self.reader).await;
+            ConsensusClient::get_latest_consensus_block(&self.reader).await;
         self.latest_valid_executor_block =
             ConsensusClient::get_latest_executor_block(&self.execution_api).await;
 
@@ -250,7 +248,6 @@ impl ConsensusClient {
                 .unwrap()
                 .to_string()
         );
-        let mut count = 0u64;
         let latest_executor_hash = self.latest_valid_executor_block.header.hash.unwrap();
         let consensus_for_latest_executor_hash =
             consensus_for_latest_executor_block.payload.block_hash;
@@ -284,7 +281,6 @@ impl ConsensusClient {
                         .to_string(),
                 );
             }
-            count += 1;
             self.latest_valid_executor_block = self
                 .execution_api
                 .block_by_number(latest_valid_executor_block_number - 1, false)

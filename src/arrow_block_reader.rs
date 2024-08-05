@@ -1,3 +1,6 @@
+// TODO: remove this if we are going to reuse this code anywhere after migrating to rust translator
+#![allow(clippy::all)]
+
 use alloy_primitives::hex::FromHex;
 use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, B256};
 use antelope::chain::checksum::{Checksum160, Checksum256};
@@ -8,6 +11,7 @@ use antelope::serializer::Encoder;
 use antelope::StructPacker;
 use arrowbatch::proto::ArrowBatchTypes;
 use csv::{ReaderBuilder, WriterBuilder};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use log::info;
 use reth_primitives::constants::MIN_PROTOCOL_BASE_FEE_U256;
 use reth_primitives::{hex, U256};
@@ -74,7 +78,7 @@ pub struct AccountDelta {
 impl AccountDelta {
     pub fn to_reth_type(&self) -> TelosAccountTableRow {
         let code_bytes =
-            base64::decode(self.code.clone()).expect("Could not b64 decode code on account delta");
+            STANDARD.decode(self.code.clone()).expect("Could not b64 decode code on account delta");
         TelosAccountTableRow {
             address: Address::from_hex(self.address.clone())
                 .expect("Could not parse address on account delta"),
@@ -191,8 +195,8 @@ fn append_record_to_csv(
 }
 
 async fn download_address_map(client: &APIClient<DefaultProvider>) -> HashMap<u64, Address> {
-    let EVM_CONTRACT = Name::new_from_str("eosio.evm");
-    let ACCOUNT = Name::new_from_str("account");
+    let evm_contract = Name::new_from_str("eosio.evm");
+    let account = Name::new_from_str("account");
 
     let limit: u32 = 1000;
     let mut lower_bound: u64 = 0;
@@ -206,9 +210,9 @@ async fn download_address_map(client: &APIClient<DefaultProvider>) -> HashMap<u6
         let account_result = client
             .v1_chain
             .get_table_rows::<AccountRow>(GetTableRowsParams {
-                code: EVM_CONTRACT,
-                table: ACCOUNT,
-                scope: Some(EVM_CONTRACT),
+                code: evm_contract,
+                table: account,
+                scope: Some(evm_contract),
                 lower_bound: Some(TableIndexType::UINT64(lower_bound)),
                 upper_bound: Some(TableIndexType::UINT64(lower_bound + limit as u64)),
                 limit: Some(limit),
@@ -358,7 +362,7 @@ impl ArrowFileBlockReader {
                 for tx_struct_value in values {
                     let tx_struct: TxStruct =
                         serde_json::from_value(tx_struct_value.clone()).unwrap();
-                    txs.push(base64::decode(tx_struct.raw).unwrap().into());
+                    txs.push(STANDARD.decode(tx_struct.raw).unwrap().into());
                 }
             }
             _ => panic!("Invalid type for transactions"),
@@ -408,15 +412,15 @@ impl ArrowFileBlockReader {
                             "address for index {} not in map, doing http query...",
                             acc_state_delta.index
                         );
-                        let EVM_CONTRACT = Name::new_from_str("eosio.evm");
-                        let ACCOUNT = Name::new_from_str("account");
+                        let evm_contract = Name::new_from_str("eosio.evm");
+                        let account = Name::new_from_str("account");
                         let account_result = self
                             .client
                             .v1_chain
                             .get_table_rows::<AccountRow>(GetTableRowsParams {
-                                code: EVM_CONTRACT,
-                                table: ACCOUNT,
-                                scope: Some(EVM_CONTRACT),
+                                code: evm_contract,
+                                table: account,
+                                scope: Some(evm_contract),
                                 lower_bound: Some(TableIndexType::UINT64(acc_state_delta.index)),
                                 upper_bound: Some(TableIndexType::UINT64(acc_state_delta.index)),
                                 limit: Some(1),
@@ -592,10 +596,11 @@ mod tests {
             arrow_data: "".to_string(),
             address_map: "address_map.csv".to_string(),
             batch_size: 0,
+            stop_block: u64::MAX,
             chain_endpoint: "https://mainnet.telos.net".to_string(),
         };
 
-        let reader = ArrowFileBlockReader::new(&app_config, context.clone());
+        let reader = ArrowFileBlockReader::new(&app_config, context.clone()).await;
 
         let mut target_block: FullExecutionPayload;
 
