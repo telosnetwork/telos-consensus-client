@@ -1,4 +1,6 @@
 .idea
 /target
 config.toml
-blocks.csv
+*.csv
+*.log
+*.pid
