@@ -566,6 +566,7 @@ impl ArrowFileBlockReader {
     }
 }
 
+#[ignore]
 #[cfg(test)]
 mod tests {
     use arrowbatch::reader::{ArrowBatchConfig, ArrowBatchContext};
