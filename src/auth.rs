@@ -1,8 +1,8 @@
-use std::path::PathBuf;
-
+use alloy_primitives::private::derive_more::Display;
 use jsonwebtoken::{encode, get_current_timestamp, Algorithm, EncodingKey, Header};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use zeroize::Zeroize;
 
 /// Default algorithm used for JWT token signing.
@@ -11,10 +11,9 @@ const DEFAULT_ALGORITHM: Algorithm = Algorithm::HS256;
 /// JWT secret length in bytes.
 pub const JWT_SECRET_LENGTH: usize = 32;
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 pub enum Error {
     Jwt(jsonwebtoken::errors::Error),
-    InvalidToken,
     InvalidKey(String),
 }
 
