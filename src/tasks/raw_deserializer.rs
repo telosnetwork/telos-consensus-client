@@ -6,6 +6,7 @@ use crate::types::ship_types::{
 };
 use crate::types::translator_types::{BlockOrSkip, RawMessage};
 use antelope::chain::Decoder;
+use eyre::{eyre, Result};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use tokio::net::TcpStream;
@@ -22,7 +23,7 @@ pub async fn raw_deserializer(
     mut ws_tx: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     block_deserializer_tx: Sender<Block>,
     orderer_tx: Sender<BlockOrSkip>,
-) {
+) -> Result<()> {
     let mut unackd_blocks = 0;
     let mut last_log = Instant::now();
     let mut unlogged_blocks = 0;
@@ -36,15 +37,12 @@ pub async fn raw_deserializer(
     //let abi_string = msg.to_string();
     //let abi = ABI::from_string(abi_string.as_str()).unwrap();
     //self.ship_abi = Some(abi_string);
-    let msg = raw_ds_rx.recv().await.unwrap();
+    let msg = raw_ds_rx.recv().await.ok_or(eyre!("cannot send"))?;
 
     // Send GetStatus request after setting up the ABI
     let request = &GetStatus(GetStatusRequestV0);
-    ws_tx.send(request.into()).await.unwrap();
-    orderer_tx
-        .send(BlockOrSkip::Skip(msg.sequence))
-        .await
-        .unwrap();
+    ws_tx.send(request.into()).await?;
+    orderer_tx.send(BlockOrSkip::Skip(msg.sequence)).await?;
 
     debug!("raw deserializer #{} getting next message...", thread_id);
     while let Some(msg) = raw_ds_rx.recv().await {
@@ -73,12 +71,9 @@ pub async fn raw_deserializer(
                     fetch_traces: true,
                     fetch_deltas: true,
                 });
-                ws_tx.send(request.into()).await.unwrap();
+                ws_tx.send(request.into()).await?;
                 debug!("GetBlocks request sent");
-                orderer_tx
-                    .send(BlockOrSkip::Skip(msg.sequence))
-                    .await
-                    .unwrap();
+                orderer_tx.send(BlockOrSkip::Skip(msg.sequence)).await?;
             }
             ShipResult::GetBlocksResultV0(r) => {
                 unackd_blocks += 1;
@@ -91,7 +86,7 @@ pub async fn raw_deserializer(
                         r.clone(),
                     );
                     debug!("Block #{} sending to block deserializer...", b.block_num);
-                    block_deserializer_tx.send(block).await.unwrap();
+                    block_deserializer_tx.send(block).await?;
                     debug!("Block #{} sent to block deserializer", b.block_num);
                     if last_log.elapsed().as_secs_f64() > 10.0 {
                         info!(
@@ -112,7 +107,7 @@ pub async fn raw_deserializer(
                         let request = &GetBlocksAck(GetBlocksAckRequestV0 {
                             num_messages: unackd_blocks,
                         });
-                        ws_tx.send(request.into()).await.unwrap();
+                        ws_tx.send(request.into()).await?;
 
                         //info!("Blocks acked");
                         unlogged_blocks += unackd_blocks;
@@ -125,4 +120,5 @@ pub async fn raw_deserializer(
             }
         }
     }
+    Ok(())
 }

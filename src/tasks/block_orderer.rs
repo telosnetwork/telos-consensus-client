@@ -1,11 +1,15 @@
 use crate::block::Block;
 use crate::types::translator_types::BlockOrSkip;
+use eyre::Result;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use tokio::sync::mpsc;
 use tracing::debug;
 
-pub async fn order_preserving_queue(mut rx: mpsc::Receiver<BlockOrSkip>, tx: mpsc::Sender<Block>) {
+pub async fn order_preserving_queue(
+    mut rx: mpsc::Receiver<BlockOrSkip>,
+    tx: mpsc::Sender<Block>,
+) -> Result<()> {
     let mut next_sequence = 1;
     // Shared queue for order preservation
     let mut queue = BinaryHeap::new();
@@ -41,4 +45,5 @@ pub async fn order_preserving_queue(mut rx: mpsc::Receiver<BlockOrSkip>, tx: mps
             }
         }
     }
+    Ok(())
 }

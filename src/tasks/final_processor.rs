@@ -3,6 +3,7 @@ use crate::{
 };
 use alloy::primitives::FixedBytes;
 use antelope::api::client::{APIClient, DefaultProvider};
+use eyre::{eyre, Context, Result};
 use hex::encode;
 use std::str::FromStr;
 use tokio::{sync::mpsc, time::Instant};
@@ -13,23 +14,23 @@ pub async fn final_processor(
     api_client: APIClient<DefaultProvider>,
     mut rx: mpsc::Receiver<Block>,
     tx: Option<mpsc::Sender<(FixedBytes<32>, Block)>>,
-) {
+) -> Result<()> {
     let mut last_log = Instant::now();
     let mut unlogged_blocks = 0;
     let mut unlogged_transactions = 0;
 
     let mut parent_hash = FixedBytes::from_str(&config.prev_hash)
-        .expect("Prev hash config is not a valid 32 byte hex string");
+        .wrap_err("Prev hash config is not a valid 32 byte hex string")?;
 
-    let validate_hash = if config.validate_hash.is_some() {
-        Some(
-            FixedBytes::from_str(&config.validate_hash.unwrap())
-                .expect("Validate hash config is not a valid 32 byte hex string"),
-        )
-    } else {
-        None
+    let validate_hash = match config.validate_hash {
+        Some(hash) => Some(
+            FixedBytes::from_str(&hash)
+                .wrap_err("Validate hash config is not a valid 32 byte hex string")?,
+        ),
+        None => None,
     };
-    let mut validated = false;
+
+    let mut validated = validate_hash.is_none();
 
     let native_to_evm_cache = NameToAddressCache::new(api_client);
 
@@ -45,17 +46,16 @@ pub async fn final_processor(
 
         let block_hash = header.hash_slow();
 
-        if !validated && validate_hash.is_some() {
-            if validate_hash.unwrap() == block_hash {
-                validated = true;
-            } else {
-                error!(
-                    "Initial hash validation failed!, expected: \"{}\" got: \"{}\"",
-                    validate_hash.unwrap(),
-                    block_hash
-                );
-                error!("{:#?}", header);
-                panic!("Initial hash validation failed!");
+        if !validated {
+            if let Some(validate_hash) = validate_hash {
+                validated = validate_hash == block_hash;
+                if !validated {
+                    error!(
+                        "Initial hash validation failed!, expected: \"{validate_hash}\" got: \"{block_hash}\"",
+                    );
+                    error!("Header: {:#?}", header);
+                    return Err(eyre!("Initial hash validation failed!"));
+                }
             }
         }
 
@@ -76,10 +76,13 @@ pub async fn final_processor(
         }
         // TODO: Fork handling, hashing, all the things...
 
-        if tx.is_some() && tx.clone().unwrap().send((block_hash, block)).await.is_err() {
-            error!("Failed to send finished block to exit stream!!");
-            break;
+        if let Some(tx) = tx.clone() {
+            if let Err(error) = tx.send((block_hash, block)).await {
+                error!("Failed to send finished block to exit stream!! {error}.");
+                break;
+            }
         }
         parent_hash = block_hash;
     }
+    Ok(())
 }

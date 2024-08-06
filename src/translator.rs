@@ -7,6 +7,7 @@ use alloy::primitives::FixedBytes;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
 use eyre::{eyre, Context, Result};
+use futures_util::future::join_all;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -102,32 +103,46 @@ impl Translator {
             .map(|stop| stop - self.config.start_block)
             .map(Into::into);
 
-        let ship_reader_handle = tokio::spawn(ship_reader(ws_rx, raw_ds_tx, stop_at));
-
-        tokio::spawn(raw_deserializer(
-            0,
-            self.config.clone(),
-            raw_ds_rx,
-            ws_tx,
-            process_tx.clone(),
-            order_tx.clone(),
-        ));
-
-        tokio::spawn(evm_block_processor(process_rx, order_tx.clone()));
-
-        // Start the order-preserving queue task
-        tokio::spawn(order_preserving_queue(order_rx, finalize_tx));
-
         // Start the final processing task
-        tokio::spawn(final_processor(
+        let final_processor_handle = tokio::spawn(final_processor(
             self.config.clone(),
             api_client,
             finalize_rx,
             output_tx,
         ));
 
+        // Start the order-preserving queue task
+        let order_preserving_queue_handle =
+            tokio::spawn(order_preserving_queue(order_rx, finalize_tx));
+
+        let evm_block_processor_handle =
+            tokio::spawn(evm_block_processor(process_rx, order_tx.clone()));
+
+        let raw_deserializer_handle = tokio::spawn(raw_deserializer(
+            0,
+            self.config.clone(),
+            raw_ds_rx,
+            ws_tx,
+            process_tx,
+            order_tx,
+        ));
+
+        let ship_reader_handle = tokio::spawn(ship_reader(ws_rx, raw_ds_tx, stop_at));
+
         info!("Translator launched successfully");
-        ship_reader_handle.await?;
-        Ok(())
+        let result = join_all(vec![
+            ship_reader_handle,
+            raw_deserializer_handle,
+            evm_block_processor_handle,
+            order_preserving_queue_handle,
+            final_processor_handle,
+        ])
+        .await;
+
+        result
+            .into_iter()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map(|_| ())
+            .wrap_err("Failed to execute tasks")
     }
 }

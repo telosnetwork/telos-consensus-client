@@ -1,4 +1,5 @@
 use crate::types::translator_types::RawMessage;
+use eyre::Result;
 use futures_util::stream::SplitStream;
 use futures_util::StreamExt;
 use log::debug;
@@ -10,7 +11,7 @@ pub async fn ship_reader(
     mut ws_rx: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
     raw_ds_tx: mpsc::Sender<RawMessage>,
     stop_at: Option<u64>,
-) {
+) -> Result<()> {
     let mut sequence: u64 = 0;
 
     // Read the websocket
@@ -29,13 +30,13 @@ pub async fn ship_reader(
                     .is_err()
                 {
                     println!("Receiver dropped");
-                    return;
+                    return Ok(());
                 }
                 debug!("Sent message with sequence {} to raw ds pool...", sequence);
             }
             Err(e) => {
                 println!("Error receiving message: {}", e);
-                return;
+                return Ok(());
             }
         }
 
@@ -43,4 +44,5 @@ pub async fn ship_reader(
             break;
         }
     }
+    Ok(())
 }
