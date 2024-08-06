@@ -34,17 +34,14 @@ pub async fn final_processor(
     let native_to_evm_cache = NameToAddressCache::new(api_client);
 
     while let Some(mut block) = rx.recv().await {
-        unlogged_blocks += 1;
-        unlogged_transactions += block.transactions.len();
-        debug!(
-            "Finalizing block #{} with #{} transactions",
-            block.block_num,
-            block.transactions.len()
-        );
+        debug!("Finalizing block #{}", block.block_num);
 
         let header = block
             .generate_evm_data(parent_hash, config.block_delta, &native_to_evm_cache)
             .await;
+
+        unlogged_blocks += 1;
+        unlogged_transactions += block.transactions.len();
 
         let block_hash = header.hash_slow();
 
