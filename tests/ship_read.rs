@@ -1,6 +1,7 @@
 use alloy::hex;
-use alloy::primitives::{Address, address, B256, FixedBytes, TxKind, U256};
+use alloy::primitives::{address, Address, FixedBytes, TxKind, B256, U256};
 use antelope::api::client::{APIClient, DefaultProvider};
+use telos_translator_rs::transaction::Transaction;
 use telos_translator_rs::translator::TranslatorConfig;
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
 use telos_translator_rs::{block::Block, translator::Translator};
@@ -8,7 +9,6 @@ use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::mpsc;
 use tracing::info;
-use telos_translator_rs::transaction::Transaction;
 
 #[tokio::test]
 async fn evm_deploy() {
@@ -73,7 +73,12 @@ async fn evm_deploy() {
         match block.block_num {
             50 => {
                 let tx = block.transactions[0].clone();
-                assert_eq!(tx.hash(), &B256::new(hex!("ede91f8a618cd49907d9a90fe2bf0443848f5ff549369eac42d1978b4fb8eccc")));
+                assert_eq!(
+                    tx.hash(),
+                    &B256::new(hex!(
+                        "ede91f8a618cd49907d9a90fe2bf0443848f5ff549369eac42d1978b4fb8eccc"
+                    ))
+                );
                 match tx {
                     Transaction::LegacySigned(signed_legacy, receipt) => {
                         let trx = signed_legacy.clone().strip_signature();
@@ -83,7 +88,10 @@ async fn evm_deploy() {
                                 panic!("Block 50 trx[0] should be a call, not create");
                             }
                             TxKind::Call(addr) => {
-                                assert_eq!(addr, address!("d80744e16d62c62c5fa2a04b92da3fe6b9efb523"));
+                                assert_eq!(
+                                    addr,
+                                    address!("d80744e16d62c62c5fa2a04b92da3fe6b9efb523")
+                                );
                             }
                         }
                     }
