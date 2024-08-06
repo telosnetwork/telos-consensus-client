@@ -46,8 +46,7 @@ impl TelosTxDecodable for TxLegacy {
         // record original length so we can check encoding
         let original_len = buf.len();
 
-        let mut tx = decode_fields(buf)
-            .map_err(|_| Error::Custom("Failed to decode fields"))?;
+        let mut tx = decode_fields(buf).map_err(|_| Error::Custom("Failed to decode fields"))?;
 
         let signature = Signature::decode_rlp_vrs(buf)?;
 
@@ -63,12 +62,10 @@ impl TelosTxDecodable for TxLegacy {
 
         let signed = tx.into_signed(sig);
         if buf.len() + header.payload_length != original_len {
-            return Err(
-                Error::ListLengthMismatch {
-                    expected: header.payload_length,
-                    got: original_len - buf.len(),
-                },
-            );
+            return Err(Error::ListLengthMismatch {
+                expected: header.payload_length,
+                got: original_len - buf.len(),
+            });
         }
 
         Ok(signed)
