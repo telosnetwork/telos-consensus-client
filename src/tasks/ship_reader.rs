@@ -9,6 +9,7 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 pub async fn ship_reader(
     mut ws_rx: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
     raw_ds_tx: mpsc::Sender<RawMessage>,
+    stop_at: Option<u64>,
 ) {
     let mut sequence: u64 = 0;
 
@@ -36,6 +37,10 @@ pub async fn ship_reader(
                 println!("Error receiving message: {}", e);
                 return;
             }
+        }
+
+        if matches!(stop_at, Some(stop_at) if stop_at == sequence) {
+            break;
         }
     }
 }

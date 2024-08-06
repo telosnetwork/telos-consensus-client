@@ -6,13 +6,12 @@ use crate::types::translator_types::{BlockOrSkip, RawMessage};
 use alloy::primitives::FixedBytes;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
-use eyre::Result;
+use eyre::{eyre, Context, Result};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::collections::BinaryHeap;
 use tokio::sync::mpsc;
 use tokio_tungstenite::connect_async;
-use tracing::error;
+use tracing::info;
 
 pub const DEFAULT_BLOCK_PROCESS_THREADS: u8 = 4;
 
@@ -57,18 +56,18 @@ impl Translator {
     ) -> Result<()> {
         let api_client =
             APIClient::<DefaultProvider>::default_provider(self.config.http_endpoint.clone())
-                .expect("Failed to create API client");
+                .map_err(|error| eyre!(error))
+                .wrap_err("Failed to create API client")?;
 
-        let connect_result = connect_async(&self.config.ship_endpoint).await;
-        if connect_result.is_err() {
-            error!(
-                "Failed to connect to ship at endpoint {}",
-                &self.config.ship_endpoint
-            );
-            return Err(eyre::eyre!("Failed to connect to ship"));
-        }
+        let (ws_stream, _) = connect_async(&self.config.ship_endpoint)
+            .await
+            .map_err(|_| {
+                eyre!(
+                    "Failed to connect to ship at endpoint {}",
+                    &self.config.ship_endpoint
+                )
+            })?;
 
-        let (ws_stream, _) = connect_result.unwrap();
         let (ws_tx, ws_rx) = ws_stream.split();
 
         // Buffer size here should be the readahead buffer size, in blocks.  This could get large if we are reading
@@ -97,8 +96,15 @@ impl Translator {
                 .unwrap_or(DEFAULT_MESSAGE_FINALIZER_CHANNEL_SIZE),
         );
 
-        tokio::task::spawn(ship_reader(ws_rx, raw_ds_tx));
-        tokio::task::spawn(raw_deserializer(
+        let stop_at = self
+            .config
+            .stop_block
+            .map(|stop| stop - self.config.start_block)
+            .map(Into::into);
+
+        let ship_reader_handle = tokio::spawn(ship_reader(ws_rx, raw_ds_tx, stop_at));
+
+        tokio::spawn(raw_deserializer(
             0,
             self.config.clone(),
             raw_ds_rx,
@@ -107,13 +113,10 @@ impl Translator {
             order_tx.clone(),
         ));
 
-        tokio::task::spawn(evm_block_processor(process_rx, order_tx.clone()));
-
-        // Shared queue for order preservation
-        let queue = BinaryHeap::new();
+        tokio::spawn(evm_block_processor(process_rx, order_tx.clone()));
 
         // Start the order-preserving queue task
-        tokio::spawn(order_preserving_queue(order_rx, finalize_tx, queue));
+        tokio::spawn(order_preserving_queue(order_rx, finalize_tx));
 
         // Start the final processing task
         tokio::spawn(final_processor(
@@ -123,6 +126,8 @@ impl Translator {
             output_tx,
         ));
 
+        info!("Translator launched successfully");
+        ship_reader_handle.await?;
         Ok(())
     }
 }

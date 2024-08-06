@@ -2,7 +2,7 @@ use std::fs;
 
 use clap::Parser;
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
-use tracing::{error, info};
+use tracing::error;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -21,13 +21,7 @@ async fn main() {
     let config: TranslatorConfig =
         toml::from_str(&config_contents).expect("Could not parse config as toml");
 
-    match Translator::new(config).launch(None).await {
-        Ok(_) => info!("Translator launched successfully"),
-        Err(e) => error!("Failed to launch translator: {:?}", e),
-    }
-
-    // Keep the main thread alive
-    loop {
-        tokio::task::yield_now().await;
+    if let Err(e) = Translator::new(config).launch(None).await {
+        error!("Failed to launch translator: {e:?}");
     }
 }

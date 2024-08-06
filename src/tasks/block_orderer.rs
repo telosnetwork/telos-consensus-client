@@ -5,12 +5,10 @@ use std::collections::BinaryHeap;
 use tokio::sync::mpsc;
 use tracing::debug;
 
-pub async fn order_preserving_queue(
-    mut rx: mpsc::Receiver<BlockOrSkip>,
-    tx: mpsc::Sender<Block>,
-    mut queue: BinaryHeap<Reverse<Block>>,
-) {
+pub async fn order_preserving_queue(mut rx: mpsc::Receiver<BlockOrSkip>, tx: mpsc::Sender<Block>) {
     let mut next_sequence = 1;
+    // Shared queue for order preservation
+    let mut queue = BinaryHeap::new();
 
     while let Some(block_or_skip) = rx.recv().await {
         let block = match block_or_skip {
