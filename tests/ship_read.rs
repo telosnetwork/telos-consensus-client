@@ -1,4 +1,5 @@
-use alloy::primitives::FixedBytes;
+use alloy::hex;
+use alloy::primitives::{Address, address, B256, FixedBytes, TxKind, U256};
 use antelope::api::client::{APIClient, DefaultProvider};
 use telos_translator_rs::translator::TranslatorConfig;
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
@@ -7,8 +8,8 @@ use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::mpsc;
 use tracing::info;
+use telos_translator_rs::transaction::Transaction;
 
-#[ignore]
 #[tokio::test]
 async fn evm_deploy() {
     // Change this container to a local image if using new ship data,
@@ -18,7 +19,7 @@ async fn evm_deploy() {
     //   and should be the tag for linux/amd64
     let container: ContainerAsync<GenericImage> = GenericImage::new(
         "ghcr.io/telosnetwork/testcontainer-nodeos-evm",
-        "v0.1.3@sha256:d9f198f0885498936bf731bf6d84a1e1b425d79d4ef8249f8bd2b6b6aa534314",
+        "v0.1.4@sha256:a8dc857e46404d74b286f8c8d8646354ca6674daaaf9eb6f972966052c95eb4a",
     )
     .with_exposed_port(Tcp(8888))
     .with_exposed_port(Tcp(18999))
@@ -51,7 +52,7 @@ async fn evm_deploy() {
         ship_endpoint: format!("ws://localhost:{port_18999}",),
         validate_hash: None,
         start_block: 30,
-        stop_block: Some(75),
+        stop_block: Some(55),
         block_delta: 0,
         ..TESTNET_GENESIS_CONFIG.clone()
     };
@@ -67,11 +68,43 @@ async fn evm_deploy() {
     }
 
     while let Some((block_hash, block)) = rx.recv().await {
-        // TODO: Make logging work
-        // TODO: Add some example assertions against blocks/transactions
         info!("{}:{}", block.block_num, hex::encode(block_hash));
-        if !block.transactions.is_empty() {
-            info!("Block has transactions");
+
+        match block.block_num {
+            50 => {
+                let tx = block.transactions[0].clone();
+                assert_eq!(tx.hash(), &B256::new(hex!("ede91f8a618cd49907d9a90fe2bf0443848f5ff549369eac42d1978b4fb8eccc")));
+                match tx {
+                    Transaction::LegacySigned(signed_legacy, receipt) => {
+                        let trx = signed_legacy.clone().strip_signature();
+                        assert_eq!(trx.value, U256::from(100190020000000000000000000u128));
+                        match trx.to {
+                            TxKind::Create => {
+                                panic!("Block 50 trx[0] should be a call, not create");
+                            }
+                            TxKind::Call(addr) => {
+                                assert_eq!(addr, address!("d80744e16d62c62c5fa2a04b92da3fe6b9efb523"));
+                            }
+                        }
+                    }
+                    _ => {
+                        panic!("Unexpected transaction type for block 50");
+                    }
+                }
+            }
+            _ => {}
         }
+        // Leaving this here to fetch data about transactions in future data sets
+        // if !block.transactions.is_empty() {
+        //     info!("Block has transactions");
+        //     for t in block.transactions {
+        //         info!("Transaction hash: {:?}", t.hash());
+        //         match t { Transaction::LegacySigned(signed_legacy, receipt) => {
+        //             info!("Legacy signed transaction value: {:?}", signed_legacy.clone().strip_signature().value);
+        //             info!("Legacy signed transaction to: {:?}", signed_legacy.clone().strip_signature().to);
+        //             info!("Done!");
+        //         } }
+        //     }
+        // }
     }
 }
