@@ -57,7 +57,7 @@ impl Transaction {
 
             let signed_legacy = signed_legacy_result.unwrap();
             // Align with contract, if BOTH are zero it's zero and raw.sender is used
-            //   https://github.com/telosnetwork/telos.evm/blob/9f2024a2a65e7c6b9bb98b36b368c359e24e6885/eosio.evm/include/eosio.evm/transaction.hpp#L205
+            // https://github.com/telosnetwork/telos.evm/blob/9f2024a2a65e7c6b9bb98b36b368c359e24e6885/eosio.evm/include/eosio.evm/transaction.hpp#L205
             if signed_legacy.signature().r().is_zero() && signed_legacy.signature().s().is_zero() {
                 let address = Address::from(
                     raw.sender
