@@ -24,19 +24,13 @@ fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy, Error> {
 }
 
 pub trait TelosTxDecodable {
-    fn decode_telos_signed_fields(
-        buf: &mut &[u8],
-        sig: Signature,
-    ) -> Result<Signed<Self>, Error>
+    fn decode_telos_signed_fields(buf: &mut &[u8], sig: Signature) -> Result<Signed<Self>, Error>
     where
         Self: Sized;
 }
 
 impl TelosTxDecodable for TxLegacy {
-    fn decode_telos_signed_fields(
-        buf: &mut &[u8],
-        sig: Signature,
-    ) -> Result<Signed<Self>, Error> {
+    fn decode_telos_signed_fields(buf: &mut &[u8], sig: Signature) -> Result<Signed<Self>, Error> {
         let header = Header::decode(buf)?;
         if !header.list {
             return Err(Error::Custom("Not a list."));

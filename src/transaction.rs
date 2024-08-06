@@ -1,9 +1,9 @@
 use crate::rlp::telos_rlp_decode::TelosTxDecodable;
 use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::translator_types::NameToAddressCache;
+use alloy::primitives::private::alloy_rlp::Error;
 use alloy::primitives::TxKind::Call;
 use alloy::primitives::{Address, Log, Signature, B256, U256};
-use alloy::primitives::private::alloy_rlp::Error;
 use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
 use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
