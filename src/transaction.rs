@@ -1,8 +1,9 @@
-use crate::rlp::alloy_rlp::TelosTxDecodable;
+use crate::rlp::telos_rlp_decode::TelosTxDecodable;
 use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::TxKind::Call;
 use alloy::primitives::{Address, Log, Signature, B256, U256};
+use alloy::primitives::private::alloy_rlp::Error;
 use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
 use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
@@ -36,7 +37,7 @@ impl Transaction {
         block_hash: Checksum256,
         raw: RawAction,
         receipt: PrintedReceipt,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         // TODO: Check for unsigned transactions and handle correctly
         // TODO: Set trx_index properly for signed and unsigned transactions
         let tx_raw = &mut raw.tx.as_slice();
@@ -51,8 +52,8 @@ impl Transaction {
                 );
                 let sig = make_unique_vrs(block_hash, address, trx_index);
                 let unsigned_legacy =
-                    TxLegacy::decode_telos_signed_fields(&mut raw.tx.clone().as_slice(), sig);
-                return Transaction::LegacySigned(unsigned_legacy.unwrap(), Some(receipt));
+                    TxLegacy::decode_telos_signed_fields(&mut raw.tx.clone().as_slice(), sig)?;
+                return Ok(Transaction::LegacySigned(unsigned_legacy, Some(receipt)));
             }
 
             let signed_legacy = signed_legacy_result.unwrap();
@@ -66,10 +67,10 @@ impl Transaction {
                 );
                 let sig = make_unique_vrs(block_hash, address, trx_index);
                 let unsigned_legacy = signed_legacy.strip_signature().into_signed(sig);
-                return Transaction::LegacySigned(unsigned_legacy, Some(receipt));
+                return Ok(Transaction::LegacySigned(unsigned_legacy, Some(receipt)));
             }
 
-            Transaction::LegacySigned(signed_legacy, Some(receipt))
+            Ok(Transaction::LegacySigned(signed_legacy, Some(receipt)))
         } else {
             // TODO: Handle other tx types
             panic!("Other tx types other than legacy not implemented yet!");

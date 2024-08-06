@@ -12,6 +12,7 @@ use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
 use std::cmp::Ordering;
+use alloy::primitives::private::alloy_rlp::Error;
 
 pub trait BasicTrace {
     fn action_name(&self) -> u64;
@@ -171,15 +172,23 @@ impl Block {
                     self.block_num
                 );
             }
-            let transaction = Transaction::from_raw_action(
+            let transaction_result = Transaction::from_raw_action(
                 self.chain_id,
                 self.transactions.len(),
                 self.block_hash,
                 raw,
                 printed_receipt.unwrap(),
             )
-            .await;
-            self.transactions.push(transaction);
+                .await;
+
+            match transaction_result {
+                Ok(transaction) => {
+                    self.transactions.push(transaction);
+                }
+                Err(e) => {
+                    panic!("Error handling action. Error: {}", e);
+                }
+            }
         } else if action_account == EOSIO_EVM && action_name == WITHDRAW {
             // Withdrawal from EVM
             let withdraw_action = decode_withdraw(&action.data());
@@ -190,7 +199,7 @@ impl Block {
                 withdraw_action,
                 native_to_evm_cache,
             )
-            .await;
+                .await;
             self.transactions.push(transaction);
         } else if action_account == EOSIO_TOKEN
             && action_name == TRANSFER
@@ -211,7 +220,7 @@ impl Block {
                 transfer_action,
                 native_to_evm_cache,
             )
-            .await;
+                .await;
             self.transactions.push(transaction.clone());
         } else if action_account == EOSIO_EVM && action_name == DORESOURCES {
             // TODO: Handle doresources action

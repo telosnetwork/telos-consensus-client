@@ -4,13 +4,13 @@ use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
 
 use alloy_rlp::Result;
 
-fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy> {
-    let nonce = u64::decode(data).expect("Failed to decode nonce");
-    let gas_price = u128::decode(data).expect("Failed to decode gas price");
-    let gas_limit = u128::decode(data).expect("Failed to decode gas limit");
-    let to = TxKind::decode(data).expect("Failed to decode to");
-    let value = decode_telos_u256(data).expect("Failed to decode value");
-    let input = Bytes::decode(data).expect("Failed to decode input");
+fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy, Error> {
+    let nonce = u64::decode(data).map_err(|_| Error::Custom("Failed to decode nonce"))?;
+    let gas_price = u128::decode(data).map_err(|_| Error::Custom("Failed to decode gas price"))?;
+    let gas_limit = u128::decode(data).map_err(|_| Error::Custom("Failed to decode gas limit"))?;
+    let to = TxKind::decode(data).map_err(|_| Error::Custom("Failed to decode to"))?;
+    let value = decode_telos_u256(data).map_err(|_| Error::Custom("Failed to decode value"))?;
+    let input = Bytes::decode(data).map_err(|_| Error::Custom("Failed to decode input"))?;
 
     Ok(TxLegacy {
         chain_id: None,
@@ -27,7 +27,7 @@ pub trait TelosTxDecodable {
     fn decode_telos_signed_fields(
         buf: &mut &[u8],
         sig: Signature,
-    ) -> alloy::primitives::private::alloy_rlp::Result<Signed<Self>>
+    ) -> Result<Signed<Self>, Error>
     where
         Self: Sized;
 }
@@ -36,16 +36,16 @@ impl TelosTxDecodable for TxLegacy {
     fn decode_telos_signed_fields(
         buf: &mut &[u8],
         sig: Signature,
-    ) -> alloy::primitives::private::alloy_rlp::Result<Signed<Self>, Error> {
+    ) -> Result<Signed<Self>, Error> {
         let header = Header::decode(buf)?;
         if !header.list {
-            return Err(Error::UnexpectedString);
+            return Err(Error::Custom("Not a list."));
         }
 
         // record original length so we can check encoding
         let original_len = buf.len();
 
-        let mut tx = decode_fields(buf).map_err(|_| Error::Custom("Failed to decode fields"))?;
+        let mut tx = decode_fields(buf)?;
 
         let signature = Signature::decode_rlp_vrs(buf)?;
 

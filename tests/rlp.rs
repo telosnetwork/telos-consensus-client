@@ -2,7 +2,7 @@ use alloy::hex;
 use alloy::primitives::Parity::Eip155;
 use alloy::primitives::U256;
 use alloy_consensus::TxLegacy;
-use telos_translator_rs::rlp::alloy_rlp::TelosTxDecodable;
+use telos_translator_rs::rlp::telos_rlp_decode::TelosTxDecodable;
 use telos_translator_rs::transaction::make_unique_vrs;
 
 #[test]
