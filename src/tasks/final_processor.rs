@@ -37,15 +37,13 @@ pub async fn final_processor(
     let mut validated = validate_hash.is_none();
 
     let native_to_evm_cache = NameToAddressCache::new(api_client);
+    let stop_block = config.stop_block.unwrap_or(u32::MAX);
 
     while let Some(mut block) = rx.recv().await {
-        let block_num = block.block_num;
-
-        if Some(block_num) == config.stop_block {
+        if block.block_num > stop_block {
             break;
         }
-
-        debug!("Finalizing block #{block_num}");
+        debug!("Finalizing block #{}", block.block_num);
 
         let header = block
             .generate_evm_data(parent_hash, config.block_delta, &native_to_evm_cache)
@@ -74,7 +72,7 @@ pub async fn final_processor(
             let trx_sec = unlogged_transactions as f64 / last_log.elapsed().as_secs_f64();
             info!(
                 "Block #{} 0x{} - processed {} blocks/sec and {} tx/sec",
-                block_num,
+                block.block_num,
                 encode(block_hash),
                 blocks_sec,
                 trx_sec
@@ -86,6 +84,7 @@ pub async fn final_processor(
         }
         // TODO: Fork handling, hashing, all the things...
 
+        let block_num = block.block_num;
         if let Some(tx) = tx.clone() {
             if let Err(error) = tx.send((block_hash, block)).await {
                 error!("Failed to send finished block to exit stream!! {error}.");
@@ -93,12 +92,11 @@ pub async fn final_processor(
             }
         }
         parent_hash = block_hash;
-
-        if Some(block_num + 1) == config.stop_block {
+        if block_num == stop_block {
             debug!("Processed stop block #{block_num}, exiting...");
             stop_tx
                 .send(())
-                .map_err(|_| eyre!("Cannot send stop message"))?;
+                .map_err(|_| eyre!("Can't send stop message"))?;
             break;
         }
     }

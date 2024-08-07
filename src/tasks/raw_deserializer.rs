@@ -63,7 +63,8 @@ pub async fn raw_deserializer(
                 );
                 let request = &ShipRequest::GetBlocks(GetBlocksRequestV0 {
                     start_block_num: config.start_block,
-                    end_block_num: config.stop_block.unwrap_or(u32::MAX),
+                    // Increment stop block value by 1 as bound is exclusive
+                    end_block_num: config.stop_block.map(|n| n + 1).unwrap_or(u32::MAX),
                     max_messages_in_flight: 10000,
                     have_positions: vec![],
                     irreversible_only: true, // TODO: Fork handling
