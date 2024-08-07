@@ -41,7 +41,6 @@ pub async fn ship_reader(
         }
 
         if matches!(stop_at, Some(stop_at) if stop_at == sequence) {
-            println!("Successfully finished task, stop_at = {}", sequence);
             break;
         }
     }

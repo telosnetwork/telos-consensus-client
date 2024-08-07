@@ -64,37 +64,6 @@ impl TelosTxDecodable for TxLegacy {
         Ok(signed)
     }
 }
-// TODO is this needed?
-//
-// impl TelosDecodable for TxLegacy {
-//     fn decode_telos(data: &mut &[u8]) -> Result<Self> {
-//         let header = Header::decode(data).expect("Failed to decode header");
-//         let remaining_len = data.len();
-//
-//         let transaction_payload_len = header.payload_length;
-//
-//         if transaction_payload_len > remaining_len {
-//             return Err(InputTooShort);
-//         }
-//
-//         let mut transaction = decode_fields(data).expect("Failed to decode fields");
-//
-//         // If we still have data, it should be an eip-155 encoded chain_id
-//         if !data.is_empty() {
-//             transaction.chain_id =
-//                 Some(TelosDecodable::decode_telos(data).expect("Failed to decode chain id"));
-//             let _r: U256 = TelosDecodable::decode_telos(data).expect("Failed to decode r value");
-//             let _s: U256 = TelosDecodable::decode_telos(data).expect("Failed to decode s value");
-//         }
-//
-//         let decoded = remaining_len - data.len();
-//         if decoded != transaction_payload_len {
-//             return Err(UnexpectedLength);
-//         }
-//
-//         Ok(transaction)
-//     }
-// }
 
 // decode_telos_u256 decodes rlp value of u256 but without a check if the first bytes are zero
 // which is a rlp specification requirement.
