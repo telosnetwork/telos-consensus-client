@@ -4,7 +4,7 @@ use eyre::Result;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use tokio::sync::mpsc;
-use tracing::debug;
+use tracing::{debug, info};
 
 pub async fn order_preserving_queue(
     mut rx: mpsc::Receiver<BlockOrSkip>,
@@ -45,5 +45,6 @@ pub async fn order_preserving_queue(
             }
         }
     }
+    info!("Exiting block orderer...");
     Ok(())
 }

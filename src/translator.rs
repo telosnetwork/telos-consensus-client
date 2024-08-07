@@ -10,7 +10,7 @@ use eyre::{eyre, Context, Result};
 use futures_util::future::join_all;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::connect_async;
 use tracing::info;
 
@@ -97,11 +97,7 @@ impl Translator {
                 .unwrap_or(DEFAULT_MESSAGE_FINALIZER_CHANNEL_SIZE),
         );
 
-        let stop_at = self
-            .config
-            .stop_block
-            .map(|stop| stop - self.config.start_block)
-            .map(Into::into);
+        let (stop_tx, stop_rx) = oneshot::channel::<()>();
 
         // Start the final processing task
         let final_processor_handle = tokio::spawn(final_processor(
@@ -109,6 +105,7 @@ impl Translator {
             api_client,
             finalize_rx,
             output_tx,
+            stop_tx,
         ));
 
         // Start the order-preserving queue task
@@ -127,7 +124,7 @@ impl Translator {
             order_tx,
         ));
 
-        let ship_reader_handle = tokio::spawn(ship_reader(ws_rx, raw_ds_tx, stop_at));
+        let ship_reader_handle = tokio::spawn(ship_reader(ws_rx, raw_ds_tx, stop_rx));
 
         info!("Translator launched successfully");
         let result = join_all(vec![

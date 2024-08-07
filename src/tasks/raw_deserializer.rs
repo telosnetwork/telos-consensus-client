@@ -120,5 +120,6 @@ pub async fn raw_deserializer(
             }
         }
     }
+    info!("Exiting raw deserializer...");
     Ok(())
 }

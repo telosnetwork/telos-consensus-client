@@ -4,21 +4,27 @@ use futures_util::stream::SplitStream;
 use futures_util::StreamExt;
 use log::debug;
 use tokio::net::TcpStream;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use tracing::info;
 
 pub async fn ship_reader(
     mut ws_rx: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
     raw_ds_tx: mpsc::Sender<RawMessage>,
-    stop_at: Option<u64>,
+    mut stop_rx: oneshot::Receiver<()>,
 ) -> Result<()> {
     let mut sequence: u64 = 0;
 
-    // Read the websocket
-    while let Some(message) = ws_rx.next().await {
+    loop {
+        // Read the websocket
+        let message = tokio::select! {
+            message = ws_rx.next() => message,
+            _ = &mut stop_rx => break
+        };
+
         sequence += 1;
         match message {
-            Ok(msg) => {
+            Some(Ok(msg)) => {
                 debug!(
                     "Received message with sequence {}, sending to raw ds pool...",
                     sequence
@@ -30,19 +36,19 @@ pub async fn ship_reader(
                     .is_err()
                 {
                     println!("Receiver dropped");
-                    return Ok(());
+                    break;
                 }
                 debug!("Sent message with sequence {} to raw ds pool...", sequence);
             }
-            Err(e) => {
+            Some(Err(e)) => {
                 println!("Error receiving message: {}", e);
-                return Ok(());
+                break;
+            }
+            None => {
+                break;
             }
         }
-
-        if matches!(stop_at, Some(stop_at) if stop_at == sequence) {
-            break;
-        }
     }
+    info!("Exiting ship reader...");
     Ok(())
 }

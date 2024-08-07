@@ -6,7 +6,10 @@ use antelope::api::client::{APIClient, DefaultProvider};
 use eyre::{eyre, Context, Result};
 use hex::encode;
 use std::str::FromStr;
-use tokio::{sync::mpsc, time::Instant};
+use tokio::{
+    sync::{mpsc, oneshot},
+    time::Instant,
+};
 use tracing::{debug, error, info};
 
 pub async fn final_processor(
@@ -14,6 +17,7 @@ pub async fn final_processor(
     api_client: APIClient<DefaultProvider>,
     mut rx: mpsc::Receiver<Block>,
     tx: Option<mpsc::Sender<(FixedBytes<32>, Block)>>,
+    stop_tx: oneshot::Sender<()>,
 ) -> Result<()> {
     let mut last_log = Instant::now();
     let mut unlogged_blocks = 0;
@@ -35,7 +39,13 @@ pub async fn final_processor(
     let native_to_evm_cache = NameToAddressCache::new(api_client);
 
     while let Some(mut block) = rx.recv().await {
-        debug!("Finalizing block #{}", block.block_num);
+        let block_num = block.block_num;
+
+        if Some(block_num) == config.stop_block {
+            break;
+        }
+
+        debug!("Finalizing block #{block_num}");
 
         let header = block
             .generate_evm_data(parent_hash, config.block_delta, &native_to_evm_cache)
@@ -64,7 +74,7 @@ pub async fn final_processor(
             let trx_sec = unlogged_transactions as f64 / last_log.elapsed().as_secs_f64();
             info!(
                 "Block #{} 0x{} - processed {} blocks/sec and {} tx/sec",
-                block.block_num,
+                block_num,
                 encode(block_hash),
                 blocks_sec,
                 trx_sec
@@ -83,6 +93,16 @@ pub async fn final_processor(
             }
         }
         parent_hash = block_hash;
+
+        if Some(block_num + 1) == config.stop_block {
+            debug!("Processed stop block #{block_num}, exiting...");
+            stop_tx
+                .send(())
+                .map_err(|_| eyre!("Cannot send stop message"))?;
+            break;
+        }
     }
+    while rx.recv().await.is_some() {}
+    info!("Exiting final processor...");
     Ok(())
 }
