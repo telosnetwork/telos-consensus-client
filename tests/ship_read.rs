@@ -80,7 +80,7 @@ async fn evm_deploy() {
                     ))
                 );
                 match tx {
-                    Transaction::LegacySigned(signed_legacy, receipt) => {
+                    Transaction::LegacySigned(signed_legacy, _) => {
                         let trx = signed_legacy.clone().strip_signature();
                         assert_eq!(trx.value, U256::from(100190020000000000000000000u128));
                         match trx.to {
@@ -94,9 +94,6 @@ async fn evm_deploy() {
                                 );
                             }
                         }
-                    }
-                    _ => {
-                        panic!("Unexpected transaction type for block 50");
                     }
                 }
             }

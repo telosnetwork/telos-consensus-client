@@ -14,6 +14,8 @@ use telos_translator_rs::{
     },
 };
 
+pub mod test_utils;
+
 async fn generate_block(
     chain_id: u64,
     http_endpoint: String,
