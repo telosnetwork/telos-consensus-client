@@ -41,8 +41,6 @@ async fn mock_fork() {
     let cntr_ship_port = container.get_host_port_ipv4(chain_ship_port).await.unwrap();
 
     // configure a fork from block 30 to 25
-    // currently running this with the fork on will cause translator to stall
-    // disable the mock_client related code to see translator reach end of fake chain
     let mock_client = LeapMockClient::new(&format!("http://localhost:{cntr_control_port}"));
 
     mock_client
