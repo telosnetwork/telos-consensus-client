@@ -10,9 +10,11 @@ use alloy::hex;
 use alloy::primitives::FixedBytes;
 
 use telos_translator_rs::block::Block;
-use block_headers::test_utils::{LeapMockClient, SetJumpsParams};
+use common::test_utils::{LeapMockClient, SetJumpsParams};
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
+
+mod common;
 
 #[tokio::test]
 async fn mock_fork() {
