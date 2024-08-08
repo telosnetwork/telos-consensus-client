@@ -1,5 +1,5 @@
 use alloy::primitives::private::alloy_rlp::{Decodable, Error, Header};
-use alloy::primitives::{Bytes, Signature, TxKind, U256};
+use alloy::primitives::{Bytes, Parity, Signature, TxKind, U256};
 use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
 
 use alloy_rlp::Result;
@@ -39,16 +39,23 @@ impl TelosTxDecodable for TxLegacy {
         // record original length so we can check encoding
         let original_len = buf.len();
 
-        let mut tx = decode_fields(buf)?;
+        let mut tx = decode_fields(buf).expect("Failed to decode fields");
+        let mut v = Parity::Parity(false);
+        let mut r = U256::ZERO;
+        let mut s = U256::ZERO;
 
-        let signature = Signature::decode_rlp_vrs(buf)?;
+        if !buf.is_empty() {
+            let signature = Signature::decode_rlp_vrs(buf)?;
+            // extract chain id from signature
+            v = signature.v();
+            r = signature.r();
+            s = signature.s();
+        }
 
-        // extract chain id from signature
-        let v = signature.v();
-        let r = signature.r();
-        let s = signature.s();
         if v.to_u64() != 0 || r != U256::ZERO || s != U256::ZERO {
-            return Err(Error::Custom("Invalid signature"));
+            return Err(Error::Custom(
+                "Unsigned Telos Native trx with signature data",
+            ));
         }
 
         tx.chain_id = sig.v().chain_id();
