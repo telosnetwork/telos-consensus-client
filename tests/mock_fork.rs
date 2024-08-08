@@ -26,7 +26,7 @@ async fn mock_fork() {
 
     let container: ContainerAsync<GenericImage> = GenericImage::new(
         "guilledk/leap-mock",
-        "0.2.1@sha256:432c2b03c7c89e6ff963e237e7f9e2a184d770c79e41ed33e1b0a18f421047df",
+        "0.2.2@sha256:05ade342597fca9f14cbed6f22508789b1d8a1dc35f2aa64c46b1a8a96d5ae5d",
     )
     .with_exposed_port(Tcp(chain_http_port))
     .with_exposed_port(Tcp(chain_ship_port))
