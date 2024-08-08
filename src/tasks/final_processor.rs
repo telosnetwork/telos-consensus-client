@@ -1,5 +1,7 @@
+use crate::block::TelosEVMBlock;
 use crate::{
-    block::ProcessingEVMBlock, translator::TranslatorConfig, types::translator_types::NameToAddressCache,
+    block::ProcessingEVMBlock, translator::TranslatorConfig,
+    types::translator_types::NameToAddressCache,
 };
 use alloy::primitives::FixedBytes;
 use antelope::api::client::{APIClient, DefaultProvider};
@@ -11,7 +13,6 @@ use tokio::{
     time::Instant,
 };
 use tracing::{debug, error, info};
-use crate::block::TelosEVMBlock;
 
 pub async fn final_processor(
     config: TranslatorConfig,

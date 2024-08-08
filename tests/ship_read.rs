@@ -1,6 +1,7 @@
 use alloy::hex;
 use alloy::primitives::{address, FixedBytes, TxKind, B256, U256};
 use antelope::api::client::{APIClient, DefaultProvider};
+use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::transaction::Transaction;
 use telos_translator_rs::translator::TranslatorConfig;
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
@@ -9,7 +10,6 @@ use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::mpsc;
 use tracing::info;
-use telos_translator_rs::block::TelosEVMBlock;
 
 #[tokio::test]
 async fn evm_deploy() {

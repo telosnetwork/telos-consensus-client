@@ -6,7 +6,7 @@ use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
 use crate::types::translator_types::NameToAddressCache;
-use alloy::primitives::{B256, Bytes, FixedBytes};
+use alloy::primitives::{Bytes, FixedBytes, B256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
@@ -75,7 +75,7 @@ pub struct ProcessingEVMBlock {
 pub struct TelosEVMBlock {
     pub block_num: u32,
     pub block_hash: B256,
-    pub transactions: Vec<Transaction>
+    pub transactions: Vec<Transaction>,
 }
 
 pub fn decode_raw(raw: &[u8]) -> RawAction {

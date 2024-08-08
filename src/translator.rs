@@ -3,7 +3,6 @@ use crate::tasks::{
     evm_block_processor, final_processor, order_preserving_queue, raw_deserializer, ship_reader,
 };
 use crate::types::translator_types::{BlockOrSkip, RawMessage};
-use alloy::primitives::FixedBytes;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
 use eyre::{eyre, Context, Result};
@@ -51,10 +50,7 @@ impl Translator {
         Self { config }
     }
 
-    pub async fn launch(
-        &mut self,
-        output_tx: Option<mpsc::Sender<TelosEVMBlock>>,
-    ) -> Result<()> {
+    pub async fn launch(&mut self, output_tx: Option<mpsc::Sender<TelosEVMBlock>>) -> Result<()> {
         let api_client =
             APIClient::<DefaultProvider>::default_provider(self.config.http_endpoint.clone())
                 .map_err(|error| eyre!(error))
