@@ -1,6 +1,6 @@
+use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::core::WaitFor;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
-use testcontainers::core::ContainerPort::Tcp;
 
 use tokio::sync::mpsc;
 
@@ -10,14 +10,12 @@ use alloy::hex;
 use alloy::primitives::FixedBytes;
 
 use telos_translator_rs::block::Block;
+use telos_translator_rs::test_utils::{LeapMockClient, SetJumpsParams};
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
-use telos_translator_rs::test_utils::{LeapMockClient, SetJumpsParams};
-
 
 #[tokio::test]
 async fn mock_fork() {
-
     tracing_subscriber::fmt::init();
 
     let control_port = 6970;
@@ -45,9 +43,12 @@ async fn mock_fork() {
     // disable the mock_client related code to see translator reach end of fake chain
     let mock_client = LeapMockClient::new(&format!("http://localhost:{cntr_control_port}"));
 
-    mock_client.set_jumps(SetJumpsParams{
-        jumps: vec![(30, 25)]
-    }).await.unwrap();
+    mock_client
+        .set_jumps(SetJumpsParams {
+            jumps: vec![(30, 25)],
+        })
+        .await
+        .unwrap();
 
     let config = TranslatorConfig {
         http_endpoint: format!("http://localhost:{cntr_http_port}",),
@@ -71,4 +72,3 @@ async fn mock_fork() {
         info!("{}:{}", block.block_num, hex::encode(block_hash));
     }
 }
-

@@ -1,5 +1,5 @@
 use alloy::hex;
-use alloy::primitives::{address, Address, FixedBytes, TxKind, B256, U256};
+use alloy::primitives::{address, FixedBytes, TxKind, B256, U256};
 use antelope::api::client::{APIClient, DefaultProvider};
 use telos_translator_rs::transaction::Transaction;
 use telos_translator_rs::translator::TranslatorConfig;

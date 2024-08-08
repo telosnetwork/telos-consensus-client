@@ -52,7 +52,9 @@ impl LeapMockClient {
     pub async fn set_block(&self, params: SetNumParams) -> Result<String, LeapMockError> {
         let url = format!("{}/set_block", self.base_url);
 
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .json(&params)
             .send()
             .await?
@@ -61,14 +63,18 @@ impl LeapMockClient {
 
         match resp.result {
             Some(result) => Ok(result),
-            None => Err(LeapMockError::ApiError(resp.error.unwrap_or_else(|| "Unknown error".to_string()))),
+            None => Err(LeapMockError::ApiError(
+                resp.error.unwrap_or_else(|| "Unknown error".to_string()),
+            )),
         }
     }
 
     pub async fn set_jumps(&self, params: SetJumpsParams) -> Result<String, LeapMockError> {
         let url = format!("{}/set_jumps", self.base_url);
 
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .json(&params)
             .send()
             .await?
@@ -77,14 +83,18 @@ impl LeapMockClient {
 
         match resp.result {
             Some(result) => Ok(result),
-            None => Err(LeapMockError::ApiError(resp.error.unwrap_or_else(|| "Unknown error".to_string()))),
+            None => Err(LeapMockError::ApiError(
+                resp.error.unwrap_or_else(|| "Unknown error".to_string()),
+            )),
         }
     }
 
     pub async fn set_block_info(&self, params: SetBlockInfo) -> Result<String, LeapMockError> {
         let url = format!("{}/set_block_info", self.base_url);
 
-        let resp = self.client.post(&url)
+        let resp = self
+            .client
+            .post(&url)
             .json(&params)
             .send()
             .await?
@@ -93,8 +103,9 @@ impl LeapMockClient {
 
         match resp.result {
             Some(result) => Ok(result),
-            None => Err(LeapMockError::ApiError(resp.error.unwrap_or_else(|| "Unknown error".to_string()))),
+            None => Err(LeapMockError::ApiError(
+                resp.error.unwrap_or_else(|| "Unknown error".to_string()),
+            )),
         }
     }
 }
-
