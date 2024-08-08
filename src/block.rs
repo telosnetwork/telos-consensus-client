@@ -73,6 +73,7 @@ pub struct ProcessingEVMBlock {
 
 #[derive(Clone)]
 pub struct TelosEVMBlock {
+    pub header: Header,
     pub block_num: u32,
     pub block_hash: B256,
     pub transactions: Vec<Transaction>,

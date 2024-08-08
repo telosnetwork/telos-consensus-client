@@ -87,6 +87,7 @@ pub async fn final_processor(
         // TODO: Fork handling, hashing, all the things...
 
         let completed_block = TelosEVMBlock {
+            header,
             block_num: block.block_num,
             block_hash,
             transactions: block.transactions,
