@@ -52,7 +52,7 @@ async fn evm_deploy() {
         ship_endpoint: format!("ws://localhost:{port_18999}",),
         validate_hash: None,
         start_block: 30,
-        stop_block: Some(55),
+        stop_block: Some(54),
         block_delta: 0,
         ..TESTNET_GENESIS_CONFIG.clone()
     };
