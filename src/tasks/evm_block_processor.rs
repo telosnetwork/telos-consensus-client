@@ -1,10 +1,10 @@
-use crate::{block::Block, types::translator_types::BlockOrSkip};
+use crate::{block::ProcessingEVMBlock, types::translator_types::BlockOrSkip};
 use eyre::Result;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{debug, error, info};
 
 pub async fn evm_block_processor(
-    mut block_rx: Receiver<Block>,
+    mut block_rx: Receiver<ProcessingEVMBlock>,
     block_tx: Sender<BlockOrSkip>,
 ) -> Result<()> {
     while let Some(mut block) = block_rx.recv().await {

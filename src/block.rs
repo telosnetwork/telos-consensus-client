@@ -6,7 +6,7 @@ use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
 use crate::types::translator_types::NameToAddressCache;
-use alloy::primitives::{Bytes, FixedBytes};
+use alloy::primitives::{B256, Bytes, FixedBytes};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
@@ -59,7 +59,7 @@ impl BasicTrace for ActionTrace {
 }
 
 #[derive(Clone)]
-pub struct Block {
+pub struct ProcessingEVMBlock {
     pub sequence: u64,
     pub block_num: u32,
     block_hash: Checksum256,
@@ -69,6 +69,13 @@ pub struct Block {
     block_traces: Option<Vec<TransactionTrace>>,
     contract_rows: Option<Vec<ContractRow>>,
     pub transactions: Vec<Transaction>,
+}
+
+#[derive(Clone)]
+pub struct TelosEVMBlock {
+    pub block_num: u32,
+    pub block_hash: B256,
+    pub transactions: Vec<Transaction>
 }
 
 pub fn decode_raw(raw: &[u8]) -> RawAction {
@@ -92,7 +99,7 @@ pub fn decode_withdraw(raw: &[u8]) -> WithdrawAction {
     withdraw.clone()
 }
 
-impl Block {
+impl ProcessingEVMBlock {
     pub fn new(
         chain_id: u64,
         sequence: u64,
@@ -306,22 +313,22 @@ impl Block {
     }
 }
 
-impl Ord for Block {
+impl Ord for ProcessingEVMBlock {
     fn cmp(&self, other: &Self) -> Ordering {
         self.block_num.cmp(&other.block_num)
     }
 }
 
-impl PartialOrd for Block {
+impl PartialOrd for ProcessingEVMBlock {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for Block {
+impl PartialEq for ProcessingEVMBlock {
     fn eq(&self, other: &Self) -> bool {
         self.block_num == other.block_num
     }
 }
 
-impl Eq for Block {}
+impl Eq for ProcessingEVMBlock {}

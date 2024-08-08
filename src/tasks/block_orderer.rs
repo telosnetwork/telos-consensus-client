@@ -1,4 +1,4 @@
-use crate::block::Block;
+use crate::block::ProcessingEVMBlock;
 use crate::types::translator_types::BlockOrSkip;
 use eyre::Result;
 use std::cmp::Reverse;
@@ -8,7 +8,7 @@ use tracing::{debug, info};
 
 pub async fn order_preserving_queue(
     mut rx: mpsc::Receiver<BlockOrSkip>,
-    tx: mpsc::Sender<Block>,
+    tx: mpsc::Sender<ProcessingEVMBlock>,
 ) -> Result<()> {
     let mut next_sequence = 1;
     // Shared queue for order preservation

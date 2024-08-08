@@ -1,4 +1,4 @@
-use crate::block::Block;
+use crate::block::ProcessingEVMBlock;
 use crate::types::evm_types::AccountRow;
 use crate::types::names::EOSIO_EVM;
 use alloy::primitives::Address;
@@ -23,7 +23,7 @@ pub struct NameToAddressCache {
 }
 
 pub enum BlockOrSkip {
-    Block(Block),
+    Block(ProcessingEVMBlock),
     Skip(u64),
 }
 
@@ -88,7 +88,7 @@ impl NameToAddressCache {
 }
 
 pub struct PriorityQueue {
-    heap: Arc<Mutex<BinaryHeap<Block>>>,
+    heap: Arc<Mutex<BinaryHeap<ProcessingEVMBlock>>>,
 }
 
 impl Default for PriorityQueue {
@@ -104,12 +104,12 @@ impl PriorityQueue {
         }
     }
 
-    pub fn push(&self, item: Block) {
+    pub fn push(&self, item: ProcessingEVMBlock) {
         let mut heap = self.heap.lock().unwrap();
         heap.push(item);
     }
 
-    pub fn pop(&self) -> Option<Block> {
+    pub fn pop(&self) -> Option<ProcessingEVMBlock> {
         let mut heap = self.heap.lock().unwrap();
         heap.pop()
     }

@@ -1,4 +1,4 @@
-use crate::block::Block;
+use crate::block::ProcessingEVMBlock;
 use crate::translator::TranslatorConfig;
 use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::ship_types::{
@@ -21,7 +21,7 @@ pub async fn raw_deserializer(
     config: TranslatorConfig,
     mut raw_ds_rx: Receiver<RawMessage>,
     mut ws_tx: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-    block_deserializer_tx: Sender<Block>,
+    block_deserializer_tx: Sender<ProcessingEVMBlock>,
     orderer_tx: Sender<BlockOrSkip>,
 ) -> Result<()> {
     let mut unackd_blocks = 0;
@@ -79,7 +79,7 @@ pub async fn raw_deserializer(
             ShipResult::GetBlocksResultV0(r) => {
                 unackd_blocks += 1;
                 if let Some(b) = &r.this_block {
-                    let block = Block::new(
+                    let block = ProcessingEVMBlock::new(
                         config.chain_id,
                         msg.sequence,
                         b.block_num,

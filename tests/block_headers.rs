@@ -4,7 +4,7 @@ use antelope::{
     chain::{checksum::Checksum256, Encoder},
 };
 use telos_translator_rs::{
-    block::Block,
+    block::ProcessingEVMBlock,
     types::{
         env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS, MAINNET_DEPLOY_CONFIG},
         ship_types::{
@@ -19,7 +19,7 @@ async fn generate_block(
     http_endpoint: String,
     block_num: u32,
     sequence: u64,
-) -> Block {
+) -> ProcessingEVMBlock {
     let api_client: APIClient<DefaultProvider> =
         APIClient::<DefaultProvider>::default_provider(http_endpoint.clone())
             .expect("Failed to create API client");
@@ -58,7 +58,7 @@ async fn generate_block(
 
     let block_bytes = Encoder::pack(&signed_block);
 
-    Block::new(
+    ProcessingEVMBlock::new(
         chain_id,
         sequence,
         block_num,

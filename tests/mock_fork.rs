@@ -10,7 +10,7 @@ use alloy::hex;
 use alloy::primitives::FixedBytes;
 
 use common::test_utils::{LeapMockClient, SetJumpsParams};
-use telos_translator_rs::block::Block;
+use telos_translator_rs::block::{ProcessingEVMBlock, TelosEVMBlock};
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
 
@@ -60,7 +60,7 @@ async fn mock_fork() {
         ..TESTNET_GENESIS_CONFIG.clone()
     };
 
-    let (tx, mut rx) = mpsc::channel::<(FixedBytes<32>, Block)>(1000);
+    let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 
     let mut translator = Translator::new(config);
     match translator.launch(Some(tx)).await {
@@ -68,7 +68,7 @@ async fn mock_fork() {
         Err(e) => panic!("Failed to launch translator: {:?}", e),
     }
 
-    while let Some((block_hash, block)) = rx.recv().await {
-        info!("{}:{}", block.block_num, hex::encode(block_hash));
+    while let Some(block) = rx.recv().await {
+        info!("{}:{}", block.block_num, block.block_hash);
     }
 }

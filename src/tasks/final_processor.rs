@@ -1,5 +1,5 @@
 use crate::{
-    block::Block, translator::TranslatorConfig, types::translator_types::NameToAddressCache,
+    block::ProcessingEVMBlock, translator::TranslatorConfig, types::translator_types::NameToAddressCache,
 };
 use alloy::primitives::FixedBytes;
 use antelope::api::client::{APIClient, DefaultProvider};
@@ -11,12 +11,13 @@ use tokio::{
     time::Instant,
 };
 use tracing::{debug, error, info};
+use crate::block::TelosEVMBlock;
 
 pub async fn final_processor(
     config: TranslatorConfig,
     api_client: APIClient<DefaultProvider>,
-    mut rx: mpsc::Receiver<Block>,
-    tx: Option<mpsc::Sender<(FixedBytes<32>, Block)>>,
+    mut rx: mpsc::Receiver<ProcessingEVMBlock>,
+    tx: Option<mpsc::Sender<TelosEVMBlock>>,
     stop_tx: oneshot::Sender<()>,
 ) -> Result<()> {
     let mut last_log = Instant::now();
@@ -84,9 +85,15 @@ pub async fn final_processor(
         }
         // TODO: Fork handling, hashing, all the things...
 
+        let completed_block = TelosEVMBlock {
+            block_num: block.block_num,
+            block_hash,
+            transactions: block.transactions,
+        };
+
         let block_num = block.block_num;
         if let Some(tx) = tx.clone() {
-            if let Err(error) = tx.send((block_hash, block)).await {
+            if let Err(error) = tx.send(completed_block).await {
                 error!("Failed to send finished block to exit stream!! {error}.");
                 break;
             }

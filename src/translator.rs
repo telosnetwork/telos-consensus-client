@@ -1,4 +1,4 @@
-use crate::block::Block;
+use crate::block::{ProcessingEVMBlock, TelosEVMBlock};
 use crate::tasks::{
     evm_block_processor, final_processor, order_preserving_queue, raw_deserializer, ship_reader,
 };
@@ -53,7 +53,7 @@ impl Translator {
 
     pub async fn launch(
         &mut self,
-        output_tx: Option<mpsc::Sender<(FixedBytes<32>, Block)>>,
+        output_tx: Option<mpsc::Sender<TelosEVMBlock>>,
     ) -> Result<()> {
         let api_client =
             APIClient::<DefaultProvider>::default_provider(self.config.http_endpoint.clone())
@@ -79,7 +79,7 @@ impl Translator {
                 .unwrap_or(DEFAULT_RAW_MESSAGE_CHANNEL_SIZE),
         );
 
-        let (process_tx, process_rx) = mpsc::channel::<Block>(
+        let (process_tx, process_rx) = mpsc::channel::<ProcessingEVMBlock>(
             self.config
                 .block_message_channel_size
                 .unwrap_or(DEFAULT_BLOCK_PROCESS_CHANNEL_SIZE),
@@ -91,7 +91,7 @@ impl Translator {
                 .unwrap_or(DEFAULT_MESSAGE_ORDERER_CHANNEL_SIZE),
         );
 
-        let (finalize_tx, finalize_rx) = mpsc::channel::<Block>(
+        let (finalize_tx, finalize_rx) = mpsc::channel::<ProcessingEVMBlock>(
             self.config
                 .final_message_channel_size
                 .unwrap_or(DEFAULT_MESSAGE_FINALIZER_CHANNEL_SIZE),
