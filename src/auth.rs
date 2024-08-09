@@ -1,5 +1,6 @@
-use alloy_primitives::private::derive_more::Display;
 use jsonwebtoken::{encode, get_current_timestamp, Algorithm, EncodingKey, Header};
+use reth_primitives::alloy_primitives::private::derive_more::Display;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 

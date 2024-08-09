@@ -1,17 +1,17 @@
-use crate::arrow_block_reader::{ArrowFileBlockReader, FullExecutionPayload};
 use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiMethod, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
-use alloy_primitives::B256;
-use arrowbatch::reader::{ArrowBatchContext, ArrowBatchSequentialReader};
-use log::{debug, error, info, warn};
-use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
+use reth_primitives::{B256, Bytes, U256};
+use log::{debug, error, warn};
 use reth_rpc_types::engine::ForkchoiceState;
 use reth_rpc_types::{Block, ExecutionPayloadV1};
+use telos_translator_rs::block::TelosEVMBlock;
 use serde_json::json;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tokio::time::sleep;
+use alloy_consensus::TxEnvelope;
+use alloy_rlp::{encode};
+use telos_translator_rs::transaction::Transaction;
+use telos_translator_rs::translator::{Translator, TranslatorConfig};
+use tokio::sync::mpsc;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -25,37 +25,190 @@ pub enum Error {
 
 pub struct ConsensusClient {
     pub config: AppConfig,
-    reader: ArrowFileBlockReader,
+    translator: Translator,
     execution_api: ExecutionApiClient,
-    latest_consensus_block: ExecutionPayloadV1,
+    //latest_consensus_block: ExecutionPayloadV1,
     latest_valid_executor_block: Block,
     is_forked: bool,
 }
 
 impl ConsensusClient {
-    pub async fn new(config: AppConfig, context: Arc<Mutex<ArrowBatchContext>>) -> Self {
+    pub async fn new(config: AppConfig) -> Self {
         let my_config = config.clone();
-        let reader_context = context.clone();
 
-        let reader = ArrowFileBlockReader::new(&config, reader_context).await;
-        let execution_api = ExecutionApiClient::new(config.base_url, config.jwt_secret);
-        let latest_consensus_block = ConsensusClient::get_latest_consensus_block(&reader).await;
+        let execution_api = ExecutionApiClient::new(config.execution_endpoint, config.jwt_secret);
+        //let latest_consensus_block = ConsensusClient::get_latest_consensus_block(&translator).await;
         let latest_executor_block =
             ConsensusClient::get_latest_executor_block(&execution_api).await;
 
+        let translator = Translator::new(TranslatorConfig {
+            chain_id: 0,
+            start_block: config.start_block,
+            stop_block: config.stop_block,
+            block_delta: 0,
+            prev_hash: config.prev_hash,
+            validate_hash: None,
+            http_endpoint: config.chain_endpoint,
+            ship_endpoint: config.ship_endpoint,
+            raw_ds_threads: None,
+            block_process_threads: None,
+            raw_message_channel_size: None,
+            block_message_channel_size: None,
+            order_message_channel_size: None,
+            final_message_channel_size: None,
+        });
+
         Self {
             config: my_config,
-            reader,
+            translator,
             execution_api,
-            latest_consensus_block,
+            //latest_consensus_block,
             latest_valid_executor_block: latest_executor_block,
             is_forked: true,
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), Error> {
+    async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Block {
+        let executor_latest_block_number = execution_api.block_number().await.unwrap();
+        execution_api
+            .block_by_number(executor_latest_block_number, false)
+            .await
+            .unwrap()
+    }
+
+    pub async fn run (&mut self) {
+        let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
+
+        self.translator.launch(Some(tx)).await.unwrap();
+
+        let mut batch = vec![];
+        let mut send_to_executor = false;
+        while let Some(block) = rx.recv().await {
+            // Set this to true only once, if we are caught up
+            if !send_to_executor {
+                // if this block is older than the latest valid executor block, skip it
+                send_to_executor = block.block_num > self.latest_valid_executor_block.header.number.unwrap() as u32;
+                if send_to_executor {
+                    // this is our first chance to compare block hashes of the latest executor block and the latest consensus block
+                    if self.latest_valid_executor_block.header.hash.unwrap() != block.block_hash {
+                        error!("Fork detected! Latest executor block hash {:?} does not match consensus block hash {:?}",
+                               self.latest_valid_executor_block.header.hash.unwrap(), block.block_hash);
+                        return;
+                    }
+                }
+            }
+
+            if !send_to_executor {
+                continue;
+            }
+
+            // TODO: Check if we are caught up, if so do not batch anything
+
+            batch.push(block);
+            if self.config.batch_size >= batch.len() {
+                self.send_batch(batch).await;
+                batch = vec![];
+            }
+        }
+    }
+
+    async fn send_batch(&self, batch: Vec<TelosEVMBlock>) {
+        let rpc_batch = batch
+            .iter()
+            .map(|block| {
+                // println!("block: {:?}", block);
+                let base_fee_per_gas = if block.header.base_fee_per_gas.is_some() {
+                    U256::from(block.header.base_fee_per_gas.unwrap())
+                } else {
+                    U256::ZERO
+                };
+
+                let mut transactions = vec![];
+                for tx in block.transactions.iter() {
+                    match tx {
+                        Transaction::LegacySigned(legacy_tx, _) => {
+                            let tx_envelope = TxEnvelope::from(legacy_tx.clone());
+                            let encoded = encode(tx_envelope);
+                            transactions.push(Bytes::from(encoded));
+                        }
+                    }
+                }
+
+                let execution_payload = ExecutionPayloadV1 {
+                    parent_hash: block.header.parent_hash,
+                    fee_recipient: block.header.beneficiary,
+                    state_root: block.header.state_root,
+                    receipts_root: block.header.receipts_root,
+                    logs_bloom: block.header.logs_bloom,
+                    prev_randao: B256::ZERO,
+                    block_number: block.block_num as u64,
+                    gas_limit: block.header.gas_limit as u64,
+                    gas_used: block.header.gas_used as u64,
+                    timestamp: block.header.timestamp,
+                    extra_data: block.header.extra_data.clone(),
+                    base_fee_per_gas,
+                    block_hash: block.block_hash,
+                    transactions,
+                };
+                RpcRequest {
+                    method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
+                    params: json![execution_payload],
+                }
+            })
+            .collect::<Vec<RpcRequest>>();
+
+        let new_payloadv1_result = self.execution_api.rpc_batch(rpc_batch).await.unwrap();
+        // TODO: check for VALID status on new_payloadv1_result, and handle the failure case
+        debug!("NewPayloadV1 result: {:?}", new_payloadv1_result);
+
+        let last_block_sent = batch.last().unwrap();
+        let fork_choice_updated_result = self
+            .fork_choice_updated(
+                last_block_sent.block_hash,
+                last_block_sent.block_hash,
+                last_block_sent.block_hash,
+            )
+            .await;
+
+        // TODO: Check status of fork_choice_updated_result and handle the failure case
+        debug!(
+                "Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}",
+                last_block_sent.block_hash,
+                last_block_sent.header.parent_hash,
+                last_block_sent.block_num
+            );
+        debug!(
+                "fork_choice_updated_result for block number {}: {:?}",
+                last_block_sent.block_num, fork_choice_updated_result
+            );
+    }
+
+    async fn fork_choice_updated(
+        &self,
+        head_hash: B256,
+        safe_hash: B256,
+        finalized_hash: B256,
+    ) -> JsonResponseBody {
+        let fork_choice_state = ForkchoiceState {
+            head_block_hash: head_hash,
+            safe_block_hash: safe_hash,
+            finalized_block_hash: finalized_hash,
+        };
+
+        self.execution_api
+            .rpc(RpcRequest {
+                method: crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
+                params: json![vec![fork_choice_state]],
+            })
+            .await
+            .unwrap()
+    }
+
+    /*
+    pub async fn run(&mut self) {
         if !self.sync_block_info().await.unwrap_or(false) {
-            return Err(Error::BlockSyncInfo);
+            error!("Failed to sync block info");
+            return;
         }
 
         let mut next_block_number = self
@@ -63,7 +216,6 @@ impl ConsensusClient {
             .header
             .number
             .unwrap()
-            .to::<u64>()
             + 1;
         let mut batch_count = 0;
 
@@ -78,6 +230,15 @@ impl ConsensusClient {
                 self.config.stop_block,
             ),
         };
+        let last_block_number = std::cmp::min(
+            self.translator
+                .get_latest_block()
+                .await
+                .unwrap()
+                .payload
+                .block_number,
+            self.config.stop_block,
+        );
 
         if next_block_number > self.config.stop_block {
             return Err(Error::ExecutorBlockPastStopBlock);
@@ -188,37 +349,8 @@ impl ConsensusClient {
         }
     }
 
-    async fn get_latest_consensus_block(reader: &ArrowFileBlockReader) -> ExecutionPayloadV1 {
-        reader.get_latest_block().await.unwrap().payload.clone()
-    }
-
-    async fn fork_choice_updated(
-        &self,
-        head_hash: B256,
-        safe_hash: B256,
-        finalized_hash: B256,
-    ) -> JsonResponseBody {
-        let fork_choice_state = ForkchoiceState {
-            head_block_hash: head_hash,
-            safe_block_hash: safe_hash,
-            finalized_block_hash: finalized_hash,
-        };
-
-        self.execution_api
-            .rpc(RpcRequest {
-                method: crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
-                params: json![vec![fork_choice_state]],
-            })
-            .await
-            .unwrap()
-    }
-
-    async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Block {
-        let executor_latest_block_number = execution_api.block_number().await.unwrap();
-        execution_api
-            .block_by_number(executor_latest_block_number, false)
-            .await
-            .unwrap()
+    async fn get_latest_consensus_block(translator: &Translator) -> ExecutionPayloadV1 {
+        translator.get_latest_block().await.unwrap().payload.clone()
     }
 
     async fn sync_block_info(&mut self) -> Result<bool, String> {
@@ -312,4 +444,5 @@ impl ConsensusClient {
 
         Ok(true)
     }
+    */
 }
