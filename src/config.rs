@@ -14,25 +14,25 @@ pub struct CliArgs {
 pub struct AppConfig {
     /// Execution API http endpoint (JWT protected endpoint on reth)
     pub execution_endpoint: String,
-    
+
     /// The JWT secret used to sign the JWT token
     pub jwt_secret: String,
-    
+
     /// Nodeos ship ws endpoint
     pub ship_endpoint: String,
-    
+
     /// Nodeos http endpoint
     pub chain_endpoint: String,
-    
+
     /// Block count in between finalize block calls while syncing
     pub batch_size: usize,
-    
+
     /// Block delta between native block and EVM block
     pub block_delta: Option<u8>,
-    
+
     /// The parent hash of the start_block
     pub prev_hash: String,
-    
+
     /// Start block to start with, should be at or before the first block of the execution node
     pub start_block: u32,
 
