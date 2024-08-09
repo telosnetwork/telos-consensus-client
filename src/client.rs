@@ -1,14 +1,14 @@
 use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiMethod, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
-use reth_primitives::{B256, Bytes, U256};
-use log::{debug, error, warn};
+use alloy_consensus::TxEnvelope;
+use alloy_rlp::encode;
+use log::{debug, error};
+use reth_primitives::{Bytes, B256, U256};
 use reth_rpc_types::engine::ForkchoiceState;
 use reth_rpc_types::{Block, ExecutionPayloadV1};
-use telos_translator_rs::block::TelosEVMBlock;
 use serde_json::json;
-use alloy_consensus::TxEnvelope;
-use alloy_rlp::{encode};
+use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::transaction::Transaction;
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use tokio::sync::mpsc;
@@ -76,7 +76,7 @@ impl ConsensusClient {
             .unwrap()
     }
 
-    pub async fn run (&mut self) {
+    pub async fn run(&mut self) {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 
         self.translator.launch(Some(tx)).await.unwrap();
@@ -87,7 +87,8 @@ impl ConsensusClient {
             // Set this to true only once, if we are caught up
             if !send_to_executor {
                 // if this block is older than the latest valid executor block, skip it
-                send_to_executor = block.block_num > self.latest_valid_executor_block.header.number.unwrap() as u32;
+                send_to_executor = block.block_num
+                    > self.latest_valid_executor_block.header.number.unwrap() as u32;
                 if send_to_executor {
                     // this is our first chance to compare block hashes of the latest executor block and the latest consensus block
                     if self.latest_valid_executor_block.header.hash.unwrap() != block.block_hash {
@@ -97,13 +98,13 @@ impl ConsensusClient {
                     }
                 }
             }
-
+            
             if !send_to_executor {
                 continue;
             }
-
+            
             // TODO: Check if we are caught up, if so do not batch anything
-
+            
             batch.push(block);
             if self.config.batch_size >= batch.len() {
                 self.send_batch(batch).await;
@@ -172,11 +173,11 @@ impl ConsensusClient {
 
         // TODO: Check status of fork_choice_updated_result and handle the failure case
         debug!(
-                "Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}",
-                last_block_sent.block_hash,
-                last_block_sent.header.parent_hash,
-                last_block_sent.block_num
-            );
+            "Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}",
+            last_block_sent.block_hash,
+            last_block_sent.header.parent_hash,
+            last_block_sent.block_num
+        );
         debug!(
                 "fork_choice_updated_result for block number {}: {:?}",
                 last_block_sent.block_num, fork_choice_updated_result
