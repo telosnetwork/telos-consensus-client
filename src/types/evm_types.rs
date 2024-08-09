@@ -69,7 +69,7 @@ pub struct WithdrawAction {
     pub quantity: Asset,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct PrintedReceipt {
     pub charged_gas: String,
     pub trx_index: u16,
