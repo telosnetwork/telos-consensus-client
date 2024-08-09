@@ -1,8 +1,9 @@
+/*
 // TODO: remove this if we are going to reuse this code anywhere after migrating to rust translator
 #![allow(clippy::all)]
 
-use alloy_primitives::hex::FromHex;
-use alloy_primitives::{Address, Bloom, Bytes, FixedBytes, B256};
+use reth_primitives::hex::FromHex;
+use reth_primitives::{Address, Bloom, Bytes, hex, U256, B256};
 use antelope::chain::checksum::{Checksum160, Checksum256};
 use antelope::chain::name::Name;
 use antelope::chain::Packer;
@@ -14,7 +15,6 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use csv::{ReaderBuilder, WriterBuilder};
 use log::info;
 use reth_primitives::constants::MIN_PROTOCOL_BASE_FEE_U256;
-use reth_primitives::{hex, U256};
 use reth_rpc_types::ExecutionPayloadV1;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -654,3 +654,5 @@ mod tests {
         );
     }
 }
+
+ */

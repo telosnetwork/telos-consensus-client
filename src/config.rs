@@ -12,18 +12,30 @@ pub struct CliArgs {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct AppConfig {
-    /// The base URL of the execution API
-    pub base_url: String,
+    /// Execution API http endpoint (JWT protected endpoint on reth)
+    pub execution_endpoint: String,
+    
     /// The JWT secret used to sign the JWT token
     pub jwt_secret: String,
-    /// The path to the arrow file directory of blocks
-    pub arrow_data: String,
-    /// The path to store address map
-    pub address_map: String,
-    /// Block count in between finalize block calls
-    pub batch_size: u64,
+    
+    /// Nodeos ship ws endpoint
+    pub ship_endpoint: String,
+    
     /// Nodeos http endpoint
     pub chain_endpoint: String,
+    
+    /// Block count in between finalize block calls while syncing
+    pub batch_size: usize,
+    
+    /// Block delta between native block and EVM block
+    pub block_delta: Option<u8>,
+    
+    /// The parent hash of the start_block
+    pub prev_hash: String,
+    
+    /// Start block to start with, should be at or before the first block of the execution node
+    pub start_block: u32,
 
-    pub stop_block: u64,
+    /// (Optional) Block number to stop on, default is U32::MAX
+    pub stop_block: Option<u32>,
 }
