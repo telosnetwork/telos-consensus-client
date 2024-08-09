@@ -1,11 +1,8 @@
-use arrowbatch::reader::{ArrowBatchConfig, ArrowBatchContext};
 use crate::client::ConsensusClient;
 use crate::config::{AppConfig, CliArgs};
 use clap::Parser;
-use env_logger;
 
 mod auth;
-mod arrow_block_reader;
 mod client;
 mod config;
 mod execution_api_client;
@@ -18,15 +15,6 @@ async fn main() {
     let config: AppConfig = toml::from_str(&config_contents).unwrap();
     env_logger::init();
 
-    let arrow_config = ArrowBatchConfig {
-        data_dir: config.arrow_data.clone(),
-        bucket_size: 10_000_000_u64,
-        dump_size: 100_000_u64
-    };
-
-    let mut context = ArrowBatchContext::new(arrow_config);
-    context.lock().unwrap().reload_on_disk_buckets();
-    
-    let mut client = ConsensusClient::new(config, context).await;
+    let mut client = ConsensusClient::new(config).await;
     client.run().await;
 }
