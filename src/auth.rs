@@ -43,11 +43,6 @@ impl JwtKey {
         Ok(Self(res))
     }
 
-    /// Generate a random secret.
-    pub fn random() -> Self {
-        Self(random::<[u8; JWT_SECRET_LENGTH]>())
-    }
-
     /// Returns a reference to the underlying byte array.
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
@@ -81,28 +76,6 @@ impl Auth {
             id,
             clv,
         }
-    }
-
-    /// Create a new `Auth` struct given the path to the file containing the hex
-    /// encoded jwt key.
-    pub fn new_with_path(
-        jwt_path: PathBuf,
-        id: Option<String>,
-        clv: Option<String>,
-    ) -> Result<Self, Error> {
-        std::fs::read_to_string(&jwt_path)
-            .map_err(|e| {
-                Error::InvalidKey(format!(
-                    "Failed to read JWT secret file {:?}, error: {:?}",
-                    jwt_path, e
-                ))
-            })
-            .and_then(|ref s| {
-                let secret_bytes = hex::decode(strip_prefix(s.trim_end()))
-                    .map_err(|e| Error::InvalidKey(format!("Invalid hex string: {:?}", e)))?;
-                let secret = JwtKey::from_slice(&secret_bytes).map_err(Error::InvalidKey)?;
-                Ok(Self::new(secret, id, clv))
-            })
     }
 
     /// Generate a JWT token with `claims.iat` set to current time.
