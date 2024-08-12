@@ -28,3 +28,4 @@ alloy-rlp = "0.3"
 arrowbatch = "1.14.0"
 base64 = "0.22.1"
 antelope-client = { git = "https://github.com/telosnetwork/antelope-rs", branch = "serialization" }
+thiserror = "1.0.62"
