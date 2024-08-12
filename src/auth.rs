@@ -1,8 +1,6 @@
 use alloy_primitives::private::derive_more::Display;
 use jsonwebtoken::{encode, get_current_timestamp, Algorithm, EncodingKey, Header};
-use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use zeroize::Zeroize;
 
 /// Default algorithm used for JWT token signing.
@@ -43,19 +41,9 @@ impl JwtKey {
         Ok(Self(res))
     }
 
-    /// Generate a random secret.
-    pub fn random() -> Self {
-        Self(rand::thread_rng().gen::<[u8; JWT_SECRET_LENGTH]>())
-    }
-
     /// Returns a reference to the underlying byte array.
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
-    }
-
-    /// Returns the hex encoded `String` for the secret.
-    pub fn hex_string(&self) -> String {
-        hex::encode(self.0)
     }
 }
 
@@ -83,28 +71,6 @@ impl Auth {
         }
     }
 
-    /// Create a new `Auth` struct given the path to the file containing the hex
-    /// encoded jwt key.
-    pub fn new_with_path(
-        jwt_path: PathBuf,
-        id: Option<String>,
-        clv: Option<String>,
-    ) -> Result<Self, Error> {
-        std::fs::read_to_string(&jwt_path)
-            .map_err(|e| {
-                Error::InvalidKey(format!(
-                    "Failed to read JWT secret file {:?}, error: {:?}",
-                    jwt_path, e
-                ))
-            })
-            .and_then(|ref s| {
-                let secret_bytes = hex::decode(strip_prefix(s.trim_end()))
-                    .map_err(|e| Error::InvalidKey(format!("Invalid hex string: {:?}", e)))?;
-                let secret = JwtKey::from_slice(&secret_bytes).map_err(Error::InvalidKey)?;
-                Ok(Self::new(secret, id, clv))
-            })
-    }
-
     /// Generate a JWT token with `claims.iat` set to current time.
     pub fn generate_token(&self) -> Result<String, Error> {
         let claims = self.generate_claims_at_timestamp();
@@ -125,23 +91,6 @@ impl Auth {
             clv: self.clv.clone(),
         }
     }
-
-    /// Validate a JWT token given the secret key and return the originally signed `TokenData`.
-    pub fn validate_token(
-        token: &str,
-        secret: &JwtKey,
-    ) -> Result<jsonwebtoken::TokenData<Claims>, Error> {
-        let mut validation = jsonwebtoken::Validation::new(DEFAULT_ALGORITHM);
-        validation.validate_exp = false;
-        validation.required_spec_claims.remove("exp");
-
-        jsonwebtoken::decode::<Claims>(
-            token,
-            &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
-            &validation,
-        )
-        .map_err(Into::into)
-    }
 }
 
 /// Claims struct as defined in https://github.com/ethereum/execution-apis/blob/main/src/engine/authentication.md#jwt-claims
@@ -153,28 +102,4 @@ pub struct Claims {
     id: Option<String>,
     /// Optional client version for the CL node.
     clv: Option<String>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    pub const DEFAULT_JWT_SECRET: [u8; 32] = [42; 32];
-
-    #[test]
-    fn test_roundtrip() {
-        let auth = Auth::new(
-            JwtKey::from_slice(&DEFAULT_JWT_SECRET).unwrap(),
-            Some("42".into()),
-            Some("Lighthouse".into()),
-        );
-        let claims = auth.generate_claims_at_timestamp();
-        let token = auth.generate_token_with_claims(&claims).unwrap();
-
-        assert_eq!(
-            Auth::validate_token(&token, &JwtKey::from_slice(&DEFAULT_JWT_SECRET).unwrap())
-                .unwrap()
-                .claims,
-            claims
-        );
-    }
 }
