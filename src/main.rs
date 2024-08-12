@@ -2,6 +2,7 @@ use crate::client::ConsensusClient;
 use crate::config::{AppConfig, CliArgs};
 use arrowbatch::reader::{ArrowBatchConfig, ArrowBatchContext};
 use clap::Parser;
+use log::{error, info};
 
 mod arrow_block_reader;
 mod auth;
@@ -27,5 +28,13 @@ async fn main() {
     context.lock().unwrap().reload_on_disk_buckets();
 
     let mut client = ConsensusClient::new(config, context).await;
-    client.run().await;
+    let result = client.run().await;
+    match result {
+        Ok(()) => {
+            info!("Reached stop block, consensus client run finished!")
+        }
+        Err(e) => {
+            error!("Consensus client run failed! Error: {:?}", e);
+        }
+    }
 }

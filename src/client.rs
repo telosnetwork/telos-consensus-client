@@ -1,6 +1,6 @@
 use crate::arrow_block_reader::{ArrowFileBlockReader, FullExecutionPayload};
 use crate::config::AppConfig;
-use crate::execution_api_client::{ExecutionApiClient, RpcRequest};
+use crate::execution_api_client::{ExecutionApiClient, ExecutionApiMethod, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
 use alloy_primitives::B256;
 use arrowbatch::reader::{ArrowBatchContext, ArrowBatchSequentialReader};
@@ -12,6 +12,16 @@ use serde_json::json;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::sleep;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Failed to sync block info.")]
+    BlockSyncInfo,
+    #[error("Executor block past config stop block.")]
+    ExecutorBlockPastStopBlock,
+    #[error("Latest block not found.")]
+    LatestBlockNotFound,
+}
 
 pub struct ConsensusClient {
     pub config: AppConfig,
@@ -43,10 +53,9 @@ impl ConsensusClient {
         }
     }
 
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self) -> Result<(), Error> {
         if !self.sync_block_info().await.unwrap_or(false) {
-            error!("Failed to sync block info");
-            return;
+            return Err(Error::BlockSyncInfo);
         }
 
         let mut next_block_number = self
@@ -57,19 +66,21 @@ impl ConsensusClient {
             .to::<u64>()
             + 1;
         let mut batch_count = 0;
-        let last_block_number = std::cmp::min(
-            self.reader
-                .get_latest_block()
-                .await
-                .unwrap()
-                .payload
-                .block_number,
-            self.config.stop_block,
-        );
+
+        let latest_block_number_result = self.reader.get_latest_block().await;
+
+        let last_block_number = match latest_block_number_result {
+            None => {
+                return Err(Error::LatestBlockNotFound);
+            }
+            Some(latest_block_number) => std::cmp::min(
+                latest_block_number.payload.block_number,
+                self.config.stop_block,
+            ),
+        };
 
         if next_block_number > self.config.stop_block {
-            info!("executor block past config stop block... exit...");
-            return;
+            return Err(Error::ExecutorBlockPastStopBlock);
         }
 
         let block_iter = self
@@ -92,8 +103,7 @@ impl ConsensusClient {
             self.do_batch(next_block_number, to_block, &block_iter)
                 .await;
             if to_block == self.config.stop_block {
-                info!("reached stop block, exit...");
-                break;
+                return Ok(());
             }
             batch_count += 1;
 
@@ -145,7 +155,7 @@ impl ConsensusClient {
                 .map(|block| {
                     // println!("block: {:?}", block);
                     RpcRequest {
-                        method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
+                        method: ExecutionApiMethod::NewPayloadV1,
                         params: json![block],
                     }
                 })

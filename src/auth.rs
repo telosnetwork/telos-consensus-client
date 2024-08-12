@@ -1,6 +1,6 @@
 use alloy_primitives::private::derive_more::Display;
 use jsonwebtoken::{encode, get_current_timestamp, Algorithm, EncodingKey, Header};
-use rand::Rng;
+use rand::random;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use zeroize::Zeroize;
@@ -45,7 +45,7 @@ impl JwtKey {
 
     /// Generate a random secret.
     pub fn random() -> Self {
-        Self(rand::thread_rng().gen::<[u8; JWT_SECRET_LENGTH]>())
+        Self(random::<[u8; JWT_SECRET_LENGTH]>())
     }
 
     /// Returns a reference to the underlying byte array.
