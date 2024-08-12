@@ -45,7 +45,6 @@ impl JwtKey {
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
-
 }
 
 pub fn strip_prefix(s: &str) -> &str {
@@ -104,4 +103,3 @@ pub struct Claims {
     /// Optional client version for the CL node.
     clv: Option<String>,
 }
-
