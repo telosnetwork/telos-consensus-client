@@ -16,7 +16,7 @@ async fn main() {
     let config: AppConfig = toml::from_str(&config_contents).unwrap();
     env_logger::init();
 
-    let mut client = ConsensusClient::new(config, context).await;
+    let mut client = ConsensusClient::new(config).await;
     let result = client.run().await;
     match result {
         Ok(()) => {
