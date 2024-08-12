@@ -21,6 +21,8 @@ pub enum Error {
     ExecutorBlockPastStopBlock,
     #[error("Latest block not found.")]
     LatestBlockNotFound,
+    #[error("Executor hash mismatch.")]
+    ExecutorHashMismatch,
 }
 
 pub struct ConsensusClient {
@@ -76,7 +78,7 @@ impl ConsensusClient {
             .unwrap()
     }
 
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self) -> Result<(), Error> {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 
         self.translator.launch(Some(tx)).await.unwrap();
@@ -94,23 +96,25 @@ impl ConsensusClient {
                     if self.latest_valid_executor_block.header.hash.unwrap() != block.block_hash {
                         error!("Fork detected! Latest executor block hash {:?} does not match consensus block hash {:?}",
                                self.latest_valid_executor_block.header.hash.unwrap(), block.block_hash);
-                        return;
+                        return Err(Error::ExecutorHashMismatch);
                     }
                 }
             }
-            
+
             if !send_to_executor {
                 continue;
             }
-            
+
             // TODO: Check if we are caught up, if so do not batch anything
-            
+
             batch.push(block);
             if self.config.batch_size >= batch.len() {
                 self.send_batch(batch).await;
                 batch = vec![];
             }
         }
+
+        Ok(())
     }
 
     async fn send_batch(&self, batch: Vec<TelosEVMBlock>) {
@@ -179,9 +183,9 @@ impl ConsensusClient {
             last_block_sent.block_num
         );
         debug!(
-                "fork_choice_updated_result for block number {}: {:?}",
-                last_block_sent.block_num, fork_choice_updated_result
-            );
+            "fork_choice_updated_result for block number {}: {:?}",
+            last_block_sent.block_num, fork_choice_updated_result
+        );
     }
 
     async fn fork_choice_updated(

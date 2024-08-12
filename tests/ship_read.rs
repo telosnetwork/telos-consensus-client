@@ -140,7 +140,7 @@ async fn evm_deploy() {
     };
 
     let mut client_under_test = ConsensusClient::new(config).await;
-    client_under_test.run().await;
+    let _ = client_under_test.run().await;
 
     // Shutdown mock execution API
     shutdown_tx.send(()).unwrap();
