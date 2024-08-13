@@ -1,17 +1,13 @@
 use antelope::api::client::{APIClient, DefaultProvider};
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::{get, post};
+use axum::routing::post;
 use axum::{Json, Router};
 use reth_primitives::B256;
 use serde_json::Value;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use telos_consensus_client::client::ConsensusClient;
 use telos_consensus_client::config::AppConfig;
-use telos_consensus_client::json_rpc::JsonRequestBody;
-use telos_translator_rs::translator::TranslatorConfig;
-use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
 use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::oneshot::Sender;
@@ -65,7 +61,7 @@ impl MockExecutionApi {
 }
 
 async fn handle_post(
-    state: State<Arc<Mutex<MockExecutionApi>>>,
+    _state: State<Arc<Mutex<MockExecutionApi>>>,
     payload: Json<Value>,
 ) -> (StatusCode, String) {
     info!("Received payload: {:?}", payload);
@@ -118,6 +114,7 @@ async fn evm_deploy() {
     let shutdown_tx = mock_execution_api.start().await;
 
     let config = AppConfig {
+        chain_id: 41,
         execution_endpoint: format!("http://localhost:{MOCK_EXECUTION_API_PORT}"),
         jwt_secret: "57ea261c64b8a871e4df3f0c790efd0d02f9846e5085483e3098f30118fd1520".to_string(),
         ship_endpoint: format!("ws://localhost:{port_18999}"),
@@ -126,17 +123,8 @@ async fn evm_deploy() {
         block_delta: None,
         prev_hash: B256::ZERO.to_string(),
         start_block: 0,
-        stop_block: Some(60),
-    };
-
-    let tconfig = TranslatorConfig {
-        http_endpoint: format!("http://localhost:{port_8888}",),
-        ship_endpoint: format!("ws://localhost:{port_18999}",),
         validate_hash: None,
-        start_block: 30,
-        stop_block: Some(54),
-        block_delta: 0,
-        ..TESTNET_GENESIS_CONFIG.clone()
+        stop_block: Some(60),
     };
 
     let mut client_under_test = ConsensusClient::new(config).await;

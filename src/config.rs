@@ -12,6 +12,9 @@ pub struct CliArgs {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct AppConfig {
+    /// EVM Chain id, Telos mainnet is 40 and testnet is 41
+    pub chain_id: u64,
+
     /// Execution API http endpoint (JWT protected endpoint on reth)
     pub execution_endpoint: String,
 
@@ -28,13 +31,16 @@ pub struct AppConfig {
     pub batch_size: usize,
 
     /// Block delta between native block and EVM block
-    pub block_delta: Option<u8>,
+    pub block_delta: Option<u32>,
 
     /// The parent hash of the start_block
     pub prev_hash: String,
 
     /// Start block to start with, should be at or before the first block of the execution node
     pub start_block: u32,
+
+    /// (Optional) Expected block hash of the start block
+    pub validate_hash: Option<String>,
 
     /// (Optional) Block number to stop on, default is U32::MAX
     pub stop_block: Option<u32>,
