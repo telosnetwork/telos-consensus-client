@@ -4734,7 +4734,7 @@ dependencies = [
 [[package]]
 name = "telos-translator-rs"
 version = "0.1.0"
-source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=final_block_struct#a57c5cbf982ef160e7867ebb535cbeab187f3e5b"
+source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=final_block_struct#7d41f86423d4dad85d2d959374104608dff3cb11"
 dependencies = [
  "alloy",
  "alloy-consensus",
