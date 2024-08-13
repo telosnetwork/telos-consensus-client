@@ -1,5 +1,5 @@
 use crate::config::AppConfig;
-use crate::execution_api_client::{ExecutionApiClient, ExecutionApiMethod, RpcRequest};
+use crate::execution_api_client::{ExecutionApiClient, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
 use alloy_consensus::TxEnvelope;
 use alloy_rlp::encode;
@@ -15,12 +15,12 @@ use tokio::sync::mpsc;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Failed to sync block info.")]
-    BlockSyncInfo,
-    #[error("Executor block past config stop block.")]
-    ExecutorBlockPastStopBlock,
-    #[error("Latest block not found.")]
-    LatestBlockNotFound,
+    // #[error("Failed to sync block info.")]
+    // BlockSyncInfo,
+    // #[error("Executor block past config stop block.")]
+    // ExecutorBlockPastStopBlock,
+    // #[error("Latest block not found.")]
+    // LatestBlockNotFound,
     #[error("Executor hash mismatch.")]
     ExecutorHashMismatch,
 }
@@ -31,7 +31,7 @@ pub struct ConsensusClient {
     execution_api: ExecutionApiClient,
     //latest_consensus_block: ExecutionPayloadV1,
     latest_valid_executor_block: Block,
-    is_forked: bool,
+    //is_forked: bool,
 }
 
 impl ConsensusClient {
@@ -44,12 +44,12 @@ impl ConsensusClient {
             ConsensusClient::get_latest_executor_block(&execution_api).await;
 
         let translator = Translator::new(TranslatorConfig {
-            chain_id: 0,
+            chain_id: config.chain_id,
             start_block: config.start_block,
             stop_block: config.stop_block,
-            block_delta: 0,
+            block_delta: config.block_delta.unwrap_or(0u32),
             prev_hash: config.prev_hash,
-            validate_hash: None,
+            validate_hash: config.validate_hash,
             http_endpoint: config.chain_endpoint,
             ship_endpoint: config.ship_endpoint,
             raw_ds_threads: None,
@@ -66,7 +66,7 @@ impl ConsensusClient {
             execution_api,
             //latest_consensus_block,
             latest_valid_executor_block: latest_executor_block,
-            is_forked: true,
+            // is_forked: true,
         }
     }
 
