@@ -1,11 +1,11 @@
 use alloy::hex;
-use alloy::primitives::{address, FixedBytes, TxKind, B256, U256};
+use alloy::primitives::{address, TxKind, B256, U256};
 use antelope::api::client::{APIClient, DefaultProvider};
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::transaction::Transaction;
+use telos_translator_rs::translator::Translator;
 use telos_translator_rs::translator::TranslatorConfig;
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
-use telos_translator_rs::{block::ProcessingEVMBlock, translator::Translator};
 use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::mpsc;
@@ -52,7 +52,7 @@ async fn evm_deploy() {
         http_endpoint: format!("http://localhost:{port_8888}",),
         ship_endpoint: format!("ws://localhost:{port_18999}",),
         validate_hash: None,
-        start_block: 30,
+        start_block: 0,
         stop_block: Some(54),
         block_delta: 0,
         ..TESTNET_GENESIS_CONFIG.clone()

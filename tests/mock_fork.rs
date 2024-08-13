@@ -6,11 +6,8 @@ use tokio::sync::mpsc;
 
 use tracing::info;
 
-use alloy::hex;
-use alloy::primitives::FixedBytes;
-
 use common::test_utils::{LeapMockClient, SetJumpsParams};
-use telos_translator_rs::block::{ProcessingEVMBlock, TelosEVMBlock};
+use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
 

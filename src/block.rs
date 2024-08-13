@@ -12,6 +12,7 @@ use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::Decoder;
 use std::cmp::Ordering;
+use tracing::warn;
 
 pub trait BasicTrace {
     fn action_name(&self) -> u64;
@@ -134,6 +135,9 @@ impl ProcessingEVMBlock {
             let block_traces: &mut Vec<TransactionTrace> = &mut vec![];
             decoder.unpack(block_traces);
             self.block_traces = Some(block_traces.to_vec());
+        } else {
+            self.block_traces = Some(vec![]);
+            warn!("No block traces found for block: {}", self.block_num);
         }
 
         if let Some(d) = &self.result.deltas {
@@ -157,6 +161,9 @@ impl ProcessingEVMBlock {
                 }
             }
             self.contract_rows = Some(contract_rows.to_vec());
+        } else {
+            self.contract_rows = Some(vec![]);
+            warn!("No deltas found for block: {}", self.block_num);
         }
     }
 
