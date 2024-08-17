@@ -8,8 +8,8 @@ license = "MIT OR Apache-2.0"
 log = "0.4"
 env_logger = "0.10"
 #alloy-primitives = { version = "0.6", features = [ "serde" ] }
-#telos-translator-rs = { git = "https://github.com/telosnetwork/telos-translator-rs.git", branch = "final_block_struct" }
-telos-translator-rs = { path = "../telos-translator-rs" }
+telos-translator-rs = { git = "https://github.com/telosnetwork/telos-translator-rs.git", branch = "final_block_struct" }
+#telos-translator-rs = { path = "../telos-translator-rs" }
 reth-primitives = { git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }
 reth-rpc-types = { git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }
 #reth-rpc-types-compat = {git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }
