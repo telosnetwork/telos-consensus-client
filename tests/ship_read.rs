@@ -77,7 +77,7 @@ async fn evm_deploy() {
                 assert_eq!(
                     tx.hash(),
                     &B256::new(hex!(
-                        "ede91f8a618cd49907d9a90fe2bf0443848f5ff549369eac42d1978b4fb8eccc"
+                        "8d8c62a8bc0762f66ec0be70db1a2e8b9adb6504f4c9bdd2cf794611ebeab87b"
                     ))
                 );
                 match tx {

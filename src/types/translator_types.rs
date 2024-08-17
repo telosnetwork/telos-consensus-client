@@ -76,6 +76,7 @@ impl NameToAddressCache {
                 .await
                 .unwrap();
             if account_result.rows.is_empty() {
+                info!("Got empty rows for {}", Name::from_u64(name).as_string());
                 return None;
             }
 

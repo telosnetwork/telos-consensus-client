@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 antelope-client = { git = "https://github.com/telosnetwork/antelope-rs.git", branch = "finish_table_rows_params" }
-# antelope-client = { path = "../antelope-rs/crates/antelope" }
+#alloy = { version = "0.2.1", features = ["k256"] }
 alloy = "0.2.1"
 alloy-rlp = "0.3.8"
 alloy-consensus = "0.2.1"
