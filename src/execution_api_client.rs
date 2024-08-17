@@ -5,6 +5,7 @@ use reqwest::Client;
 use reth_rpc_types::Block;
 use serde_json::{json, Value};
 use std::fmt::Display;
+use tracing::info;
 
 pub enum ExecutionApiMethod {
     BlockNumber,
@@ -70,6 +71,7 @@ impl ExecutionApiClient {
 
         let response = request.send().await.unwrap();
         let json_response = response.json::<JsonResponseBody>().await.unwrap();
+        info!("rpc response: {:?}", serde_json::to_string(&json_response));
         Ok(json_response)
     }
 
