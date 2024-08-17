@@ -8,6 +8,7 @@ use serde_json::Value;
 use std::sync::Arc;
 use telos_consensus_client::client::ConsensusClient;
 use telos_consensus_client::config::AppConfig;
+use telos_consensus_client::json_rpc::JsonRequestBody;
 use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::oneshot::Sender;
@@ -19,6 +20,7 @@ const MOCK_EXECUTION_API_PORT: u16 = 3000;
 #[derive(Debug, Clone)]
 struct MockExecutionApi {
     pub port: u16,
+    pub request_count: usize,
 }
 
 impl MockExecutionApi {
@@ -61,12 +63,98 @@ impl MockExecutionApi {
 }
 
 async fn handle_post(
-    _state: State<Arc<Mutex<MockExecutionApi>>>,
+    state: State<Arc<Mutex<MockExecutionApi>>>,
     payload: Json<Value>,
 ) -> (StatusCode, String) {
     info!("Received payload: {:?}", payload);
-
-    (StatusCode::OK, "".to_string())
+    let payload_str = payload.to_string();
+    let json_rpc_payload: JsonRequestBody = serde_json::from_str(&payload_str).unwrap();
+    let mut request_number = 0;
+    {
+        let mut state_unlocked = state.lock().await;
+        request_number = state_unlocked.request_count;
+        state_unlocked.request_count = request_number + 1;
+    }
+    match request_number {
+        0 => {
+            assert_eq!(
+                json_rpc_payload.method, "eth_blockNumber",
+                "Method is not eth_blockNumber"
+            );
+            assert!(json_rpc_payload.params.is_array(), "Params is not an array");
+            assert_eq!(
+                json_rpc_payload.params.as_array().unwrap().len(),
+                0,
+                "Params array is not of length 0"
+            );
+            (
+                StatusCode::OK,
+                r#"{
+                "jsonrpc": "2.0",
+                "error": null,
+                "result": "0x0",
+                "id": 1
+            }"#
+                .to_string(),
+            )
+        }
+        1 => {
+            assert_eq!(
+                json_rpc_payload.method, "eth_getBlockByNumber",
+                "Method is not eth_getBlockByNumber"
+            );
+            assert!(json_rpc_payload.params.is_array(), "Params is not an array");
+            let params = json_rpc_payload.params.as_array().unwrap();
+            assert_eq!(params.len(), 2, "Params array is not of length 2");
+            assert_eq!(params.get(0).unwrap(), "0x0", "First param is not 0x0");
+            (StatusCode::OK, r#"{
+                "jsonrpc": "2.0",
+                "error": null,
+                "result": {
+                    "baseFeePerGas": "0x3b9aca00",
+                    "blobGasUsed": "0x0",
+                    "difficulty": "0x0",
+                    "excessBlobGas": "0x0",
+                    "extraData": "0x00",
+                    "gasLimit": "0x1c9c380",
+                    "gasUsed": "0x0",
+                    "hash": "0xeb1b77e3581557e7c9ca99f7816a91545f90af91694db379eae408d13283c433",
+                    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                    "miner": "0x0000000000000000000000000000000000000000",
+                    "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "nonce": "0x0000000000000000",
+                    "number": "0x0",
+                    "parentBeaconBlockRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                    "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+                    "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+                    "size": "0x243",
+                    "stateRoot": "0xe1f1931c36e725ee55e8f6275fe3ba50c4fa93170db75fe4ee9ae49d7c0c7a16",
+                    "timestamp": "0x0",
+                    "totalDifficulty": "0x0",
+                    "transactions": [],
+                    "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+                    "uncles": [],
+                    "withdrawals": [],
+                    "withdrawalsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
+                    },
+                "id": 1
+            }"#.to_string())
+        }
+        2 => (
+            StatusCode::OK,
+            r#"{
+                "jsonrpc": "2.0",
+                "error": null,
+                "result": "0x0",
+                "id": 1
+            }"#
+            .to_string(),
+        ),
+        _ => {
+            panic!("More requests than expected");
+        }
+    }
 }
 
 #[tokio::test]
@@ -109,6 +197,7 @@ async fn evm_deploy() {
 
     let mut mock_execution_api = MockExecutionApi {
         port: MOCK_EXECUTION_API_PORT,
+        request_count: 0,
     };
 
     let shutdown_tx = mock_execution_api.start().await;

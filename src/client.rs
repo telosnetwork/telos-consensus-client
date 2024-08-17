@@ -3,6 +3,7 @@ use crate::execution_api_client::{ExecutionApiClient, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
 use alloy_consensus::TxEnvelope;
 use alloy_rlp::encode;
+use eyre::Result;
 use log::{debug, error};
 use reth_primitives::{Bytes, B256, U256};
 use reth_rpc_types::engine::ForkchoiceState;
@@ -12,6 +13,7 @@ use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::transaction::Transaction;
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -21,13 +23,14 @@ pub enum Error {
     // ExecutorBlockPastStopBlock,
     // #[error("Latest block not found.")]
     // LatestBlockNotFound,
+    #[error("Spawn translator error")]
+    SpawnTranslatorError,
     #[error("Executor hash mismatch.")]
     ExecutorHashMismatch,
 }
 
 pub struct ConsensusClient {
     pub config: AppConfig,
-    translator: Translator,
     execution_api: ExecutionApiClient,
     //latest_consensus_block: ExecutionPayloadV1,
     latest_valid_executor_block: Block,
@@ -43,26 +46,8 @@ impl ConsensusClient {
         let latest_executor_block =
             ConsensusClient::get_latest_executor_block(&execution_api).await;
 
-        let translator = Translator::new(TranslatorConfig {
-            chain_id: config.chain_id,
-            start_block: config.start_block,
-            stop_block: config.stop_block,
-            block_delta: config.block_delta.unwrap_or(0u32),
-            prev_hash: config.prev_hash,
-            validate_hash: config.validate_hash,
-            http_endpoint: config.chain_endpoint,
-            ship_endpoint: config.ship_endpoint,
-            raw_ds_threads: None,
-            block_process_threads: None,
-            raw_message_channel_size: None,
-            block_message_channel_size: None,
-            order_message_channel_size: None,
-            final_message_channel_size: None,
-        });
-
         Self {
             config: my_config,
-            translator,
             execution_api,
             //latest_consensus_block,
             latest_valid_executor_block: latest_executor_block,
@@ -78,10 +63,36 @@ impl ConsensusClient {
             .unwrap()
     }
 
+    fn make_translator(config: &AppConfig) -> Translator {
+        Translator::new(TranslatorConfig {
+            chain_id: config.chain_id,
+            start_block: config.start_block,
+            stop_block: config.stop_block,
+            block_delta: config.block_delta.unwrap_or(0u32),
+            prev_hash: config.prev_hash.clone(),
+            validate_hash: config.validate_hash.clone(),
+            http_endpoint: config.chain_endpoint.clone(),
+            ship_endpoint: config.ship_endpoint.clone(),
+            raw_ds_threads: None,
+            block_process_threads: None,
+            raw_message_channel_size: None,
+            block_message_channel_size: None,
+            order_message_channel_size: None,
+            final_message_channel_size: None,
+        })
+    }
+
     pub async fn run(&mut self) -> Result<(), Error> {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 
-        self.translator.launch(Some(tx)).await.unwrap();
+        let mut translator = Self::make_translator(&self.config);
+
+        let launch_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
+            translator
+                .launch(Some(tx))
+                .await
+                .map_err(|_| Error::SpawnTranslatorError)
+        });
 
         let mut batch = vec![];
         let mut send_to_executor = false;
@@ -112,6 +123,10 @@ impl ConsensusClient {
                 self.send_batch(batch).await;
                 batch = vec![];
             }
+        }
+
+        if launch_handle.await.is_err() {
+            return Err(Error::SpawnTranslatorError);
         }
 
         Ok(())
