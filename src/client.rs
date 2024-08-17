@@ -97,19 +97,21 @@ impl ConsensusClient {
         let mut batch = vec![];
         let mut send_to_executor = false;
         while let Some(block) = rx.recv().await {
-            // Set this to true only once, if we are caught up
+            // Set this to true only once, if we are caught up from reader to executor's latest block
             if !send_to_executor {
-                // if this block is older than the latest valid executor block, skip it
-                send_to_executor = block.block_num
-                    > self.latest_valid_executor_block.header.number.unwrap() as u32;
-                if send_to_executor {
-                    // this is our first chance to compare block hashes of the latest executor block and the latest consensus block
+                if self.latest_valid_executor_block.header.number.unwrap() == block.block_num as u64
+                {
+                    // We've received the same block from transaltor as the latest executor block, check if hashes match
                     if self.latest_valid_executor_block.header.hash.unwrap() != block.block_hash {
                         error!("Fork detected! Latest executor block hash {:?} does not match consensus block hash {:?}",
                                self.latest_valid_executor_block.header.hash.unwrap(), block.block_hash);
                         return Err(Error::ExecutorHashMismatch);
                     }
                 }
+
+                // if this block is older than the latest valid executor block, skip it
+                send_to_executor = block.block_num
+                    > self.latest_valid_executor_block.header.number.unwrap() as u32;
             }
 
             if !send_to_executor {
