@@ -34,7 +34,7 @@ pub struct EOSConfigRow {
     pub last_block: u32,
     pub gas_used_block: Checksum256,
     pub gas_price: Checksum256,
-    pub revision: BinaryExtension<u32>
+    pub revision: BinaryExtension<u32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]

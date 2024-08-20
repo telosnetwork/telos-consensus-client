@@ -1,7 +1,8 @@
 use crate::transaction::Transaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
 use crate::types::evm_types::{
-    AccountRow, AccountStateRow, CreateAction, EOSConfigRow, OpenWalletAction, PrintedReceipt, RawAction, SetRevisionAction, TransferAction, WithdrawAction
+    AccountRow, AccountStateRow, CreateAction, EOSConfigRow, OpenWalletAction, PrintedReceipt,
+    RawAction, SetRevisionAction, TransferAction, WithdrawAction,
 };
 use crate::types::names::*;
 use crate::types::ship_types::{
@@ -28,9 +29,8 @@ pub trait BasicTrace {
 #[derive(Clone)]
 pub enum WalletEvents {
     OpenWallet(usize, OpenWalletAction),
-    CreateWallet(usize, CreateAction)
+    CreateWallet(usize, CreateAction),
 }
-
 
 impl BasicTrace for ActionTrace {
     fn action_name(&self) -> u64 {
@@ -73,7 +73,7 @@ impl BasicTrace for ActionTrace {
 pub enum DecodedRow {
     Config(EOSConfigRow),
     Account(AccountRow),
-    AccountState(AccountStateRow)
+    AccountState(AccountStateRow),
 }
 
 #[derive(Clone)]
@@ -89,9 +89,8 @@ pub struct ProcessingEVMBlock {
     pub transactions: Vec<Transaction>,
     pub new_gas_price: Option<U256>,
     pub new_revision: Option<u32>,
-    pub new_wallets: Vec<WalletEvents>
+    pub new_wallets: Vec<WalletEvents>,
 }
-
 
 #[derive(Clone)]
 pub struct TelosEVMBlock {
@@ -104,7 +103,7 @@ pub struct TelosEVMBlock {
     pub new_revision: Option<u32>,
     pub new_wallets: Vec<WalletEvents>,
     pub account_rows: Vec<AccountRow>,
-    pub account_state_rows: Vec<AccountStateRow>
+    pub account_state_rows: Vec<AccountStateRow>,
 }
 
 pub fn decode_raw(raw: &[u8]) -> RawAction {
@@ -169,7 +168,7 @@ impl ProcessingEVMBlock {
 
             new_gas_price: None,
             new_revision: None,
-            new_wallets: vec![]
+            new_wallets: vec![],
         }
     }
 
@@ -288,13 +287,17 @@ impl ProcessingEVMBlock {
             .await;
             self.transactions.push(transaction.clone());
         } else if action_account == EOSIO_EVM && action_name == DORESOURCES {
-            let config_delta_row = self.decoded_rows.iter().find_map(|row| {
-                if let DecodedRow::Config(config) = row {
-                    Some(config)
-                } else {
-                    None
-                }
-            }).expect("Table delta for the doresources action not found");
+            let config_delta_row = self
+                .decoded_rows
+                .iter()
+                .find_map(|row| {
+                    if let DecodedRow::Config(config) = row {
+                        Some(config)
+                    } else {
+                        None
+                    }
+                })
+                .expect("Table delta for the doresources action not found");
 
             let gas_price = U256::from_be_slice(&config_delta_row.gas_price.data);
 
@@ -306,10 +309,16 @@ impl ProcessingEVMBlock {
         } else if action_account == EOSIO_EVM && action_name == OPENWALLET {
             let wallet_action = decode_openwallet(&action.data());
 
-            self.new_wallets.push(WalletEvents::OpenWallet(self.transactions.len(), wallet_action));
+            self.new_wallets.push(WalletEvents::OpenWallet(
+                self.transactions.len(),
+                wallet_action,
+            ));
         } else if action_account == EOSIO_EVM && action_name == CREATE {
             let wallet_action = decode_create(&action.data());
-            self.new_wallets.push(WalletEvents::CreateWallet(self.transactions.len(), wallet_action));
+            self.new_wallets.push(WalletEvents::CreateWallet(
+                self.transactions.len(),
+                wallet_action,
+            ));
         }
     }
 
@@ -326,7 +335,7 @@ impl ProcessingEVMBlock {
             panic!("Block::to_evm called on a block with missing data");
         }
 
-        let row_deltas = self.contract_rows.clone().unwrap_or(vec![]);
+        let row_deltas = self.contract_rows.clone().unwrap_or_default();
 
         for r in row_deltas {
             match r {
@@ -354,14 +363,15 @@ impl ProcessingEVMBlock {
                             let mut decoder = Decoder::new(r.value.as_slice());
                             let mut decoded_row = AccountStateRow::default();
                             decoder.unpack(&mut decoded_row);
-                            self.decoded_rows.push(DecodedRow::AccountState(decoded_row));
+                            self.decoded_rows
+                                .push(DecodedRow::AccountState(decoded_row));
                         }
                     }
                 }
             }
         }
 
-        let traces = self.block_traces.clone().unwrap_or(vec![]);
+        let traces = self.block_traces.clone().unwrap_or_default();
 
         for t in traces {
             match t {

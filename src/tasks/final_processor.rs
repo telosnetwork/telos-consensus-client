@@ -95,20 +95,28 @@ pub async fn final_processor(
             new_revision: block.new_revision,
             new_gas_price: block.new_gas_price,
             new_wallets: block.new_wallets,
-            account_rows: block.decoded_rows.iter().filter_map(|r| {
-                if let DecodedRow::Account(row) = r {
-                    Some(row.clone())
-                } else {
-                    None
-                }
-            }).collect(),
-            account_state_rows: block.decoded_rows.iter().filter_map(|r| {
-                if let DecodedRow::AccountState(row) = r {
-                    Some(row.clone())
-                } else {
-                    None
-                }
-            }).collect()
+            account_rows: block
+                .decoded_rows
+                .iter()
+                .filter_map(|r| {
+                    if let DecodedRow::Account(row) = r {
+                        Some(row.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            account_state_rows: block
+                .decoded_rows
+                .iter()
+                .filter_map(|r| {
+                    if let DecodedRow::AccountState(row) = r {
+                        Some(row.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
         };
 
         let block_num = block.block_num;
