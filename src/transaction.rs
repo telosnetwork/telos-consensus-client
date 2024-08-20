@@ -1,5 +1,5 @@
 use crate::rlp::telos_rlp_decode::TelosTxDecodable;
-use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
+use crate::types::evm_types::{CreateAction, OpenWalletAction, PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::private::alloy_rlp::Error;
 use alloy::primitives::TxKind::Call;

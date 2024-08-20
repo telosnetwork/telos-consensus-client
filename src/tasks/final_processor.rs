@@ -1,4 +1,4 @@
-use crate::block::TelosEVMBlock;
+use crate::block::{DecodedRow, TelosEVMBlock};
 use crate::{
     block::ProcessingEVMBlock, translator::TranslatorConfig,
     types::translator_types::NameToAddressCache,
@@ -91,6 +91,24 @@ pub async fn final_processor(
             block_num: block.block_num,
             block_hash,
             transactions: block.transactions,
+
+            new_revision: block.new_revision,
+            new_gas_price: block.new_gas_price,
+            new_wallets: block.new_wallets,
+            account_rows: block.decoded_rows.iter().filter_map(|r| {
+                if let DecodedRow::Account(row) = r {
+                    Some(row.clone())
+                } else {
+                    None
+                }
+            }).collect(),
+            account_state_rows: block.decoded_rows.iter().filter_map(|r| {
+                if let DecodedRow::AccountState(row) = r {
+                    Some(row.clone())
+                } else {
+                    None
+                }
+            }).collect()
         };
 
         let block_num = block.block_num;

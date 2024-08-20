@@ -1,21 +1,19 @@
 use crate::transaction::Transaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
 use crate::types::evm_types::{
-    AccountRow, AccountStateRow, EOSConfigRow,
-    PrintedReceipt, RawAction, TransferAction, WithdrawAction
+    AccountRow, AccountStateRow, CreateAction, EOSConfigRow, OpenWalletAction, PrintedReceipt, RawAction, SetRevisionAction, TransferAction, WithdrawAction
 };
 use crate::types::names::*;
 use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
 use crate::types::translator_types::NameToAddressCache;
-use alloy::primitives::{Bytes, FixedBytes, B256};
+use alloy::primitives::{Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::chain::Decoder;
-use tracing::info;
 use std::cmp::Ordering;
 use tracing::warn;
 
@@ -26,6 +24,13 @@ pub trait BasicTrace {
     fn console(&self) -> String;
     fn data(&self) -> Vec<u8>;
 }
+
+#[derive(Clone)]
+pub enum WalletEvents {
+    OpenWallet(usize, OpenWalletAction),
+    CreateWallet(usize, CreateAction)
+}
+
 
 impl BasicTrace for ActionTrace {
     fn action_name(&self) -> u64 {
@@ -65,6 +70,13 @@ impl BasicTrace for ActionTrace {
 }
 
 #[derive(Clone)]
+pub enum DecodedRow {
+    Config(EOSConfigRow),
+    Account(AccountRow),
+    AccountState(AccountStateRow)
+}
+
+#[derive(Clone)]
 pub struct ProcessingEVMBlock {
     pub block_num: u32,
     block_hash: Checksum256,
@@ -73,11 +85,13 @@ pub struct ProcessingEVMBlock {
     signed_block: Option<SignedBlock>,
     block_traces: Option<Vec<TransactionTrace>>,
     contract_rows: Option<Vec<ContractRow>>,
-    pub config_rows: Vec<EOSConfigRow>,
-    pub account_rows: Vec<AccountRow>,
-    pub account_state_rows: Vec<AccountStateRow>,
+    pub decoded_rows: Vec<DecodedRow>,
     pub transactions: Vec<Transaction>,
+    pub new_gas_price: Option<U256>,
+    pub new_revision: Option<u32>,
+    pub new_wallets: Vec<WalletEvents>
 }
+
 
 #[derive(Clone)]
 pub struct TelosEVMBlock {
@@ -85,6 +99,12 @@ pub struct TelosEVMBlock {
     pub block_num: u32,
     pub block_hash: B256,
     pub transactions: Vec<Transaction>,
+
+    pub new_gas_price: Option<U256>,
+    pub new_revision: Option<u32>,
+    pub new_wallets: Vec<WalletEvents>,
+    pub account_rows: Vec<AccountRow>,
+    pub account_state_rows: Vec<AccountStateRow>
 }
 
 pub fn decode_raw(raw: &[u8]) -> RawAction {
@@ -108,6 +128,27 @@ pub fn decode_withdraw(raw: &[u8]) -> WithdrawAction {
     withdraw.clone()
 }
 
+pub fn decode_setrevision(raw: &[u8]) -> SetRevisionAction {
+    let mut decoder = Decoder::new(raw);
+    let setrevision = &mut SetRevisionAction::default();
+    decoder.unpack(setrevision);
+    setrevision.clone()
+}
+
+pub fn decode_openwallet(raw: &[u8]) -> OpenWalletAction {
+    let mut decoder = Decoder::new(raw);
+    let openwallet = &mut OpenWalletAction::default();
+    decoder.unpack(openwallet);
+    openwallet.clone()
+}
+
+pub fn decode_create(raw: &[u8]) -> CreateAction {
+    let mut decoder = Decoder::new(raw);
+    let create = &mut CreateAction::default();
+    decoder.unpack(create);
+    create.clone()
+}
+
 impl ProcessingEVMBlock {
     pub fn new(
         chain_id: u64,
@@ -123,10 +164,12 @@ impl ProcessingEVMBlock {
             signed_block: None,
             block_traces: None,
             contract_rows: None,
-            config_rows: vec![],
-            account_rows: vec![],
-            account_state_rows: vec![],
+            decoded_rows: vec![],
             transactions: vec![],
+
+            new_gas_price: None,
+            new_revision: None,
+            new_wallets: vec![]
         }
     }
 
@@ -245,7 +288,28 @@ impl ProcessingEVMBlock {
             .await;
             self.transactions.push(transaction.clone());
         } else if action_account == EOSIO_EVM && action_name == DORESOURCES {
-            // TODO: Handle doresources action
+            let config_delta_row = self.decoded_rows.iter().find_map(|row| {
+                if let DecodedRow::Config(config) = row {
+                    Some(config)
+                } else {
+                    None
+                }
+            }).expect("Table delta for the doresources action not found");
+
+            let gas_price = U256::from_be_slice(&config_delta_row.gas_price.data);
+
+            self.new_gas_price = Some(gas_price);
+        } else if action_account == EOSIO_EVM && action_name == SETREVISION {
+            let rev_action = decode_setrevision(&action.data());
+
+            self.new_revision = Some(rev_action.new_revision);
+        } else if action_account == EOSIO_EVM && action_name == OPENWALLET {
+            let wallet_action = decode_openwallet(&action.data());
+
+            self.new_wallets.push(WalletEvents::OpenWallet(self.transactions.len(), wallet_action));
+        } else if action_account == EOSIO_EVM && action_name == CREATE {
+            let wallet_action = decode_create(&action.data());
+            self.new_wallets.push(WalletEvents::CreateWallet(self.transactions.len(), wallet_action));
         }
     }
 
@@ -262,26 +326,13 @@ impl ProcessingEVMBlock {
             panic!("Block::to_evm called on a block with missing data");
         }
 
-        let traces = self.block_traces.clone().unwrap_or(vec![]);
-
-        for t in traces {
-            match t {
-                TransactionTrace::V0(t) => {
-                    for action in t.action_traces {
-                        self.handle_action(Box::new(action), native_to_evm_cache)
-                            .await;
-                    }
-                }
-            }
-        }
-
         let row_deltas = self.contract_rows.clone().unwrap_or(vec![]);
 
-        // TODO: Decode contract rows better, only decode what we need
-        //   this is getting the global table to attempt to determine the block_delta value for this devnet chain
         for r in row_deltas {
             match r {
                 ContractRow::V0(r) => {
+                    // Global eosio.system table, since block_delta is static
+                    // no need to decode
                     // if r.table == Name::new_from_str("global") {
                     //     let mut decoder = Decoder::new(r.value.as_slice());
                     //     let decoded_row = &mut GlobalTable::default();
@@ -293,18 +344,31 @@ impl ProcessingEVMBlock {
                             let mut decoder = Decoder::new(r.value.as_slice());
                             let mut decoded_row = EOSConfigRow::default();
                             decoder.unpack(&mut decoded_row);
-                            self.config_rows.push(decoded_row);
+                            self.decoded_rows.push(DecodedRow::Config(decoded_row));
                         } else if r.table == Name::new_from_str("account") {
                             let mut decoder = Decoder::new(r.value.as_slice());
                             let mut decoded_row = AccountRow::default();
                             decoder.unpack(&mut decoded_row);
-                            self.account_rows.push(decoded_row);
+                            self.decoded_rows.push(DecodedRow::Account(decoded_row));
                         } else if r.table == Name::new_from_str("accountstate") {
                             let mut decoder = Decoder::new(r.value.as_slice());
                             let mut decoded_row = AccountStateRow::default();
                             decoder.unpack(&mut decoded_row);
-                            self.account_state_rows.push(decoded_row);
+                            self.decoded_rows.push(DecodedRow::AccountState(decoded_row));
                         }
+                    }
+                }
+            }
+        }
+
+        let traces = self.block_traces.clone().unwrap_or(vec![]);
+
+        for t in traces {
+            match t {
+                TransactionTrace::V0(t) => {
+                    for action in t.action_traces {
+                        self.handle_action(Box::new(action), native_to_evm_cache)
+                            .await;
                     }
                 }
             }

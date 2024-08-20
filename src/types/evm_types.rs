@@ -30,11 +30,11 @@ pub struct TransferAction {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
 pub struct EOSConfigRow {
-    trx_index: u32,
-    last_block: u32,
-    gas_used_block: Checksum256,
-    gas_price: Checksum256,
-    revision: BinaryExtension<u32>
+    pub trx_index: u32,
+    pub last_block: u32,
+    pub gas_used_block: Checksum256,
+    pub gas_price: Checksum256,
+    pub revision: BinaryExtension<u32>
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
@@ -46,7 +46,6 @@ pub struct AccountRow {
     pub code: Vec<u8>,
     pub balance: Checksum256,
 }
-
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
 pub struct AccountStateRow {
@@ -85,6 +84,23 @@ pub struct GlobalTable {
 pub struct WithdrawAction {
     pub to: Name,
     pub quantity: Asset,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
+pub struct SetRevisionAction {
+    pub new_revision: u32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
+pub struct OpenWalletAction {
+    pub account: Name,
+    pub address: Checksum160,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
+pub struct CreateAction {
+    pub account: Name,
+    pub data: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
