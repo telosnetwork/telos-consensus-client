@@ -1,6 +1,9 @@
 use crate::transaction::Transaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
-use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
+use crate::types::evm_types::{
+    AccountRow, AccountStateRow, EOSConfigRow,
+    PrintedReceipt, RawAction, TransferAction, WithdrawAction
+};
 use crate::types::names::*;
 use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
@@ -10,7 +13,9 @@ use alloy::primitives::{Bytes, FixedBytes, B256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::Header;
 use antelope::chain::checksum::Checksum256;
+use antelope::chain::name::Name;
 use antelope::chain::Decoder;
+use tracing::info;
 use std::cmp::Ordering;
 use tracing::warn;
 
@@ -68,6 +73,9 @@ pub struct ProcessingEVMBlock {
     signed_block: Option<SignedBlock>,
     block_traces: Option<Vec<TransactionTrace>>,
     contract_rows: Option<Vec<ContractRow>>,
+    pub config_rows: Vec<EOSConfigRow>,
+    pub account_rows: Vec<AccountRow>,
+    pub account_state_rows: Vec<AccountStateRow>,
     pub transactions: Vec<Transaction>,
 }
 
@@ -115,6 +123,9 @@ impl ProcessingEVMBlock {
             signed_block: None,
             block_traces: None,
             contract_rows: None,
+            config_rows: vec![],
+            account_rows: vec![],
+            account_state_rows: vec![],
             transactions: vec![],
         }
     }
@@ -251,7 +262,7 @@ impl ProcessingEVMBlock {
             panic!("Block::to_evm called on a block with missing data");
         }
 
-        let traces = self.block_traces.clone().unwrap();
+        let traces = self.block_traces.clone().unwrap_or(vec![]);
 
         for t in traces {
             match t {
@@ -264,22 +275,40 @@ impl ProcessingEVMBlock {
             }
         }
 
-        // let row_deltas = self.contract_rows.clone().unwrap();
+        let row_deltas = self.contract_rows.clone().unwrap_or(vec![]);
 
         // TODO: Decode contract rows better, only decode what we need
         //   this is getting the global table to attempt to determine the block_delta value for this devnet chain
-        // for r in row_deltas {
-        //     match r {
-        //         ContractRow::V0(r) => {
-        //             if r.table == Name::new_from_str("global") {
-        //                 let mut decoder = Decoder::new(r.value.as_slice());
-        //                 let decoded_row = &mut GlobalTable::default();
-        //                 decoder.unpack(decoded_row);
-        //                 info!("Global table: {:?}", decoded_row);
-        //             }
-        //         }
-        //     }
-        // }
+        for r in row_deltas {
+            match r {
+                ContractRow::V0(r) => {
+                    // if r.table == Name::new_from_str("global") {
+                    //     let mut decoder = Decoder::new(r.value.as_slice());
+                    //     let decoded_row = &mut GlobalTable::default();
+                    //     decoder.unpack(decoded_row);
+                    //     info!("Global table: {:?}", decoded_row);
+                    // }
+                    if r.code == Name::new_from_str("eosio.evm") {
+                        if r.table == Name::new_from_str("config") {
+                            let mut decoder = Decoder::new(r.value.as_slice());
+                            let mut decoded_row = EOSConfigRow::default();
+                            decoder.unpack(&mut decoded_row);
+                            self.config_rows.push(decoded_row);
+                        } else if r.table == Name::new_from_str("account") {
+                            let mut decoder = Decoder::new(r.value.as_slice());
+                            let mut decoded_row = AccountRow::default();
+                            decoder.unpack(&mut decoded_row);
+                            self.account_rows.push(decoded_row);
+                        } else if r.table == Name::new_from_str("accountstate") {
+                            let mut decoder = Decoder::new(r.value.as_slice());
+                            let mut decoded_row = AccountStateRow::default();
+                            decoder.unpack(&mut decoded_row);
+                            self.account_state_rows.push(decoded_row);
+                        }
+                    }
+                }
+            }
+        }
 
         // let mut bloom = Bloom::default();
         // for trx in &self.transactions {

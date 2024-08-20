@@ -1,6 +1,7 @@
 use alloy::primitives::aliases::BlockTimestamp;
 use alloy::primitives::{Address, Log, B256};
 use antelope::chain::asset::Asset;
+use antelope::chain::binary_extension::BinaryExtension;
 use antelope::chain::checksum::{Checksum160, Checksum256};
 use antelope::chain::name::Name;
 use antelope::chain::time::TimePoint;
@@ -28,6 +29,15 @@ pub struct TransferAction {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
+pub struct EOSConfigRow {
+    trx_index: u32,
+    last_block: u32,
+    gas_used_block: Checksum256,
+    gas_price: Checksum256,
+    revision: BinaryExtension<u32>
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
 pub struct AccountRow {
     pub index: u64,
     pub address: Checksum160,
@@ -35,6 +45,14 @@ pub struct AccountRow {
     pub nonce: u64,
     pub code: Vec<u8>,
     pub balance: Checksum256,
+}
+
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
+pub struct AccountStateRow {
+    pub index: u64,
+    pub key: Checksum256,
+    pub value: Checksum256,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
