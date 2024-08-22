@@ -71,34 +71,28 @@ async fn evm_deploy() {
     while let Some(block) = rx.recv().await {
         info!("{}:{}", block.block_num, block.block_hash);
 
-        match block.block_num {
-            50 => {
-                let tx = block.transactions[0].clone();
-                assert_eq!(
-                    tx.hash(),
-                    &B256::new(hex!(
-                        "8d8c62a8bc0762f66ec0be70db1a2e8b9adb6504f4c9bdd2cf794611ebeab87b"
-                    ))
-                );
-                match tx {
-                    Transaction::LegacySigned(signed_legacy, _) => {
-                        let trx = signed_legacy.clone().strip_signature();
-                        assert_eq!(trx.value, U256::from(100190020000000000000000000u128));
-                        match trx.to {
-                            TxKind::Create => {
-                                panic!("Block 50 trx[0] should be a call, not create");
-                            }
-                            TxKind::Call(addr) => {
-                                assert_eq!(
-                                    addr,
-                                    address!("d80744e16d62c62c5fa2a04b92da3fe6b9efb523")
-                                );
-                            }
+        if block.block_num == 50 {
+            let tx = block.transactions[0].clone();
+            assert_eq!(
+                tx.hash(),
+                &B256::new(hex!(
+                    "8d8c62a8bc0762f66ec0be70db1a2e8b9adb6504f4c9bdd2cf794611ebeab87b"
+                ))
+            );
+            match tx {
+                Transaction::LegacySigned(signed_legacy, _) => {
+                    let trx = signed_legacy.clone().strip_signature();
+                    assert_eq!(trx.value, U256::from(100190020000000000000000000u128));
+                    match trx.to {
+                        TxKind::Create => {
+                            panic!("Block 50 trx[0] should be a call, not create");
+                        }
+                        TxKind::Call(addr) => {
+                            assert_eq!(addr, address!("d80744e16d62c62c5fa2a04b92da3fe6b9efb523"));
                         }
                     }
                 }
             }
-            _ => {}
         }
         // Leaving this here to fetch data about transactions in future data sets
         // if !block.transactions.is_empty() {
