@@ -32,7 +32,6 @@ lazy_static! {
 
         raw_message_channel_size: None,
         block_message_channel_size: None,
-        order_message_channel_size: None,
         final_message_channel_size: None
     };
     pub static ref MAINNET_DEPLOY_CONFIG: TranslatorConfig = TranslatorConfig {
@@ -55,7 +54,6 @@ lazy_static! {
 
         raw_message_channel_size: None,
         block_message_channel_size: None,
-        order_message_channel_size: None,
         final_message_channel_size: None
     };
     pub static ref TESTNET_GENESIS_CONFIG: TranslatorConfig = TranslatorConfig {
@@ -78,7 +76,6 @@ lazy_static! {
 
         raw_message_channel_size: None,
         block_message_channel_size: None,
-        order_message_channel_size: None,
         final_message_channel_size: None
     };
     pub static ref TESTNET_DEPLOY_CONFIG: TranslatorConfig = TranslatorConfig {
@@ -99,7 +96,6 @@ lazy_static! {
 
         raw_message_channel_size: None,
         block_message_channel_size: None,
-        order_message_channel_size: None,
         final_message_channel_size: None
     };
 }

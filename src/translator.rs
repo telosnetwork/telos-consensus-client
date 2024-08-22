@@ -1,8 +1,6 @@
 use crate::block::{ProcessingEVMBlock, TelosEVMBlock};
-use crate::tasks::{
-    evm_block_processor, final_processor, order_preserving_queue, raw_deserializer, ship_reader,
-};
-use crate::types::translator_types::{BlockOrSkip, RawMessage};
+use crate::tasks::{evm_block_processor, final_processor, raw_deserializer, ship_reader};
+use crate::types::translator_types::RawMessage;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
 use eyre::{eyre, Context, Result};
@@ -17,7 +15,6 @@ pub const DEFAULT_BLOCK_PROCESS_THREADS: u8 = 4;
 
 pub const DEFAULT_RAW_MESSAGE_CHANNEL_SIZE: usize = 10000;
 pub const DEFAULT_BLOCK_PROCESS_CHANNEL_SIZE: usize = 1000;
-pub const DEFAULT_MESSAGE_ORDERER_CHANNEL_SIZE: usize = 1000;
 pub const DEFAULT_MESSAGE_FINALIZER_CHANNEL_SIZE: usize = 1000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,7 +34,6 @@ pub struct TranslatorConfig {
 
     pub raw_message_channel_size: Option<usize>,
     pub block_message_channel_size: Option<usize>,
-    pub order_message_channel_size: Option<usize>,
     pub final_message_channel_size: Option<usize>,
 }
 
@@ -81,12 +77,6 @@ impl Translator {
                 .unwrap_or(DEFAULT_BLOCK_PROCESS_CHANNEL_SIZE),
         );
 
-        let (order_tx, order_rx) = mpsc::channel::<BlockOrSkip>(
-            self.config
-                .order_message_channel_size
-                .unwrap_or(DEFAULT_MESSAGE_ORDERER_CHANNEL_SIZE),
-        );
-
         let (finalize_tx, finalize_rx) = mpsc::channel::<ProcessingEVMBlock>(
             self.config
                 .final_message_channel_size
@@ -104,12 +94,7 @@ impl Translator {
             stop_tx,
         ));
 
-        // Start the order-preserving queue task
-        let order_preserving_queue_handle =
-            tokio::spawn(order_preserving_queue(order_rx, finalize_tx));
-
-        let evm_block_processor_handle =
-            tokio::spawn(evm_block_processor(process_rx, order_tx.clone()));
+        let evm_block_processor_handle = tokio::spawn(evm_block_processor(process_rx, finalize_tx));
 
         let raw_deserializer_handle = tokio::spawn(raw_deserializer(
             0,
@@ -117,7 +102,6 @@ impl Translator {
             raw_ds_rx,
             ws_tx,
             process_tx,
-            order_tx,
         ));
 
         let ship_reader_handle = tokio::spawn(ship_reader(ws_rx, raw_ds_tx, stop_rx));
@@ -127,7 +111,6 @@ impl Translator {
             ship_reader_handle,
             raw_deserializer_handle,
             evm_block_processor_handle,
-            order_preserving_queue_handle,
             final_processor_handle,
         ])
         .await;

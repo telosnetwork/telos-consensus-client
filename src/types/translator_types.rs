@@ -22,11 +22,6 @@ pub struct NameToAddressCache {
     api_client: APIClient<DefaultProvider>,
 }
 
-pub enum BlockOrSkip {
-    Block(ProcessingEVMBlock),
-    Skip(u64),
-}
-
 pub struct RawMessage {
     pub sequence: u64,
     pub bytes: Vec<u8>,

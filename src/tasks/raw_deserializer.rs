@@ -4,7 +4,7 @@ use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::ship_types::{
     GetBlocksAckRequestV0, GetBlocksRequestV0, GetStatusRequestV0, ShipRequest, ShipResult,
 };
-use crate::types::translator_types::{BlockOrSkip, RawMessage};
+use crate::types::translator_types::RawMessage;
 use antelope::chain::Decoder;
 use eyre::{eyre, Result};
 use futures_util::stream::SplitSink;
@@ -22,7 +22,6 @@ pub async fn raw_deserializer(
     mut raw_ds_rx: Receiver<RawMessage>,
     mut ws_tx: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     block_deserializer_tx: Sender<ProcessingEVMBlock>,
-    orderer_tx: Sender<BlockOrSkip>,
 ) -> Result<()> {
     let mut unackd_blocks = 0;
     let mut last_log = Instant::now();
@@ -37,12 +36,11 @@ pub async fn raw_deserializer(
     //let abi_string = msg.to_string();
     //let abi = ABI::from_string(abi_string.as_str()).unwrap();
     //self.ship_abi = Some(abi_string);
-    let msg = raw_ds_rx.recv().await.ok_or(eyre!("cannot send"))?;
+    let _ = raw_ds_rx.recv().await.ok_or(eyre!("cannot send"))?;
 
     // Send GetStatus request after setting up the ABI
     let request = &GetStatus(GetStatusRequestV0);
     ws_tx.send(request.into()).await?;
-    orderer_tx.send(BlockOrSkip::Skip(msg.sequence)).await?;
 
     debug!("raw deserializer #{} getting next message...", thread_id);
     while let Some(msg) = raw_ds_rx.recv().await {
@@ -74,7 +72,6 @@ pub async fn raw_deserializer(
                 });
                 ws_tx.send(request.into()).await?;
                 debug!("GetBlocks request sent");
-                orderer_tx.send(BlockOrSkip::Skip(msg.sequence)).await?;
             }
             ShipResult::GetBlocksResultV0(r) => {
                 unackd_blocks += 1;
