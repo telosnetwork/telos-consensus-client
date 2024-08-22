@@ -49,6 +49,7 @@ impl LeapMockClient {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn set_block(&self, params: SetNumParams) -> Result<String, LeapMockError> {
         let url = format!("{}/set_block", self.base_url);
 
@@ -89,6 +90,7 @@ impl LeapMockClient {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn set_block_info(&self, params: SetBlockInfo) -> Result<String, LeapMockError> {
         let url = format!("{}/set_block_info", self.base_url);
 
