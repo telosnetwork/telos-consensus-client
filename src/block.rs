@@ -61,7 +61,6 @@ impl BasicTrace for ActionTrace {
 
 #[derive(Clone)]
 pub struct ProcessingEVMBlock {
-    pub sequence: u64,
     pub block_num: u32,
     block_hash: Checksum256,
     chain_id: u64,
@@ -104,13 +103,11 @@ pub fn decode_withdraw(raw: &[u8]) -> WithdrawAction {
 impl ProcessingEVMBlock {
     pub fn new(
         chain_id: u64,
-        sequence: u64,
         block_num: u32,
         block_hash: Checksum256,
         result: GetBlocksResultV0,
     ) -> Self {
         Self {
-            sequence,
             block_num,
             block_hash,
             chain_id,

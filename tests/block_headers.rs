@@ -18,7 +18,6 @@ async fn generate_block(
     chain_id: u64,
     http_endpoint: String,
     block_num: u32,
-    sequence: u64,
 ) -> ProcessingEVMBlock {
     let api_client: APIClient<DefaultProvider> =
         APIClient::<DefaultProvider>::default_provider(http_endpoint.clone())
@@ -60,7 +59,6 @@ async fn generate_block(
 
     ProcessingEVMBlock::new(
         chain_id,
-        sequence,
         block_num,
         block_pos.block_id,
         GetBlocksResultV0 {
@@ -90,7 +88,7 @@ async fn genesis_mainnet() {
         0, 0,
     ]);
 
-    let mut block = generate_block(evm_chain_id_mainnet, http_endpoint, 36, 0).await;
+    let mut block = generate_block(evm_chain_id_mainnet, http_endpoint, 36).await;
 
     block.deserialize();
 
@@ -124,7 +122,6 @@ async fn deploy_mainnet() {
         evm_chain_id_mainnet,
         http_endpoint,
         MAINNET_DEPLOY_CONFIG.start_block,
-        0,
     )
     .await;
 

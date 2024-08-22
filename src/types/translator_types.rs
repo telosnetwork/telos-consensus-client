@@ -23,13 +23,12 @@ pub struct NameToAddressCache {
 }
 
 pub struct RawMessage {
-    pub sequence: u64,
     pub bytes: Vec<u8>,
 }
 
 impl RawMessage {
-    pub fn new(sequence: u64, bytes: Vec<u8>) -> Self {
-        RawMessage { sequence, bytes }
+    pub fn new(bytes: Vec<u8>) -> Self {
+        RawMessage { bytes }
     }
 }
 

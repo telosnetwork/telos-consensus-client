@@ -13,7 +13,7 @@ pub async fn ship_reader(
     raw_ds_tx: mpsc::Sender<RawMessage>,
     mut stop_rx: oneshot::Receiver<()>,
 ) -> Result<()> {
-    let mut sequence: u64 = 0;
+    let mut counter: u64 = 0;
 
     loop {
         // Read the websocket
@@ -22,23 +22,20 @@ pub async fn ship_reader(
             _ = &mut stop_rx => break
         };
 
-        sequence += 1;
+        counter += 1;
         match message {
             Some(Ok(msg)) => {
-                debug!(
-                    "Received message with sequence {}, sending to raw ds pool...",
-                    sequence
-                );
+                debug!("Received message {counter}, sending to raw ds pool...",);
                 // write to the channel
                 if raw_ds_tx
-                    .send(RawMessage::new(sequence, msg.into_data()))
+                    .send(RawMessage::new(msg.into_data()))
                     .await
                     .is_err()
                 {
                     println!("Receiver dropped");
                     break;
                 }
-                debug!("Sent message with sequence {} to raw ds pool...", sequence);
+                debug!("Sent message {counter} to raw ds pool...");
             }
             Some(Err(e)) => {
                 println!("Error receiving message: {}", e);

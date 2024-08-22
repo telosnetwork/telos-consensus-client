@@ -78,7 +78,6 @@ pub async fn raw_deserializer(
                 if let Some(b) = &r.this_block {
                     let block = ProcessingEVMBlock::new(
                         config.chain_id,
-                        msg.sequence,
                         b.block_num,
                         b.block_id,
                         r.clone(),

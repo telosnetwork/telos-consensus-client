@@ -18,7 +18,7 @@ fn decode_block() {
             if let Some(b) = &r.this_block {
                 println!("Got block: {}", b.block_num);
                 let mut block =
-                    ProcessingEVMBlock::new(1, 0, b.block_num, Checksum256::default(), r.clone());
+                    ProcessingEVMBlock::new(1, b.block_num, Checksum256::default(), r.clone());
                 block.deserialize();
             } else {
                 panic!("GetBlocksResultV0 without a block");
