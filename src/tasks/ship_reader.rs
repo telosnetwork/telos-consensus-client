@@ -1,4 +1,3 @@
-use crate::types::translator_types::RawMessage;
 use eyre::Result;
 use futures_util::stream::SplitStream;
 use futures_util::StreamExt;
@@ -10,7 +9,7 @@ use tracing::info;
 
 pub async fn ship_reader(
     mut ws_rx: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-    raw_ds_tx: mpsc::Sender<RawMessage>,
+    raw_ds_tx: mpsc::Sender<Vec<u8>>,
     mut stop_rx: oneshot::Receiver<()>,
 ) -> Result<()> {
     let mut counter: u64 = 0;
@@ -27,11 +26,7 @@ pub async fn ship_reader(
             Some(Ok(msg)) => {
                 debug!("Received message {counter}, sending to raw ds pool...",);
                 // write to the channel
-                if raw_ds_tx
-                    .send(RawMessage::new(msg.into_data()))
-                    .await
-                    .is_err()
-                {
+                if raw_ds_tx.send(msg.into_data()).await.is_err() {
                     println!("Receiver dropped");
                     break;
                 }

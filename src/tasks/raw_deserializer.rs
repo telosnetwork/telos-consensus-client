@@ -4,7 +4,6 @@ use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::ship_types::{
     GetBlocksAckRequestV0, GetBlocksRequestV0, GetStatusRequestV0, ShipRequest, ShipResult,
 };
-use crate::types::translator_types::RawMessage;
 use antelope::chain::Decoder;
 use eyre::{eyre, Result};
 use futures_util::stream::SplitSink;
@@ -19,7 +18,7 @@ use tracing::{debug, error, info};
 pub async fn raw_deserializer(
     thread_id: u8,
     config: TranslatorConfig,
-    mut raw_ds_rx: Receiver<RawMessage>,
+    mut raw_ds_rx: Receiver<Vec<u8>>,
     mut ws_tx: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     block_deserializer_tx: Sender<ProcessingEVMBlock>,
 ) -> Result<()> {
@@ -49,7 +48,7 @@ pub async fn raw_deserializer(
         // Print received messages after ABI is set
         //info!("Received message: {:?}", bytes_to_hex(&msg_data));
         // TODO: Better threading so we don't block reading while deserialize?
-        let mut decoder = Decoder::new(msg.bytes.as_slice());
+        let mut decoder = Decoder::new(&msg);
         let ship_result = &mut ShipResult::default();
         decoder.unpack(ship_result);
 

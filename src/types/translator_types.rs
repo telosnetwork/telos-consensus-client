@@ -22,16 +22,6 @@ pub struct NameToAddressCache {
     api_client: APIClient<DefaultProvider>,
 }
 
-pub struct RawMessage {
-    pub bytes: Vec<u8>,
-}
-
-impl RawMessage {
-    pub fn new(bytes: Vec<u8>) -> Self {
-        RawMessage { bytes }
-    }
-}
-
 impl NameToAddressCache {
     pub fn new(api_client: APIClient<DefaultProvider>) -> Self {
         NameToAddressCache {

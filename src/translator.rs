@@ -1,6 +1,5 @@
 use crate::block::{ProcessingEVMBlock, TelosEVMBlock};
 use crate::tasks::{evm_block_processor, final_processor, raw_deserializer, ship_reader};
-use crate::types::translator_types::RawMessage;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
 use eyre::{eyre, Context, Result};
@@ -65,7 +64,7 @@ impl Translator {
 
         // Buffer size here should be the readahead buffer size, in blocks.  This could get large if we are reading
         //  a block range with larges blocks/trxs, so this should be tuned based on the largest blocks we hit
-        let (raw_ds_tx, raw_ds_rx) = mpsc::channel::<RawMessage>(
+        let (raw_ds_tx, raw_ds_rx) = mpsc::channel::<Vec<u8>>(
             self.config
                 .raw_message_channel_size
                 .unwrap_or(DEFAULT_RAW_MESSAGE_CHANNEL_SIZE),
