@@ -16,7 +16,6 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::{debug, error, info};
 
 pub async fn raw_deserializer(
-    thread_id: u8,
     config: TranslatorConfig,
     mut raw_ds_rx: Receiver<Vec<u8>>,
     mut ws_tx: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
@@ -41,9 +40,9 @@ pub async fn raw_deserializer(
     let request = &GetStatus(GetStatusRequestV0);
     ws_tx.send(request.into()).await?;
 
-    debug!("raw deserializer #{} getting next message...", thread_id);
+    debug!("Raw deserializer getting next message...");
     while let Some(msg) = raw_ds_rx.recv().await {
-        debug!("raw deserializer #{} got message, decoding...", thread_id);
+        debug!("Raw deserializer got message, decoding...");
 
         // Print received messages after ABI is set
         //info!("Received message: {:?}", bytes_to_hex(&msg_data));
@@ -86,8 +85,7 @@ pub async fn raw_deserializer(
                     debug!("Block #{} sent to block deserializer", b.block_num);
                     if last_log.elapsed().as_secs_f64() > 10.0 {
                         info!(
-                            "Raw deserializer thread #{} block #{} - processed {} blocks/sec",
-                            thread_id,
+                            "Raw deserializer block #{} - processed {} blocks/sec",
                             b.block_num,
                             (unlogged_blocks + unackd_blocks) as f64
                                 / last_log.elapsed().as_secs_f64()

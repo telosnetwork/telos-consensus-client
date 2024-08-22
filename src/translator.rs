@@ -96,7 +96,6 @@ impl Translator {
         let evm_block_processor_handle = tokio::spawn(evm_block_processor(process_rx, finalize_tx));
 
         let raw_deserializer_handle = tokio::spawn(raw_deserializer(
-            0,
             self.config.clone(),
             raw_ds_rx,
             ws_tx,
