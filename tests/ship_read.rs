@@ -77,7 +77,10 @@ async fn evm_deploy() {
         info!("{}:{}", block.block_num, block.block_hash);
 
         let valid_block = valid_data.get(&block.block_num).unwrap();
-        assert_eq!(block.block_hash.to_string(), "0x".to_string() + &valid_block.block.evm_block_hash);
+        assert_eq!(
+            block.block_hash.to_string(),
+            "0x".to_string() + &valid_block.block.evm_block_hash
+        );
         assert_eq!(block.transactions.len(), valid_block.transactions.len());
 
         if block.block_num == 50 {

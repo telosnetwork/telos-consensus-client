@@ -178,16 +178,24 @@ pub fn load_15_data() -> SerdeResult<HashMap<u32, TelosEVM15Block>> {
 
     let mut blocks = HashMap::new();
     for delta in deltas {
-        blocks.insert(delta.block_num, TelosEVM15Block{ block: delta, transactions: vec![]} );
+        blocks.insert(
+            delta.block_num,
+            TelosEVM15Block {
+                block: delta,
+                transactions: vec![],
+            },
+        );
     }
 
     let action_str = include_str!("testcontainer-actions-v1.5.json");
     let actions: Vec<TelosEVM15Action> = serde_json::from_str(action_str)?;
 
     for action in actions {
-        blocks.get_mut(&(action.raw.block + block_delta))
+        blocks
+            .get_mut(&(action.raw.block + block_delta))
             .unwrap()
-            .transactions.push(action);
+            .transactions
+            .push(action);
     }
 
     Ok(blocks)
