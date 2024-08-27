@@ -86,3 +86,109 @@ impl LeapMockClient {
         }
     }
 }
+
+/*
+ * 1.5 dataset helpers
+ */
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TelosEVM15Delta {
+    #[serde(rename = "@timestamp")]
+    pub timestamp: String,
+
+    pub block_num: u32,
+
+    #[serde(rename = "@global")]
+    pub global: GlobalBlockData,
+
+    #[serde(rename = "@evmPrevBlockHash")]
+    pub evm_prev_block_hash: String,
+
+    #[serde(rename = "@evmBlockHash")]
+    pub evm_block_hash: String,
+
+    #[serde(rename = "@blockHash")]
+    pub block_hash: String,
+
+    #[serde(rename = "@receiptsRootHash")]
+    pub receipts_root_hash: String,
+
+    #[serde(rename = "@transactionsRoot")]
+    pub transactions_root: String,
+
+    pub gas_used: Option<String>,
+    pub gas_limit: Option<String>,
+    pub size: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GlobalBlockData {
+    pub block_num: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TelosEVM15Action {
+    #[serde(rename = "@timestamp")]
+    pub timestamp: String,
+
+    #[serde(rename = "@raw")]
+    pub raw: RawEvmTx,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RawEvmTx {
+    pub hash: String,
+    pub trx_index: u32,
+    pub block: u32,
+    pub block_hash: String,
+    pub to: String,
+    pub input_data: String,
+    pub input_trimmed: String,
+    pub value: String,
+    pub value_d: String,
+    pub nonce: String,
+    pub gas_price: String,
+    pub gas_limit: String,
+    pub status: u8,
+    pub itxs: Vec<String>,
+    pub epoch: u64,
+    pub createdaddr: String,
+    pub gasused: String,
+    pub gasusedblock: String,
+    pub charged_gas_price: String,
+    pub output: String,
+    pub v: String,
+    pub r: String,
+    pub s: String,
+    pub from: String,
+}
+
+use serde_json::Result as SerdeResult;
+
+pub struct TelosEVM15Block {
+    pub block: TelosEVM15Delta,
+    pub transactions: Vec<TelosEVM15Action>,
+}
+
+pub fn load_15_data() -> SerdeResult<HashMap<u32, TelosEVM15Block>> {
+    let deltas_str = include_str!("testcontainer-deltas-v1.5.json");
+    let deltas: Vec<TelosEVM15Delta> = serde_json::from_str(deltas_str)?;
+
+    let block_delta = deltas[0].block_num - deltas[0].global.block_num;
+
+    let mut blocks = HashMap::new();
+    for delta in deltas {
+        blocks.insert(delta.block_num, TelosEVM15Block{ block: delta, transactions: vec![]} );
+    }
+
+    let action_str = include_str!("testcontainer-actions-v1.5.json");
+    let actions: Vec<TelosEVM15Action> = serde_json::from_str(action_str)?;
+
+    for action in actions {
+        blocks.get_mut(&(action.raw.block + block_delta))
+            .unwrap()
+            .transactions.push(action);
+    }
+
+    Ok(blocks)
+}

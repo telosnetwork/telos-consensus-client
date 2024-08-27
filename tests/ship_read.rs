@@ -11,10 +11,15 @@ use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::mpsc;
 use tracing::info;
 
+mod common;
+
+use common::test_utils::load_15_data;
+
 #[tokio::test]
 async fn evm_deploy() {
     // Change this container to a local image if using new ship data,
     //   then make sure to update the ship data in the testcontainer-nodeos-evm repo and build a new version
+    let valid_data = load_15_data().unwrap();
 
     // The tag for this image needs to come from the Github packages UI, under the "OS/Arch" tab
     //   and should be the tag for linux/amd64
@@ -54,7 +59,7 @@ async fn evm_deploy() {
         validate_hash: None,
         start_block: 0,
         stop_block: Some(54),
-        block_delta: 0,
+        block_delta: 1,
         ..TESTNET_GENESIS_CONFIG.clone()
     };
 
@@ -70,6 +75,10 @@ async fn evm_deploy() {
 
     while let Some(block) = rx.recv().await {
         info!("{}:{}", block.block_num, block.block_hash);
+
+        let valid_block = valid_data.get(&block.block_num).unwrap();
+        assert_eq!(block.block_hash.to_string(), "0x".to_string() + &valid_block.block.evm_block_hash);
+        assert_eq!(block.transactions.len(), valid_block.transactions.len());
 
         if block.block_num == 50 {
             let tx = block.transactions[0].clone();
