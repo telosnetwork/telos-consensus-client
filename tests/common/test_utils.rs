@@ -1,24 +1,37 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use thiserror::Error;
 
 /*
  * leap-mock client
  */
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SetNumParams {
-    pub num: u32,
+pub struct JumpInfo {
+    pub from: u32,
+    pub to: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SetJumpsParams {
-    pub jumps: Vec<(u32, u32)>,
+pub struct ChainDescriptor {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_time: Option<String>,
+    pub jumps: Vec<JumpInfo>,
+    pub chain_start_block: u32,
+    pub chain_end_block: u32,
+    pub session_start_block: u32,
+    pub session_stop_block: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ship_port: Option<u16>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SetBlockInfo {
-    pub blocks: Vec<String>,
-    pub index: u32,
+pub struct SetChainResponse {
+    pub blocks: HashMap<u32, Vec<(u32, String)>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,8 +63,11 @@ impl LeapMockClient {
     }
 
     #[allow(dead_code)]
-    pub async fn set_block(&self, params: SetNumParams) -> Result<String, LeapMockError> {
-        let url = format!("{}/set_block", self.base_url);
+    pub async fn set_chain(
+        &self,
+        params: ChainDescriptor,
+    ) -> Result<SetChainResponse, LeapMockError> {
+        let url = format!("{}/set_chain", self.base_url);
 
         let resp = self
             .client
@@ -59,48 +75,7 @@ impl LeapMockClient {
             .json(&params)
             .send()
             .await?
-            .json::<MockResponse<String>>()
-            .await?;
-
-        match resp.result {
-            Some(result) => Ok(result),
-            None => Err(LeapMockError::ApiError(
-                resp.error.unwrap_or_else(|| "Unknown error".to_string()),
-            )),
-        }
-    }
-
-    pub async fn set_jumps(&self, params: SetJumpsParams) -> Result<String, LeapMockError> {
-        let url = format!("{}/set_jumps", self.base_url);
-
-        let resp = self
-            .client
-            .post(&url)
-            .json(&params)
-            .send()
-            .await?
-            .json::<MockResponse<String>>()
-            .await?;
-
-        match resp.result {
-            Some(result) => Ok(result),
-            None => Err(LeapMockError::ApiError(
-                resp.error.unwrap_or_else(|| "Unknown error".to_string()),
-            )),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub async fn set_block_info(&self, params: SetBlockInfo) -> Result<String, LeapMockError> {
-        let url = format!("{}/set_block_info", self.base_url);
-
-        let resp = self
-            .client
-            .post(&url)
-            .json(&params)
-            .send()
-            .await?
-            .json::<MockResponse<String>>()
+            .json::<MockResponse<SetChainResponse>>()
             .await?;
 
         match resp.result {

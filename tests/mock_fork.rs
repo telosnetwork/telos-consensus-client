@@ -6,7 +6,8 @@ use tokio::sync::mpsc;
 
 use tracing::info;
 
-use common::test_utils::{LeapMockClient, SetJumpsParams};
+use crate::common::test_utils::{ChainDescriptor, JumpInfo};
+use common::test_utils::LeapMockClient;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
@@ -23,7 +24,7 @@ async fn mock_fork() {
 
     let container: ContainerAsync<GenericImage> = GenericImage::new(
         "guilledk/leap-mock",
-        "0.2.2@sha256:05ade342597fca9f14cbed6f22508789b1d8a1dc35f2aa64c46b1a8a96d5ae5d",
+        "0.4.0@sha256:b5890c72a25c50c397d15b0ba9e1b6d3d8f0d9c504ab87a698e536d55cef3cf3",
     )
     .with_exposed_port(Tcp(chain_http_port))
     .with_exposed_port(Tcp(chain_ship_port))
@@ -40,9 +41,21 @@ async fn mock_fork() {
     // configure a fork from block 30 to 25
     let mock_client = LeapMockClient::new(&format!("http://localhost:{cntr_control_port}"));
 
-    mock_client
-        .set_jumps(SetJumpsParams {
-            jumps: vec![(30, 25)],
+    let chain_info = mock_client
+        .set_chain(ChainDescriptor {
+            chain_id: None,
+            start_time: None,
+            jumps: vec![
+                // JumpInfo {from: 13, to: 13},  // 0 delta fork
+                JumpInfo { from: 35, to: 20 }, // normal fork
+                JumpInfo { from: 80, to: 3 },  // long fork
+            ],
+            chain_start_block: 1,
+            chain_end_block: 100,
+            session_start_block: 2,
+            session_stop_block: 100,
+            http_port: Some(chain_http_port),
+            ship_port: Some(chain_ship_port),
         })
         .await
         .unwrap();
@@ -51,7 +64,7 @@ async fn mock_fork() {
         http_endpoint: format!("http://localhost:{cntr_http_port}",),
         ship_endpoint: format!("ws://localhost:{cntr_ship_port}",),
         validate_hash: None,
-        start_block: 1,
+        start_block: 2,
         stop_block: Some(99),
         block_delta: 0,
         ..TESTNET_GENESIS_CONFIG.clone()
