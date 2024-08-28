@@ -115,9 +115,8 @@ pub struct PrintedReceipt {
     #[serde(deserialize_with = "deserialize_logs")]
     pub logs: Vec<Log>,
     pub output: String,
-    // pub errors: Option<any[],  // Define struct for this
+    pub errors: Option<Vec<String>>,
     // pub itxs: any[], // Define struct for this
-    //pub gasusedblock: String,  // Optional?
 }
 
 fn deserialize_logs<'de, D>(deserializer: D) -> Result<Vec<Log>, D::Error>

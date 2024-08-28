@@ -1,7 +1,19 @@
+use alloy::hex::FromHex;
+use alloy::primitives::{Bytes, B256, U256};
+use alloy_consensus::{Signed, TxEip1559, TxLegacy};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::str::FromStr;
 use thiserror::Error;
+
+use chrono::{DateTime, Utc};
+use num_bigint::BigUint;
+
+fn iso_to_unix(iso_str: &str) -> i64 {
+    let dt: DateTime<Utc> = iso_str.parse().expect("Failed to parse ISO 8601 string");
+    dt.timestamp()
+}
 
 /*
  * leap-mock client
@@ -116,9 +128,11 @@ pub struct TelosEVM15Delta {
     #[serde(rename = "@transactionsRoot")]
     pub transactions_root: String,
 
-    pub gas_used: Option<String>,
-    pub gas_limit: Option<String>,
-    pub size: Option<String>,
+    #[serde(rename = "gasUsed")]
+    pub gas_used: String,
+    #[serde(rename = "gasLimit")]
+    pub gas_limit: String,
+    pub size: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -136,18 +150,26 @@ pub struct TelosEVM15Action {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct AccessList {
+    pub address: String,
+    pub storage_keys: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RawEvmTx {
     pub hash: String,
     pub trx_index: u32,
     pub block: u32,
     pub block_hash: String,
-    pub to: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to: Option<String>,
     pub input_data: String,
     pub input_trimmed: String,
     pub value: String,
     pub value_d: String,
     pub nonce: String,
-    pub gas_price: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gas_price: Option<String>,
     pub gas_limit: String,
     pub status: u8,
     pub itxs: Vec<String>,
@@ -156,7 +178,14 @@ pub struct RawEvmTx {
     pub gasused: String,
     pub gasusedblock: String,
     pub charged_gas_price: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_priority_fee_per_gas: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_fee_per_gas: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_list: Option<Vec<AccessList>>,
     pub output: String,
+    pub raw: String,
     pub v: String,
     pub r: String,
     pub s: String,
@@ -164,6 +193,8 @@ pub struct RawEvmTx {
 }
 
 use serde_json::Result as SerdeResult;
+use telos_translator_rs::block::TelosEVMBlock;
+use telos_translator_rs::transaction::Transaction;
 
 pub struct TelosEVM15Block {
     pub block: TelosEVM15Delta,
@@ -199,4 +230,283 @@ pub fn load_15_data() -> SerdeResult<HashMap<u32, TelosEVM15Block>> {
     }
 
     Ok(blocks)
+}
+use num_traits::Num;
+
+pub fn compare_legacy(stx: &Signed<TxLegacy>, tx15: &RawEvmTx, trx_index: usize, block_num: u32) {
+    let tx = stx.tx();
+    assert_eq!(
+        tx.nonce,
+        tx15.nonce.parse::<u64>().unwrap(),
+        "nonce difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        tx.gas_price.to_string(),
+        tx15.gas_price.clone().unwrap_or("0".to_string()),
+        "gas_price difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        tx.gas_limit,
+        tx15.gas_limit.parse::<u128>().unwrap(),
+        "gas_limit difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    if let Some(to) = tx.to.to() {
+        assert_eq!(
+            to.to_string().to_lowercase(),
+            tx15.to.clone().unwrap(),
+            "\"to\" field difference at tx #{} of evm block #{}",
+            trx_index,
+            block_num
+        );
+    } else {
+        assert!(
+            tx15.to.is_none(),
+            "\"to\" field missing at tx #{} of evm block #{}",
+            trx_index,
+            block_num
+        );
+    }
+    assert_eq!(
+        tx.value,
+        U256::from_str_radix(&tx15.value, 16).unwrap(),
+        "value difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        tx.input,
+        Bytes::from_hex(&tx15.input_data).unwrap(),
+        "input difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        stx.signature().v().to_u64(),
+        tx15.v.parse::<u64>().unwrap(),
+        "signature v difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        BigUint::from_str(&stx.signature().r().to_string()).unwrap(),
+        BigUint::from_str_radix(&tx15.r[2..], 16).unwrap(),
+        "signature r difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        BigUint::from_str(&stx.signature().s().to_string()).unwrap(),
+        BigUint::from_str_radix(&tx15.s[2..], 16).unwrap(),
+        "signature s difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+
+    assert_eq!(
+        stx.hash().to_string(),
+        tx15.hash,
+        "tx hash difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+}
+
+pub fn compare_1559(stx: &Signed<TxEip1559>, tx15: &RawEvmTx, trx_index: usize, block_num: u32) {
+    let tx = stx.tx();
+    assert_eq!(
+        tx.nonce,
+        tx15.nonce.parse::<u64>().unwrap(),
+        "nonce difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        tx.max_priority_fee_per_gas,
+        tx15.max_priority_fee_per_gas
+            .clone()
+            .unwrap()
+            .parse::<u128>()
+            .unwrap(),
+        "max_priority_fee_per_gas difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        tx.max_fee_per_gas,
+        tx15.max_fee_per_gas
+            .clone()
+            .unwrap()
+            .parse::<u128>()
+            .unwrap(),
+        "max_fee_per_gas difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        tx.gas_limit,
+        tx15.gas_limit.parse::<u128>().unwrap(),
+        "gas_limit difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    if let Some(to) = tx.to.to() {
+        assert_eq!(
+            to.to_string().to_lowercase(),
+            tx15.to.clone().unwrap(),
+            "\"to\" difference at tx #{} of evm block #{}",
+            trx_index,
+            block_num
+        );
+    } else {
+        assert!(
+            tx15.to.is_none(),
+            "\"to\" field missing at tx #{} of evm block #{}",
+            trx_index,
+            block_num
+        );
+    }
+    assert_eq!(
+        tx.value,
+        U256::from_str_radix(&tx15.value, 16).unwrap(),
+        "value difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    // assert_eq!(
+    //     tx.access_list.size(),
+    //     tx15.access_list.unwrap().len(),
+    //     "access_list size difference at tx #{} of evm block #{}",
+    //     trx_index, block_num
+    // );
+    assert_eq!(
+        tx.input,
+        Bytes::from_hex(&tx15.input_data).unwrap(),
+        "input difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        stx.signature().v().to_u64(),
+        tx15.v.parse::<u64>().unwrap(),
+        "signature v difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        BigUint::from_str(&stx.signature().r().to_string()).unwrap(),
+        BigUint::from_str_radix(&tx15.r[2..], 16).unwrap(),
+        "signature r difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+    assert_eq!(
+        BigUint::from_str(&stx.signature().s().to_string()).unwrap(),
+        BigUint::from_str_radix(&tx15.s[2..], 16).unwrap(),
+        "signature s difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+
+    let mut tx_buff: Vec<u8> = Vec::new();
+    tx_buff.push(0x02);
+    tx.encode_with_signature_fields(stx.signature(), &mut tx_buff);
+    assert_eq!(
+        tx_buff
+            .iter()
+            .map(|byte| format!("{:02x}", byte))
+            .collect::<String>(),
+        tx15.raw,
+        "tx hash difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+
+    assert_eq!(
+        stx.hash().to_string(),
+        tx15.hash,
+        "tx hash difference at tx #{} of evm block #{}",
+        trx_index,
+        block_num
+    );
+}
+
+pub fn compare_transaction(tx: &Transaction, tx15: &RawEvmTx, trx_index: usize, block_num: u32) {
+    match tx {
+        Transaction::LegacySigned(stx, _receipt) => {
+            compare_legacy(stx, &tx15, trx_index, block_num)
+        }
+        Transaction::EIP1559Signed(stx, _receipt) => compare_1559(stx, &tx15, trx_index, block_num),
+    }
+}
+
+pub fn compare_block(block: &TelosEVMBlock, block15: &TelosEVM15Block) {
+    for (i, tx) in block.transactions.iter().enumerate() {
+        let tx15 = &block15
+            .transactions
+            .get(i)
+            .expect("Blocks have different amounts of transactions")
+            .raw;
+        compare_transaction(tx, tx15, i, block.block_num);
+    }
+
+    assert_eq!(
+        block.header.timestamp,
+        iso_to_unix(&block15.block.timestamp) as u64,
+        "timestamp difference at evm block #{}",
+        block.block_num
+    );
+
+    assert_eq!(
+        block.header.number, block15.block.global.block_num as u64,
+        "block num difference at evm block #{}",
+        block.block_num
+    );
+
+    assert_eq!(
+        block.header.parent_hash,
+        B256::from_hex(&block15.block.evm_prev_block_hash).unwrap(),
+        "parent hash difference at evm block #{}",
+        block.block_num
+    );
+
+    assert_eq!(
+        block.header.extra_data,
+        Bytes::from_hex(&block15.block.block_hash).unwrap(),
+        "native block hash difference at evm block #{}",
+        block.block_num
+    );
+
+    assert_eq!(
+        block.header.gas_used.to_string(),
+        block15.block.gas_used,
+        "gas used difference at evm block #{}",
+        block.block_num
+    );
+
+    assert_eq!(
+        block.header.transactions_root,
+        B256::from_hex(&block15.block.transactions_root).unwrap(),
+        "transactions root difference at evm block #{}",
+        block.block_num
+    );
+
+    assert_eq!(
+        block.header.receipts_root,
+        B256::from_hex(&block15.block.receipts_root_hash).unwrap(),
+        "receipts root difference at evm block #{}",
+        block.block_num
+    );
+
+    assert_eq!(
+        block.header.hash_slow(),
+        B256::from_hex(&block15.block.evm_block_hash).unwrap(),
+        "block hash difference at evm block #{}",
+        block.block_num
+    );
 }

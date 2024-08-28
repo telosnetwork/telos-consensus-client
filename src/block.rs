@@ -9,13 +9,18 @@ use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
 use crate::types::translator_types::NameToAddressCache;
-use alloy::primitives::{Bytes, FixedBytes, B256, U256};
+use alloy::primitives::{Bloom, Bytes, FixedBytes, Log, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
-use alloy_consensus::Header;
+use alloy_consensus::{Eip658Value, Header, Receipt, ReceiptWithBloom};
+use alloy_rlp::Encodable;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::chain::Decoder;
+use num_bigint::BigUint;
+use reth_trie_common::root::ordered_trie_root_with_encoder;
+use serde::Serialize;
 use std::cmp::Ordering;
+use std::hash::Hash;
 use tracing::warn;
 
 pub trait BasicTrace {
@@ -384,27 +389,72 @@ impl ProcessingEVMBlock {
             }
         }
 
-        // let mut bloom = Bloom::default();
-        // for trx in &self.transactions {
-        //     for log in trx.logs() {
-        //         //bloom.accrue(log);
-        //     }
-        //     //bloom.accrue(&trx.bloom());
-        // }
+        let mut cumulative_gas_used = 0;
+        let mut receipts: Vec<ReceiptWithBloom> = vec![];
+        for transaction in &self.transactions {
+            let mut tx_gas_used = 21000;
+            let mut logs = vec![];
+            let mut logs_bloom = Bloom::default();
+            match transaction {
+                Transaction::LegacySigned(_tx, maybe_receipt) => {
+                    if let Some(receipt) = maybe_receipt {
+                        tx_gas_used = u128::from_str_radix(&receipt.gasused, 16)
+                            .expect("Unable to parse gasused from receipt");
+                        logs = receipt.logs.clone();
+                        for log in &logs {
+                            logs_bloom.accrue_log(log);
+                        }
+                    }
+                }
+                Transaction::EIP1559Signed(_tx, receipt) => {
+                    tx_gas_used = u128::from_str_radix(&receipt.gasused, 16)
+                        .expect("Unable to parse gasused from receipt");
+                    logs = receipt.logs.clone();
+                    for log in &logs {
+                        logs_bloom.accrue_log(log);
+                    }
+                }
+            }
+            cumulative_gas_used += tx_gas_used;
+            let full_receipt = ReceiptWithBloom {
+                receipt: Receipt {
+                    status: Eip658Value::Eip658(true),
+                    cumulative_gas_used,
+                    logs,
+                },
+                logs_bloom,
+            };
+            receipts.push(full_receipt);
+        }
+        let tx_root_hash = ordered_trie_root_with_encoder(&self.transactions, |tx, buf| match tx {
+            Transaction::LegacySigned(tx, _receipt) => {
+                tx.tx().encode_with_signature_fields(tx.signature(), buf)
+            }
+            Transaction::EIP1559Signed(tx, _receipt) => {
+                buf.push(0x02);
+                tx.tx().encode_with_signature_fields(tx.signature(), buf)
+            }
+        });
+        let receipts_root_hash =
+            ordered_trie_root_with_encoder(&receipts, |r: &ReceiptWithBloom, buf| r.encode(buf));
+        let mut logs_bloom = Bloom::default();
+        for receipt in &receipts {
+            logs_bloom.accrue_bloom(&receipt.logs_bloom);
+        }
 
         Header {
             parent_hash,
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: Default::default(),
             state_root: EMPTY_ROOT_HASH,
-            transactions_root: EMPTY_ROOT_HASH,
-            receipts_root: EMPTY_ROOT_HASH,
+            transactions_root: tx_root_hash,
+            receipts_root: receipts_root_hash,
             withdrawals_root: None,
-            logs_bloom: Default::default(),
+            logs_bloom,
             difficulty: Default::default(),
             number: (self.block_num - block_delta) as u64,
             gas_limit: 0x7fffffff,
-            gas_used: 0,
+            gas_used: cumulative_gas_used,
             timestamp: (((self.signed_block.clone().unwrap().header.header.timestamp as u64)
                 * ANTELOPE_INTERVAL_MS)
                 + ANTELOPE_EPOCH_MS)

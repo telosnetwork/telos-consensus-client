@@ -6,13 +6,16 @@ use telos_translator_rs::transaction::Transaction;
 use telos_translator_rs::translator::Translator;
 use telos_translator_rs::translator::TranslatorConfig;
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
+use testcontainers::core::wait::LogWaitStrategy;
 use testcontainers::core::ContainerPort::Tcp;
+use testcontainers::core::WaitFor;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::mpsc;
 use tracing::info;
 
 mod common;
 
+use crate::common::test_utils::compare_block;
 use common::test_utils::load_15_data;
 
 #[tokio::test]
@@ -29,6 +32,7 @@ async fn evm_deploy() {
     )
     .with_exposed_port(Tcp(8888))
     .with_exposed_port(Tcp(18999))
+    .with_wait_for(WaitFor::Log(LogWaitStrategy::stderr("Produced")))
     .start()
     .await
     .unwrap();
@@ -36,29 +40,12 @@ async fn evm_deploy() {
     let port_8888 = container.get_host_port_ipv4(8888).await.unwrap();
     let port_18999 = container.get_host_port_ipv4(18999).await.unwrap();
 
-    let api_base_url = format!("http://localhost:{port_8888}");
-    let api_client = APIClient::<DefaultProvider>::default_provider(api_base_url).unwrap();
-
-    let mut last_block = 0;
-
-    loop {
-        let Ok(info) = api_client.v1_chain.get_info().await else {
-            println!("Waiting for telos node to produce blocks...");
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            continue;
-        };
-        if last_block != 0 && info.head_block_num > last_block {
-            break;
-        }
-        last_block = info.head_block_num;
-    }
-
     let config = TranslatorConfig {
         http_endpoint: format!("http://localhost:{port_8888}",),
         ship_endpoint: format!("ws://localhost:{port_18999}",),
         validate_hash: None,
-        start_block: 0,
-        stop_block: Some(54),
+        start_block: 1,
+        stop_block: Some(55),
         block_delta: 1,
         ..TESTNET_GENESIS_CONFIG.clone()
     };
@@ -76,47 +63,8 @@ async fn evm_deploy() {
     while let Some(block) = rx.recv().await {
         info!("{}:{}", block.block_num, block.block_hash);
 
-        let valid_block = valid_data.get(&block.block_num).unwrap();
-        assert_eq!(
-            block.block_hash.to_string(),
-            "0x".to_string() + &valid_block.block.evm_block_hash
-        );
-        assert_eq!(block.transactions.len(), valid_block.transactions.len());
-
-        if block.block_num == 50 {
-            let tx = block.transactions[0].clone();
-            assert_eq!(
-                tx.hash(),
-                &B256::new(hex!(
-                    "8d8c62a8bc0762f66ec0be70db1a2e8b9adb6504f4c9bdd2cf794611ebeab87b"
-                ))
-            );
-            match tx {
-                Transaction::LegacySigned(signed_legacy, _) => {
-                    let trx = signed_legacy.clone().strip_signature();
-                    assert_eq!(trx.value, U256::from(100190020000000000000000000u128));
-                    match trx.to {
-                        TxKind::Create => {
-                            panic!("Block 50 trx[0] should be a call, not create");
-                        }
-                        TxKind::Call(addr) => {
-                            assert_eq!(addr, address!("d80744e16d62c62c5fa2a04b92da3fe6b9efb523"));
-                        }
-                    }
-                }
-            }
+        if let Some(valid_block) = valid_data.get(&block.block_num) {
+            compare_block(&block, valid_block);
         }
-        // Leaving this here to fetch data about transactions in future data sets
-        // if !block.transactions.is_empty() {
-        //     info!("Block has transactions");
-        //     for t in block.transactions {
-        //         info!("Transaction hash: {:?}", t.hash());
-        //         match t { Transaction::LegacySigned(signed_legacy, receipt) => {
-        //             info!("Legacy signed transaction value: {:?}", signed_legacy.clone().strip_signature().value);
-        //             info!("Legacy signed transaction to: {:?}", signed_legacy.clone().strip_signature().to);
-        //             info!("Done!");
-        //         } }
-        //     }
-        // }
     }
 }

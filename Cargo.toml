@@ -31,9 +31,12 @@ log = "0.4.21"
 toml = "0.8.15"
 lazy_static = "1.5.0"
 hex = "0.4.3"
+reth-trie-common = { git = "https://github.com/telosnetwork/telos-reth.git", version = "1.0.5" }
 
 [dev-dependencies]
 async-trait = "0.1.80"
+chrono = "0.4.38"
+num-traits = "0.2.19"
 reqwest = { version = "0.12.5", features = ["json"] }
 testcontainers = "0.21.0"
 thiserror = "1.0.63"

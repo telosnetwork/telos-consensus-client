@@ -4,7 +4,8 @@ use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::private::alloy_rlp::Error;
 use alloy::primitives::TxKind::Call;
 use alloy::primitives::{Address, Log, Signature, B256, U256};
-use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
+use alloy_consensus::{SignableTransaction, Signed, TxEip1559, TxLegacy};
+use alloy_rlp::Decodable;
 use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
 
@@ -28,6 +29,7 @@ pub fn make_unique_vrs(
 #[derive(Clone)]
 pub enum Transaction {
     LegacySigned(Signed<TxLegacy>, Option<PrintedReceipt>),
+    EIP1559Signed(Signed<TxEip1559>, PrintedReceipt),
 }
 
 impl Transaction {
@@ -72,8 +74,15 @@ impl Transaction {
 
             Ok(Transaction::LegacySigned(signed_legacy, Some(receipt)))
         } else {
-            // TODO: Handle other tx types
-            panic!("Other tx types other than legacy not implemented yet!");
+            let type_bit = tx_raw[0];
+            let mut raw = &tx_raw[1..];
+            match type_bit {
+                2 => {
+                    let tx = TxEip1559::decode_signed_fields(&mut raw).unwrap();
+                    Ok(Transaction::EIP1559Signed(tx, receipt))
+                }
+                _ => panic!("tx type {} not implemented!", type_bit),
+            }
         }
     }
 
@@ -150,6 +159,7 @@ impl Transaction {
     pub fn hash(&self) -> &B256 {
         match self {
             Transaction::LegacySigned(signed_legacy, _receipt) => signed_legacy.hash(),
+            Transaction::EIP1559Signed(tx, _receipt) => tx.hash(),
         }
     }
 
