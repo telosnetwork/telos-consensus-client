@@ -3,13 +3,13 @@ use antelope::chain::asset::{Asset, Symbol};
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::util::hex_to_bytes;
-use telos_translator_rs::transaction::Transaction;
+use telos_translator_rs::transaction::TelosEVMTransaction;
 use telos_translator_rs::types::evm_types::{TransferAction, WithdrawAction};
 use telos_translator_rs::types::translator_types::NameToAddressCache;
 
 #[tokio::test]
 async fn test_deposit() {
-    let trx = Transaction::from_transfer(
+    let trx = TelosEVMTransaction::from_transfer(
         40,
         0,
         Checksum256::from_bytes(&hex_to_bytes(
@@ -37,7 +37,7 @@ async fn test_withdraw() {
     let from = "0x87bC2200f5066DFc22e987DAb486b979Cd254F4B"
         .parse()
         .unwrap();
-    let trx = Transaction::from_withdraw_no_cache(
+    let trx = TelosEVMTransaction::from_withdraw_no_cache(
         40,
         0,
         Checksum256::from_bytes(&hex_to_bytes(
