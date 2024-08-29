@@ -1,7 +1,6 @@
 use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
-use alloy_consensus::TxEnvelope;
 use alloy_rlp::encode;
 use eyre::Result;
 use log::{debug, error};
