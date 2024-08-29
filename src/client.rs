@@ -1,5 +1,5 @@
 use crate::config::AppConfig;
-use crate::execution_api_client::{ExecutionApiClient, RpcRequest};
+use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
 use alloy_rlp::encode;
 use eyre::Result;
@@ -42,7 +42,7 @@ impl ConsensusClient {
         let execution_api = ExecutionApiClient::new(config.execution_endpoint, config.jwt_secret);
         //let latest_consensus_block = ConsensusClient::get_latest_consensus_block(&translator).await;
         let latest_executor_block =
-            ConsensusClient::get_latest_executor_block(&execution_api).await;
+            ConsensusClient::get_latest_executor_block(&execution_api).await.unwrap();
 
         Self {
             config: my_config,
@@ -53,12 +53,10 @@ impl ConsensusClient {
         }
     }
 
-    async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Block {
-        let executor_latest_block_number = execution_api.block_number().await.unwrap();
+    async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Result<Block, ExecutionApiError> {
         execution_api
-            .block_by_number(executor_latest_block_number, false)
+            .block_by_number(None, false)
             .await
-            .unwrap()
     }
 
     fn make_translator(config: &AppConfig) -> Translator {
