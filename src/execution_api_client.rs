@@ -144,7 +144,7 @@ impl ExecutionApiClient {
     }
 
     // block_by_number queries api using block number if provided or it returns the latest block.
-    pub async fn block_by_number(&self, block_number: Option<u64>, full: bool) -> Result<Block, ExecutionApiError> {
+    pub async fn block_by_number(&self, block_number: Option<u64>, full: bool) -> Result<Option<Block>, ExecutionApiError> {
         let block_request_param: String;
         if let Some(number) = block_number {
             block_request_param = format!("0x{:x}", number);
@@ -159,7 +159,11 @@ impl ExecutionApiClient {
             })
             .await?;
 
-        let block = serde_json::from_value::<Block>(response.result).map_err(|_| CannotDeserialize)?;
-        Ok(block)
+        if response.result.is_null() {
+            return Ok(None);
+        } else {
+            let block = serde_json::from_value::<Block>(response.result).map_err(|_| CannotDeserialize)?;
+            Ok(Some(block))
+        }
     }
 }

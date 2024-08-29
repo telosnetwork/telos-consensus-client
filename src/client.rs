@@ -5,6 +5,7 @@ use alloy_rlp::encode;
 use eyre::Result;
 use log::{debug, error};
 use reth_primitives::{Bytes, B256, U256};
+use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_rpc_types::engine::ForkchoiceState;
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
@@ -31,7 +32,7 @@ pub struct ConsensusClient {
     pub config: AppConfig,
     execution_api: ExecutionApiClient,
     //latest_consensus_block: ExecutionPayloadV1,
-    latest_valid_executor_block: Block,
+    latest_valid_executor_block: Option<Block>,
     //is_forked: bool,
 }
 
@@ -41,11 +42,42 @@ impl ConsensusClient {
 
         let execution_api = ExecutionApiClient::new(config.execution_endpoint, config.jwt_secret);
         //let latest_consensus_block = ConsensusClient::get_latest_consensus_block(&translator).await;
-        let latest_executor_block =
-            ConsensusClient::get_latest_executor_block(&execution_api).await.unwrap();
+        let latest_executor_block_response =
+            ConsensusClient::get_latest_executor_block(&execution_api).await;
+
+        let mut latest_executor_block = None;
+
+        match latest_executor_block_response {
+            Ok(res) => {
+                latest_executor_block = res;
+            }
+            Err(e) => {
+
+                // todo handle error
+            }
+        }
+
+
+        let translator = Translator::new(TranslatorConfig {
+            chain_id: config.chain_id,
+            start_block: config.start_block,
+            stop_block: config.stop_block,
+            block_delta: config.block_delta.unwrap_or(0u32),
+            prev_hash: config.prev_hash,
+            validate_hash: config.validate_hash,
+            http_endpoint: config.chain_endpoint,
+            ship_endpoint: config.ship_endpoint,
+            raw_ds_threads: None,
+            block_process_threads: None,
+            raw_message_channel_size: None,
+            block_message_channel_size: None,
+            order_message_channel_size: None,
+            final_message_channel_size: None,
+        });
 
         Self {
             config: my_config,
+            translator,
             execution_api,
             //latest_consensus_block,
             latest_valid_executor_block: latest_executor_block,
@@ -53,7 +85,7 @@ impl ConsensusClient {
         }
     }
 
-    async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Result<Block, ExecutionApiError> {
+    async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Result<Option<Block>, ExecutionApiError> {
         execution_api
             .block_by_number(None, false)
             .await
