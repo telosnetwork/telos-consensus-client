@@ -11,9 +11,7 @@ use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::transaction::Transaction;
-use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -23,95 +21,57 @@ pub enum Error {
     // ExecutorBlockPastStopBlock,
     // #[error("Latest block not found.")]
     // LatestBlockNotFound,
-    #[error("Spawn translator error")]
-    SpawnTranslatorError,
     #[error("Executor hash mismatch.")]
     ExecutorHashMismatch,
 }
 
 pub struct ConsensusClient {
-    pub config: AppConfig,
     execution_api: ExecutionApiClient,
-    //latest_consensus_block: ExecutionPayloadV1,
-    latest_valid_executor_block: Block,
     //is_forked: bool,
+    batch_size: usize,
 }
 
 impl ConsensusClient {
     pub async fn new(config: AppConfig) -> Self {
-        let my_config = config.clone();
-
-        let execution_api = ExecutionApiClient::new(config.execution_endpoint, config.jwt_secret);
-        //let latest_consensus_block = ConsensusClient::get_latest_consensus_block(&translator).await;
-        let latest_executor_block =
-            ConsensusClient::get_latest_executor_block(&execution_api).await;
+        let execution_api =
+            ExecutionApiClient::new(config.execution_endpoint.clone(), &config.jwt_secret);
 
         Self {
-            config: my_config,
             execution_api,
-            //latest_consensus_block,
-            latest_valid_executor_block: latest_executor_block,
             // is_forked: true,
+            batch_size: config.batch_size,
         }
     }
 
-    async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Block {
-        let executor_latest_block_number = execution_api.block_number().await.unwrap();
-        execution_api
+    async fn get_latest_executor_block(&self) -> Block {
+        let executor_latest_block_number = self.execution_api.block_number().await.unwrap();
+        self.execution_api
             .block_by_number(executor_latest_block_number, false)
             .await
             .unwrap()
     }
 
-    fn make_translator(config: &AppConfig) -> Translator {
-        Translator::new(TranslatorConfig {
-            chain_id: config.chain_id,
-            start_block: config.start_block,
-            stop_block: config.stop_block,
-            block_delta: config.block_delta.unwrap_or(0u32),
-            prev_hash: config.prev_hash.clone(),
-            validate_hash: config.validate_hash.clone(),
-            http_endpoint: config.chain_endpoint.clone(),
-            ship_endpoint: config.ship_endpoint.clone(),
-            raw_ds_threads: None,
-            block_process_threads: None,
-            raw_message_channel_size: None,
-            block_message_channel_size: None,
-            order_message_channel_size: None,
-            final_message_channel_size: None,
-        })
-    }
-
-    pub async fn run(&self) -> Result<(), Error> {
-        let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
-
-        let mut translator = Self::make_translator(&self.config);
-
-        let launch_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
-            translator
-                .launch(Some(tx))
-                .await
-                .map_err(|_| Error::SpawnTranslatorError)
-        });
-
+    pub async fn run(self, mut rx: mpsc::Receiver<TelosEVMBlock>) -> Result<(), Error> {
         let mut batch = vec![];
         let mut send_to_executor = false;
+        //latest_consensus_block,
+        let latest_valid_executor_block = self.get_latest_executor_block().await;
+
         while let Some(block) = rx.recv().await {
             // Set this to true only once, if we are caught up from reader to executor's latest block
             if !send_to_executor {
-                if self.latest_valid_executor_block.header.number.unwrap() == block.block_num as u64
-                {
+                if latest_valid_executor_block.header.number.unwrap() == block.block_num as u64 {
                     // We've received the same block from transaltor as the latest executor block, check if hashes match
-                    if self.latest_valid_executor_block.header.hash.unwrap() != block.block_hash {
+                    if latest_valid_executor_block.header.hash.unwrap() != block.block_hash {
                         error!("Fork detected! Latest executor block hash {:?} does not match consensus block hash {:?}",
-                               self.latest_valid_executor_block.header.hash.unwrap(), block.block_hash);
+                               latest_valid_executor_block.header.hash.unwrap(), block.block_hash);
                         return Err(Error::ExecutorHashMismatch);
                     }
                 }
 
                 // if this block is older than the latest valid executor block, skip it
-                send_to_executor = block.block_num
-                    > self.latest_valid_executor_block.header.number.unwrap() as u32;
+                send_to_executor =
+                    block.block_num > latest_valid_executor_block.header.number.unwrap() as u32;
             }
 
             if !send_to_executor {
@@ -121,14 +81,10 @@ impl ConsensusClient {
             // TODO: Check if we are caught up, if so do not batch anything
 
             batch.push(block);
-            if self.config.batch_size >= batch.len() {
+            if self.batch_size >= batch.len() {
                 self.send_batch(batch).await;
                 batch = vec![];
             }
-        }
-
-        if launch_handle.await.is_err() {
-            return Err(Error::SpawnTranslatorError);
         }
 
         Ok(())

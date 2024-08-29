@@ -1,5 +1,6 @@
 use clap::Parser;
 use serde::Deserialize;
+use telos_translator_rs::translator::TranslatorConfig;
 
 /// Telos Consensus Client CLI Arguments
 #[derive(Parser, Debug)]
@@ -44,4 +45,25 @@ pub struct AppConfig {
 
     /// (Optional) Block number to stop on, default is U32::MAX
     pub stop_block: Option<u32>,
+}
+
+impl From<AppConfig> for TranslatorConfig {
+    fn from(value: AppConfig) -> Self {
+        TranslatorConfig {
+            chain_id: value.chain_id,
+            start_block: value.start_block,
+            stop_block: value.stop_block,
+            block_delta: value.block_delta.unwrap_or(0u32),
+            prev_hash: value.prev_hash.clone(),
+            validate_hash: value.validate_hash.clone(),
+            http_endpoint: value.chain_endpoint.clone(),
+            ship_endpoint: value.ship_endpoint.clone(),
+            raw_ds_threads: None,
+            block_process_threads: None,
+            raw_message_channel_size: None,
+            block_message_channel_size: None,
+            order_message_channel_size: None,
+            final_message_channel_size: None,
+        }
+    }
 }

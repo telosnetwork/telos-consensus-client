@@ -37,7 +37,7 @@ pub struct ExecutionApiClient {
 }
 
 impl ExecutionApiClient {
-    pub fn new(base_url: String, jwt_secret: String) -> Self {
+    pub fn new(base_url: String, jwt_secret: &str) -> Self {
         let secret_bytes = hex::decode(strip_prefix(jwt_secret.trim_end()))
             .map_err(|e| Error::InvalidKey(format!("Invalid hex string: {:?}", e)))
             .unwrap();

@@ -1,8 +1,11 @@
 use std::fs;
 
 use clap::Parser;
-use eyre::{bail, Report, Result};
+use eyre::{Context, Report, Result};
 use log::info;
+use telos_translator_rs::block::TelosEVMBlock;
+use telos_translator_rs::translator::Translator;
+use tokio::sync::mpsc;
 
 use crate::client::ConsensusClient;
 use crate::config::{AppConfig, CliArgs};
@@ -19,16 +22,26 @@ fn read_config() -> Result<AppConfig> {
     Ok(toml::from_str(&contents)?)
 }
 
+async fn launch(mut translator: Translator, tx: mpsc::Sender<TelosEVMBlock>) -> Result<()> {
+    translator.launch(Some(tx)).await
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
 
     let config = read_config()?;
-    let client = ConsensusClient::new(config).await;
 
-    if let Err(error) = client.run().await {
-        bail!("Consensus client run failed! Error: {error:?}");
-    };
+    let translator = Translator::new(config.clone().into());
+    let consensus_client = ConsensusClient::new(config).await;
+
+    let (tx, rx) = mpsc::channel::<TelosEVMBlock>(1000);
+
+    _ = tokio::try_join!(
+        tokio::spawn(consensus_client.run(rx)),
+        tokio::spawn(launch(translator, tx))
+    )
+    .wrap_err("Consensus client run failed")?;
 
     Ok(info!("Reached stop block, consensus client run finished!"))
 }

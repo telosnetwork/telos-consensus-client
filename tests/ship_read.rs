@@ -9,10 +9,12 @@ use std::sync::Arc;
 use telos_consensus_client::client::ConsensusClient;
 use telos_consensus_client::config::AppConfig;
 use telos_consensus_client::json_rpc::JsonRequestBody;
+use telos_translator_rs::block::TelosEVMBlock;
+use telos_translator_rs::translator::Translator;
 use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::oneshot::Sender;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tracing::info;
 
 const MOCK_EXECUTION_API_PORT: u16 = 3000;
@@ -215,9 +217,16 @@ async fn evm_deploy() {
         stop_block: Some(60),
     };
 
-    let mut client_under_test = ConsensusClient::new(config).await;
-    let _ = client_under_test.run().await;
+    let mut translator = Translator::new(config.clone().into());
+    let consensus_client = ConsensusClient::new(config).await;
 
+    let (tx, rx) = mpsc::channel::<TelosEVMBlock>(1000);
+
+    _ = tokio::try_join!(
+        tokio::spawn(consensus_client.run(rx)),
+        tokio::spawn(async move { translator.launch(Some(tx)).await })
+    )
+    .unwrap();
     // Shutdown mock execution API
     shutdown_tx.send(()).unwrap();
 }
