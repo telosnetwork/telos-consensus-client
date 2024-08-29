@@ -1,8 +1,8 @@
 use crate::transaction::TelosEVMTransaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
 use crate::types::evm_types::{
-    AccountRow, AccountStateRow, CreateAction, EOSConfigRow, OpenWalletAction, PrintedReceipt,
-    RawAction, SetRevisionAction, TransferAction, WithdrawAction,
+    AccountRow, AccountStateRow, CreateAction, EvmContractConfigRow, OpenWalletAction,
+    PrintedReceipt, RawAction, SetRevisionAction, TransferAction, WithdrawAction,
 };
 use crate::types::names::*;
 use crate::types::ship_types::{
@@ -16,6 +16,7 @@ use alloy_rlp::Encodable;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::chain::Decoder;
+use antelope::serializer::Packer;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
 use std::cmp::Ordering;
 use tracing::warn;
@@ -73,7 +74,7 @@ impl BasicTrace for ActionTrace {
 
 #[derive(Clone)]
 pub enum DecodedRow {
-    Config(EOSConfigRow),
+    Config(EvmContractConfigRow),
     Account(AccountRow),
     AccountState(AccountStateRow),
 }
@@ -108,46 +109,10 @@ pub struct TelosEVMBlock {
     pub account_state_rows: Vec<AccountStateRow>,
 }
 
-pub fn decode_raw(raw: &[u8]) -> RawAction {
-    let mut decoder = Decoder::new(raw);
-    let raw = &mut RawAction::default();
-    decoder.unpack(raw);
-    raw.clone()
-}
-
-pub fn decode_transfer(raw: &[u8]) -> TransferAction {
-    let mut decoder = Decoder::new(raw);
-    let transfer = &mut TransferAction::default();
-    decoder.unpack(transfer);
-    transfer.clone()
-}
-
-pub fn decode_withdraw(raw: &[u8]) -> WithdrawAction {
-    let mut decoder = Decoder::new(raw);
-    let withdraw = &mut WithdrawAction::default();
-    decoder.unpack(withdraw);
-    withdraw.clone()
-}
-
-pub fn decode_setrevision(raw: &[u8]) -> SetRevisionAction {
-    let mut decoder = Decoder::new(raw);
-    let setrevision = &mut SetRevisionAction::default();
-    decoder.unpack(setrevision);
-    setrevision.clone()
-}
-
-pub fn decode_openwallet(raw: &[u8]) -> OpenWalletAction {
-    let mut decoder = Decoder::new(raw);
-    let openwallet = &mut OpenWalletAction::default();
-    decoder.unpack(openwallet);
-    openwallet.clone()
-}
-
-pub fn decode_create(raw: &[u8]) -> CreateAction {
-    let mut decoder = Decoder::new(raw);
-    let create = &mut CreateAction::default();
-    decoder.unpack(create);
-    create.clone()
+pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
+    let mut result = T::default();
+    result.unpack(raw);
+    result
 }
 
 impl ProcessingEVMBlock {
@@ -230,7 +195,7 @@ impl ProcessingEVMBlock {
 
         if action_account == EOSIO_EVM && action_name == RAW {
             // Normally signed EVM transaction
-            let raw = decode_raw(&action.data());
+            let raw: RawAction = decode(&action.data());
             let printed_receipt = PrintedReceipt::from_console(action.console());
             if printed_receipt.is_none() {
                 panic!(
@@ -257,7 +222,7 @@ impl ProcessingEVMBlock {
             }
         } else if action_account == EOSIO_EVM && action_name == WITHDRAW {
             // Withdrawal from EVM
-            let withdraw_action = decode_withdraw(&action.data());
+            let withdraw_action: WithdrawAction = decode(&action.data());
             let transaction = TelosEVMTransaction::from_withdraw(
                 self.chain_id,
                 self.transactions.len(),
@@ -272,7 +237,7 @@ impl ProcessingEVMBlock {
             && action_receiver == EOSIO_EVM
         {
             // Deposit/transfer to EVM
-            let transfer_action = decode_transfer(&action.data());
+            let transfer_action: TransferAction = decode(&action.data());
             if transfer_action.to.n != EOSIO_EVM
                 || SYSTEM_ACCOUNTS.contains(&transfer_action.from.n)
             {
@@ -305,18 +270,18 @@ impl ProcessingEVMBlock {
 
             self.new_gas_price = Some(gas_price);
         } else if action_account == EOSIO_EVM && action_name == SETREVISION {
-            let rev_action = decode_setrevision(&action.data());
+            let rev_action: SetRevisionAction = decode(&action.data());
 
             self.new_revision = Some(rev_action.new_revision);
         } else if action_account == EOSIO_EVM && action_name == OPENWALLET {
-            let wallet_action = decode_openwallet(&action.data());
+            let wallet_action: OpenWalletAction = decode(&action.data());
 
             self.new_wallets.push(WalletEvents::OpenWallet(
                 self.transactions.len(),
                 wallet_action,
             ));
         } else if action_account == EOSIO_EVM && action_name == CREATE {
-            let wallet_action = decode_create(&action.data());
+            let wallet_action: CreateAction = decode(&action.data());
             self.new_wallets.push(WalletEvents::CreateWallet(
                 self.transactions.len(),
                 wallet_action,
@@ -352,21 +317,13 @@ impl ProcessingEVMBlock {
                     // }
                     if r.code == Name::new_from_str("eosio.evm") {
                         if r.table == Name::new_from_str("config") {
-                            let mut decoder = Decoder::new(r.value.as_slice());
-                            let mut decoded_row = EOSConfigRow::default();
-                            decoder.unpack(&mut decoded_row);
-                            self.decoded_rows.push(DecodedRow::Config(decoded_row));
+                            self.decoded_rows.push(DecodedRow::Config(decode(&r.value)));
                         } else if r.table == Name::new_from_str("account") {
-                            let mut decoder = Decoder::new(r.value.as_slice());
-                            let mut decoded_row = AccountRow::default();
-                            decoder.unpack(&mut decoded_row);
-                            self.decoded_rows.push(DecodedRow::Account(decoded_row));
-                        } else if r.table == Name::new_from_str("accountstate") {
-                            let mut decoder = Decoder::new(r.value.as_slice());
-                            let mut decoded_row = AccountStateRow::default();
-                            decoder.unpack(&mut decoded_row);
                             self.decoded_rows
-                                .push(DecodedRow::AccountState(decoded_row));
+                                .push(DecodedRow::Account(decode(&r.value)));
+                        } else if r.table == Name::new_from_str("accountstate") {
+                            self.decoded_rows
+                                .push(DecodedRow::AccountState(decode(&r.value)));
                         }
                     }
                 }

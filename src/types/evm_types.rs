@@ -29,7 +29,7 @@ pub struct TransferAction {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
-pub struct EOSConfigRow {
+pub struct EvmContractConfigRow {
     pub trx_index: u32,
     pub last_block: u32,
     pub gas_used_block: Checksum256,
