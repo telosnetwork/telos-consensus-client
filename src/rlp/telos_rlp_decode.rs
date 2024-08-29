@@ -3,6 +3,7 @@ use alloy::primitives::{Bytes, Parity, Signature, TxKind, U256};
 use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
 
 use alloy_rlp::Result;
+use bytes::Buf;
 
 fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy, Error> {
     let nonce = u64::decode(data).map_err(|_| Error::Custom("Failed to decode nonce"))?;
@@ -45,11 +46,17 @@ impl TelosTxDecodable for TxLegacy {
         let mut s = U256::ZERO;
 
         if !buf.is_empty() {
-            let signature = Signature::decode_rlp_vrs(buf)?;
-            // extract chain id from signature
-            v = signature.v();
-            r = signature.r();
-            s = signature.s();
+            // There are some native signed transactions which were RLP encoded with 0 values for signature
+            //   in RLP encoding these 0 values are encoded as [128, 128, 128], so we need purge them
+            //   from the buffer but leave signature value as zeros
+            if buf == &[128,128,128] {
+                buf.advance(3);
+            } else {
+                let signature = Signature::decode_rlp_vrs(buf)?;
+                v = signature.v();
+                r = signature.r();
+                s = signature.s();
+            }
         }
 
         if v.to_u64() != 0 || r != U256::ZERO || s != U256::ZERO {
