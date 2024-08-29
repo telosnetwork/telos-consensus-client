@@ -1,7 +1,6 @@
 use alloy::hex::FromHex;
 use alloy::primitives::{Bytes, B256, U256};
 use alloy_consensus::{Signed, TxEnvelope, TxLegacy};
-use alloy_rlp::Encodable;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

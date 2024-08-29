@@ -1,6 +1,3 @@
-use alloy::hex;
-use alloy::primitives::{address, TxKind, B256, U256};
-use antelope::api::client::{APIClient, DefaultProvider};
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
 use telos_translator_rs::translator::TranslatorConfig;

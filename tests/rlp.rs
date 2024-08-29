@@ -8,7 +8,7 @@ use telos_translator_rs::transaction::make_unique_vrs;
 
 #[test]
 fn test_unsigned_trx() {
-    let mut raw = hex::decode("f78212aa8575a1c379a28307a120947282835cf78a5e88a52fc701f09d1614635be4b8900000000000000000000000000000000080").unwrap();
+    let raw = hex::decode("f78212aa8575a1c379a28307a120947282835cf78a5e88a52fc701f09d1614635be4b8900000000000000000000000000000000080").unwrap();
 
     let tx = TxLegacy::decode_telos_signed_fields(
         &mut raw.as_slice(),

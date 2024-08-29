@@ -41,7 +41,7 @@ async fn mock_fork() {
     // configure a fork from block 30 to 25
     let mock_client = LeapMockClient::new(&format!("http://localhost:{cntr_control_port}"));
 
-    let chain_info = mock_client
+    let _chain_info = mock_client
         .set_chain(ChainDescriptor {
             chain_id: None,
             start_time: None,
