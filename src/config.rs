@@ -1,5 +1,6 @@
 use clap::Parser;
 use serde::Deserialize;
+use tracing::level_filters::LevelFilter;
 
 /// Telos Consensus Client CLI Arguments
 #[derive(Parser, Debug)]
@@ -12,6 +13,9 @@ pub struct CliArgs {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct AppConfig {
+    /// Log level for the application    
+    pub log_level: String,
+    
     /// EVM Chain id, Telos mainnet is 40 and testnet is 41
     pub chain_id: u64,
 
