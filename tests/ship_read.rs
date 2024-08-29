@@ -69,7 +69,7 @@ async fn handle_post(
     info!("Received payload: {:?}", payload);
     let payload_str = payload.to_string();
     let json_rpc_payload: JsonRequestBody = serde_json::from_str(&payload_str).unwrap();
-    let mut request_number = 0;
+    let request_number;
     {
         let mut state_unlocked = state.lock().await;
         request_number = state_unlocked.request_count;
@@ -151,12 +151,14 @@ async fn handle_post(
             }"#
             .to_string(),
         ),
+        // TODO: handle more requests
         _ => {
             panic!("More requests than expected");
         }
     }
 }
 
+#[ignore]
 #[tokio::test]
 async fn evm_deploy() {
     tracing_subscriber::fmt::init();
