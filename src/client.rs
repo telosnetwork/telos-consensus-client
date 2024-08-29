@@ -10,7 +10,6 @@ use reth_rpc_types::engine::ForkchoiceState;
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
-use telos_translator_rs::transaction::Transaction;
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -77,7 +76,6 @@ impl ConsensusClient {
             block_process_threads: None,
             raw_message_channel_size: None,
             block_message_channel_size: None,
-            order_message_channel_size: None,
             final_message_channel_size: None,
         })
     }
@@ -147,13 +145,18 @@ impl ConsensusClient {
 
                 let mut transactions = vec![];
                 for tx in block.transactions.iter() {
-                    match tx {
-                        Transaction::LegacySigned(legacy_tx, _) => {
-                            let tx_envelope = TxEnvelope::from(legacy_tx.clone());
-                            let encoded = encode(tx_envelope);
-                            transactions.push(Bytes::from(encoded));
-                        }
-                    }
+                    let encoded = encode(tx.envelope.clone());
+                    transactions.push(Bytes::from(encoded));
+                    // match tx.envelope {
+                    //     TxEnvelope::Legacy(l) => {
+                    //         let tx_envelope = TxEnvelope::from(l.clone());
+                    //         let encoded = encode(tx_envelope);
+                    //         transactions.push(Bytes::from(encoded));
+                    //     }
+                    //     TxEnvelope::Eip2930(_) => {}
+                    //     TxEnvelope::Eip1559(_) => {}
+                    //     TxEnvelope::Eip4844(_) => {}
+                    // }
                 }
 
                 let execution_payload = ExecutionPayloadV1 {
