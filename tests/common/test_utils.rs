@@ -1,6 +1,7 @@
 use alloy::hex::FromHex;
 use alloy::primitives::{Bytes, B256, U256};
-use alloy_consensus::{Signed, TxEip1559, TxLegacy};
+use alloy_consensus::{Signed, TxEnvelope, TxLegacy};
+use alloy_rlp::Encodable;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -194,7 +195,6 @@ pub struct RawEvmTx {
 
 use serde_json::Result as SerdeResult;
 use telos_translator_rs::block::TelosEVMBlock;
-use telos_translator_rs::transaction::Transaction;
 
 pub struct TelosEVM15Block {
     pub block: TelosEVM15Delta,
@@ -232,6 +232,7 @@ pub fn load_15_data() -> SerdeResult<HashMap<u32, TelosEVM15Block>> {
     Ok(blocks)
 }
 use num_traits::Num;
+use telos_translator_rs::transaction::TelosEVMTransaction;
 
 pub fn compare_legacy(stx: &Signed<TxLegacy>, tx15: &RawEvmTx, trx_index: usize, block_num: u32) {
     let tx = stx.tx();
@@ -317,7 +318,8 @@ pub fn compare_legacy(stx: &Signed<TxLegacy>, tx15: &RawEvmTx, trx_index: usize,
     );
 }
 
-pub fn compare_1559(stx: &Signed<TxEip1559>, tx15: &RawEvmTx, trx_index: usize, block_num: u32) {
+pub fn compare_1559(envelope: &TxEnvelope, tx15: &RawEvmTx, trx_index: usize, block_num: u32) {
+    let stx = envelope.as_eip1559().unwrap();
     let tx = stx.tx();
     assert_eq!(
         tx.nonce,
@@ -414,8 +416,10 @@ pub fn compare_1559(stx: &Signed<TxEip1559>, tx15: &RawEvmTx, trx_index: usize, 
     );
 
     let mut tx_buff: Vec<u8> = Vec::new();
-    tx_buff.push(0x02);
-    tx.encode_with_signature_fields(stx.signature(), &mut tx_buff);
+    tx_buff.push(u8::from(envelope.tx_type()));
+    let stx = envelope.as_eip1559().unwrap();
+    stx.tx()
+        .encode_with_signature_fields(stx.signature(), &mut tx_buff);
     assert_eq!(
         tx_buff
             .iter()
@@ -436,12 +440,16 @@ pub fn compare_1559(stx: &Signed<TxEip1559>, tx15: &RawEvmTx, trx_index: usize, 
     );
 }
 
-pub fn compare_transaction(tx: &Transaction, tx15: &RawEvmTx, trx_index: usize, block_num: u32) {
-    match tx {
-        Transaction::LegacySigned(stx, _receipt) => {
-            compare_legacy(stx, &tx15, trx_index, block_num)
-        }
-        Transaction::EIP1559Signed(stx, _receipt) => compare_1559(stx, &tx15, trx_index, block_num),
+pub fn compare_transaction(
+    tx: &TelosEVMTransaction,
+    tx15: &RawEvmTx,
+    trx_index: usize,
+    block_num: u32,
+) {
+    match &tx.envelope {
+        TxEnvelope::Legacy(stx) => compare_legacy(stx, &tx15, trx_index, block_num),
+        TxEnvelope::Eip1559(_stx) => compare_1559(&tx.envelope, &tx15, trx_index, block_num),
+        _ => panic!("not implemented!"),
     }
 }
 

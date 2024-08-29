@@ -3,8 +3,10 @@ use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, Withdra
 use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::private::alloy_rlp::Error;
 use alloy::primitives::TxKind::Call;
-use alloy::primitives::{Address, Log, Signature, B256, U256};
-use alloy_consensus::{SignableTransaction, Signed, TxEip1559, TxLegacy};
+use alloy::primitives::{Address, Log, Signature, TxHash, B256, U256};
+use alloy_consensus::{
+    ReceiptWithBloom, SignableTransaction, Signed, TxEnvelope, TxLegacy, TxReceipt,
+};
 use alloy_rlp::Decodable;
 use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
@@ -27,12 +29,12 @@ pub fn make_unique_vrs(
 }
 
 #[derive(Clone)]
-pub enum Transaction {
-    LegacySigned(Signed<TxLegacy>, Option<PrintedReceipt>),
-    EIP1559Signed(Signed<TxEip1559>, PrintedReceipt),
+pub struct TelosEVMTransaction {
+    pub envelope: TxEnvelope,
+    pub receipt: PrintedReceipt,
 }
 
-impl Transaction {
+impl TelosEVMTransaction {
     pub async fn from_raw_action(
         _chain_id: u64,
         trx_index: usize,
@@ -42,7 +44,7 @@ impl Transaction {
     ) -> Result<Self, Error> {
         // TODO: Check for unsigned transactions and handle correctly
         // TODO: Set trx_index properly for signed and unsigned transactions
-        let tx_raw = &mut raw.tx.as_slice();
+        let mut tx_raw = &mut raw.tx.as_slice();
 
         if tx_raw[0] >= 0xc0 && tx_raw[0] <= 0xfe {
             let signed_legacy_result = TxLegacy::decode_signed_fields(tx_raw);
@@ -55,7 +57,8 @@ impl Transaction {
                 let sig = make_unique_vrs(block_hash, address, trx_index);
                 let unsigned_legacy =
                     TxLegacy::decode_telos_signed_fields(&mut raw.tx.clone().as_slice(), sig)?;
-                return Ok(Transaction::LegacySigned(unsigned_legacy, Some(receipt)));
+                let envelope = TxEnvelope::Legacy(unsigned_legacy);
+                return Ok(TelosEVMTransaction { envelope, receipt });
             }
 
             let signed_legacy = signed_legacy_result.unwrap();
@@ -69,17 +72,18 @@ impl Transaction {
                 );
                 let sig = make_unique_vrs(block_hash, address, trx_index);
                 let unsigned_legacy = signed_legacy.strip_signature().into_signed(sig);
-                return Ok(Transaction::LegacySigned(unsigned_legacy, Some(receipt)));
+                let envelope = TxEnvelope::Legacy(unsigned_legacy);
+                return Ok(TelosEVMTransaction { envelope, receipt });
             }
 
-            Ok(Transaction::LegacySigned(signed_legacy, Some(receipt)))
+            let envelope = TxEnvelope::Legacy(signed_legacy);
+            Ok(TelosEVMTransaction { envelope, receipt })
         } else {
             let type_bit = tx_raw[0];
-            let mut raw = &tx_raw[1..];
             match type_bit {
                 2 => {
-                    let tx = TxEip1559::decode_signed_fields(&mut raw).unwrap();
-                    Ok(Transaction::EIP1559Signed(tx, receipt))
+                    let envelope = TxEnvelope::decode(&mut tx_raw).unwrap();
+                    Ok(TelosEVMTransaction { envelope, receipt })
                 }
                 _ => panic!("tx type {} not implemented!", type_bit),
             }
@@ -115,8 +119,25 @@ impl Transaction {
         };
 
         let sig = make_unique_vrs(block_hash, Address::ZERO, trx_index);
-        let signed_legacy = tx_legacy.into_signed(sig);
-        Transaction::LegacySigned(signed_legacy, None)
+        let signed_legacy = tx_legacy.clone().into_signed(sig);
+        let mut raw: Vec<u8> = vec![];
+        tx_legacy.encode_with_signature_fields(&sig, &mut raw);
+        let envelope = TxEnvelope::Legacy(signed_legacy);
+        TelosEVMTransaction {
+            envelope,
+            receipt: PrintedReceipt {
+                charged_gas: "".to_string(),
+                trx_index: trx_index as u16,
+                block: 0,
+                status: 1,
+                epoch: 0,
+                createdaddr: "".to_string(),
+                gasused: "5208".to_string(),
+                logs: vec![],
+                output: "".to_string(),
+                errors: None,
+            },
+        }
     }
 
     pub async fn from_withdraw_no_cache(
@@ -139,7 +160,22 @@ impl Transaction {
 
         let sig = make_unique_vrs(block_hash, address, trx_index);
         let signed_legacy = tx_legacy.into_signed(sig);
-        Transaction::LegacySigned(signed_legacy, None)
+        let envelope = TxEnvelope::Legacy(signed_legacy);
+        TelosEVMTransaction {
+            envelope,
+            receipt: PrintedReceipt {
+                charged_gas: "".to_string(),
+                trx_index: trx_index as u16,
+                block: 0,
+                status: 1,
+                epoch: 0,
+                createdaddr: "".to_string(),
+                gasused: "5208".to_string(),
+                logs: vec![],
+                output: "".to_string(),
+                errors: None,
+            },
+        }
     }
 
     pub async fn from_withdraw(
@@ -153,29 +189,21 @@ impl Transaction {
             .get(action.to.n)
             .await
             .expect("Failed to get address");
-        Transaction::from_withdraw_no_cache(chain_id, trx_index, block_hash, action, address).await
+        TelosEVMTransaction::from_withdraw_no_cache(
+            chain_id, trx_index, block_hash, action, address,
+        )
+        .await
     }
 
     pub fn hash(&self) -> &B256 {
-        match self {
-            Transaction::LegacySigned(signed_legacy, _receipt) => signed_legacy.hash(),
-            Transaction::EIP1559Signed(tx, _receipt) => tx.hash(),
-        }
+        self.envelope.tx_hash()
     }
 
     pub fn logs(&self) -> Vec<Log> {
-        match self {
-            Transaction::LegacySigned(_, Some(receipt)) => receipt.logs.clone(),
-            _ => vec![],
-        }
+        self.receipt.logs.clone()
     }
 
     pub fn gas_used(&self) -> U256 {
-        match self {
-            Transaction::LegacySigned(_, Some(receipt)) => {
-                receipt.gasused.parse().expect("Failed to parse gas used")
-            }
-            _ => U256::ZERO,
-        }
+        self.receipt.gasused.parse().unwrap()
     }
 }

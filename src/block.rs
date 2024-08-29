@@ -1,4 +1,4 @@
-use crate::transaction::Transaction;
+use crate::transaction::TelosEVMTransaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
 use crate::types::evm_types::{
     AccountRow, AccountStateRow, CreateAction, EOSConfigRow, OpenWalletAction, PrintedReceipt,
@@ -11,7 +11,7 @@ use crate::types::ship_types::{
 use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::{Bloom, Bytes, FixedBytes, Log, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
-use alloy_consensus::{Eip658Value, Header, Receipt, ReceiptWithBloom};
+use alloy_consensus::{Eip658Value, Header, Receipt, ReceiptWithBloom, TxEnvelope};
 use alloy_rlp::Encodable;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
@@ -91,7 +91,7 @@ pub struct ProcessingEVMBlock {
     block_traces: Option<Vec<TransactionTrace>>,
     contract_rows: Option<Vec<ContractRow>>,
     pub decoded_rows: Vec<DecodedRow>,
-    pub transactions: Vec<Transaction>,
+    pub transactions: Vec<TelosEVMTransaction>,
     pub new_gas_price: Option<U256>,
     pub new_revision: Option<u32>,
     pub new_wallets: Vec<WalletEvents>,
@@ -102,7 +102,7 @@ pub struct TelosEVMBlock {
     pub header: Header,
     pub block_num: u32,
     pub block_hash: B256,
-    pub transactions: Vec<Transaction>,
+    pub transactions: Vec<TelosEVMTransaction>,
 
     pub new_gas_price: Option<U256>,
     pub new_revision: Option<u32>,
@@ -241,7 +241,7 @@ impl ProcessingEVMBlock {
                     self.block_num
                 );
             }
-            let transaction_result = Transaction::from_raw_action(
+            let transaction_result = TelosEVMTransaction::from_raw_action(
                 self.chain_id,
                 self.transactions.len(),
                 self.block_hash,
@@ -261,7 +261,7 @@ impl ProcessingEVMBlock {
         } else if action_account == EOSIO_EVM && action_name == WITHDRAW {
             // Withdrawal from EVM
             let withdraw_action = decode_withdraw(&action.data());
-            let transaction = Transaction::from_withdraw(
+            let transaction = TelosEVMTransaction::from_withdraw(
                 self.chain_id,
                 self.transactions.len(),
                 self.block_hash,
@@ -282,7 +282,7 @@ impl ProcessingEVMBlock {
                 return;
             }
 
-            let transaction = Transaction::from_transfer(
+            let transaction = TelosEVMTransaction::from_transfer(
                 self.chain_id,
                 self.transactions.len(),
                 self.block_hash,
@@ -392,28 +392,11 @@ impl ProcessingEVMBlock {
         let mut cumulative_gas_used = 0;
         let mut receipts: Vec<ReceiptWithBloom> = vec![];
         for transaction in &self.transactions {
-            let mut tx_gas_used = 21000;
-            let mut logs = vec![];
+            let tx_gas_used = u128::from_str_radix(&transaction.receipt.gasused, 16).unwrap();
+            let mut logs = transaction.receipt.logs.clone();
             let mut logs_bloom = Bloom::default();
-            match transaction {
-                Transaction::LegacySigned(_tx, maybe_receipt) => {
-                    if let Some(receipt) = maybe_receipt {
-                        tx_gas_used = u128::from_str_radix(&receipt.gasused, 16)
-                            .expect("Unable to parse gasused from receipt");
-                        logs = receipt.logs.clone();
-                        for log in &logs {
-                            logs_bloom.accrue_log(log);
-                        }
-                    }
-                }
-                Transaction::EIP1559Signed(_tx, receipt) => {
-                    tx_gas_used = u128::from_str_radix(&receipt.gasused, 16)
-                        .expect("Unable to parse gasused from receipt");
-                    logs = receipt.logs.clone();
-                    for log in &logs {
-                        logs_bloom.accrue_log(log);
-                    }
-                }
+            for log in &logs {
+                logs_bloom.accrue_log(log);
             }
             cumulative_gas_used += tx_gas_used;
             let full_receipt = ReceiptWithBloom {
@@ -426,15 +409,20 @@ impl ProcessingEVMBlock {
             };
             receipts.push(full_receipt);
         }
-        let tx_root_hash = ordered_trie_root_with_encoder(&self.transactions, |tx, buf| match tx {
-            Transaction::LegacySigned(tx, _receipt) => {
-                tx.tx().encode_with_signature_fields(tx.signature(), buf)
-            }
-            Transaction::EIP1559Signed(tx, _receipt) => {
-                buf.push(0x02);
-                tx.tx().encode_with_signature_fields(tx.signature(), buf)
-            }
-        });
+        let tx_root_hash =
+            ordered_trie_root_with_encoder(&self.transactions, |tx, buf| match &tx.envelope {
+                TxEnvelope::Legacy(_stx) => tx.envelope.encode(buf),
+                envelope => {
+                    buf.push(u8::from(envelope.tx_type()));
+
+                    if envelope.is_eip1559() {
+                        let stx = envelope.as_eip1559().unwrap();
+                        stx.tx().encode_with_signature_fields(stx.signature(), buf);
+                    } else {
+                        panic!("unimplemented tx type");
+                    }
+                }
+            });
         let receipts_root_hash =
             ordered_trie_root_with_encoder(&receipts, |r: &ReceiptWithBloom, buf| r.encode(buf));
         let mut logs_bloom = Bloom::default();
