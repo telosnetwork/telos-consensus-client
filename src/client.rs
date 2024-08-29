@@ -82,7 +82,7 @@ impl ConsensusClient {
         })
     }
 
-    pub async fn run(&mut self) -> Result<(), Error> {
+    pub async fn run(&self) -> Result<(), Error> {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 
         let mut translator = Self::make_translator(&self.config);
