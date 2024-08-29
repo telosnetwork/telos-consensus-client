@@ -8,7 +8,10 @@ use telos_translator_rs::transaction::make_unique_vrs;
 
 #[test]
 fn test_unsigned_trx() {
-    let raw = hex::decode("f78212aa8575a1c379a28307a120947282835cf78a5e88a52fc701f09d1614635be4b8900000000000000000000000000000000080").unwrap();
+    let raw = hex::decode(
+        "e7808082520894d80744e16d62c62c5fa2a04b92da3fe6b9efb5238b52e00fde054bb73290000080",
+    )
+    .unwrap();
 
     let tx = TxLegacy::decode_telos_signed_fields(
         &mut raw.as_slice(),
@@ -29,6 +32,9 @@ fn test_unsigned_trx() {
         panic!("Failed to decode unsigned transaction");
     }
     let (tx, sig, _hash) = tx.unwrap().into_parts();
-    assert_eq!(tx.value, U256::ZERO);
+    assert_eq!(
+        tx.value,
+        U256::from_str_radix("52e00fde054bb732900000", 16).unwrap()
+    );
     assert_eq!(sig.v(), Eip155(42));
 }
