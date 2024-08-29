@@ -69,12 +69,11 @@ async fn handle_post(
     info!("Received payload: {:?}", payload);
     let payload_str = payload.to_string();
     let json_rpc_payload: JsonRequestBody = serde_json::from_str(&payload_str).unwrap();
-    let mut request_number = 0;
-    {
-        let mut state_unlocked = state.lock().await;
-        request_number = state_unlocked.request_count;
-        state_unlocked.request_count = request_number + 1;
-    }
+    let request_number = {
+        let mut state = state.lock().await;
+        state.request_count += 1;
+        state.request_count
+    };
     match request_number {
         0 => {
             assert_eq!(
