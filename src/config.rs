@@ -1,6 +1,5 @@
 use clap::Parser;
 use serde::Deserialize;
-use tracing::level_filters::LevelFilter;
 
 /// Telos Consensus Client CLI Arguments
 #[derive(Parser, Debug)]
