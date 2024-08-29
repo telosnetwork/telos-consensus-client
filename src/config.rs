@@ -15,7 +15,7 @@ pub struct CliArgs {
 pub struct AppConfig {
     /// Log level for the application    
     pub log_level: String,
-    
+
     /// EVM Chain id, Telos mainnet is 40 and testnet is 41
     pub chain_id: u64,
 
