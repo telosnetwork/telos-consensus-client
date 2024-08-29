@@ -203,6 +203,7 @@ async fn evm_deploy() {
     let shutdown_tx = mock_execution_api.start().await;
 
     let config = AppConfig {
+        log_level: "debug".to_string(),
         chain_id: 41,
         execution_endpoint: format!("http://localhost:{MOCK_EXECUTION_API_PORT}"),
         jwt_secret: "57ea261c64b8a871e4df3f0c790efd0d02f9846e5085483e3098f30118fd1520".to_string(),
