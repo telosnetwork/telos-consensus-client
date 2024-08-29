@@ -5,6 +5,7 @@ use alloy_consensus::TxEnvelope;
 use alloy_rlp::encode;
 use log::{debug, error};
 use reth_primitives::{Bytes, B256, U256};
+use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_rpc_types::engine::ForkchoiceState;
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
@@ -30,7 +31,7 @@ pub struct ConsensusClient {
     translator: Translator,
     execution_api: ExecutionApiClient,
     //latest_consensus_block: ExecutionPayloadV1,
-    latest_valid_executor_block: Block,
+    latest_valid_executor_block: Option<Block>,
     //is_forked: bool,
 }
 
@@ -40,8 +41,21 @@ impl ConsensusClient {
 
         let execution_api = ExecutionApiClient::new(config.execution_endpoint, config.jwt_secret);
         //let latest_consensus_block = ConsensusClient::get_latest_consensus_block(&translator).await;
-        let latest_executor_block =
-            ConsensusClient::get_latest_executor_block(&execution_api).await.unwrap();
+        let latest_executor_block_response =
+            ConsensusClient::get_latest_executor_block(&execution_api).await;
+
+        let mut latest_executor_block = None;
+
+        match latest_executor_block_response {
+            Ok(res) => {
+                latest_executor_block = res;
+            }
+            Err(e) => {
+
+                // todo handle error
+            }
+        }
+
 
         let translator = Translator::new(TranslatorConfig {
             chain_id: config.chain_id,
@@ -70,7 +84,7 @@ impl ConsensusClient {
         }
     }
 
-    async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Result<Block, ExecutionApiError> {
+    async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Result<Option<Block>, ExecutionApiError> {
         execution_api
             .block_by_number(None, false)
             .await
@@ -86,15 +100,18 @@ impl ConsensusClient {
         while let Some(block) = rx.recv().await {
             // Set this to true only once, if we are caught up
             if !send_to_executor {
-                // if this block is older than the latest valid executor block, skip it
-                send_to_executor = block.block_num
-                    > self.latest_valid_executor_block.header.number.unwrap() as u32;
-                if send_to_executor {
-                    // this is our first chance to compare block hashes of the latest executor block and the latest consensus block
-                    if self.latest_valid_executor_block.header.hash.unwrap() != block.block_hash {
-                        error!("Fork detected! Latest executor block hash {:?} does not match consensus block hash {:?}",
-                               self.latest_valid_executor_block.header.hash.unwrap(), block.block_hash);
-                        return Err(Error::ExecutorHashMismatch);
+                if let Some(latest_block) = &self.latest_valid_executor_block {
+                    let block_number = latest_block.header.number.unwrap().as_u32();
+                    // if this block is older than the latest valid executor block, skip it
+                    send_to_executor = block.block_num
+                        > block_number;
+                    if send_to_executor {
+                        // this is our first chance to compare block hashes of the latest executor block and the latest consensus block
+                        if latest_block.header.hash.unwrap() != block.block_hash {
+                            error!("Fork detected! Latest executor block hash {:?} does not match consensus block hash {:?}",
+                               latest_block.header.hash.unwrap(), block.block_hash);
+                            return Err(Error::ExecutorHashMismatch);
+                        }
                     }
                 }
             }
