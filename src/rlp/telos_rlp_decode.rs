@@ -49,7 +49,7 @@ impl TelosTxDecodable for TxLegacy {
             // There are some native signed transactions which were RLP encoded with 0 values for signature
             //   in RLP encoding these 0 values are encoded as [128, 128, 128], so we need purge them
             //   from the buffer but leave signature value as zeros
-            if buf == &[128,128,128] {
+            if buf == &[128, 128, 128] {
                 buf.advance(3);
             } else {
                 let signature = Signature::decode_rlp_vrs(buf)?;

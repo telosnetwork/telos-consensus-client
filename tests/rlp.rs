@@ -38,8 +38,6 @@ fn test_unsigned_trx() {
     );
 }
 
-
-
 #[test]
 fn test_unsigned_trx2() {
     let raw = hex::decode(
@@ -53,7 +51,7 @@ fn test_unsigned_trx2() {
             Checksum256::from_hex(
                 "00000032f9ff3095950dbef8701acc5f0eb193e3c2d089da0e2237659048d62b",
             )
-                .unwrap(),
+            .unwrap(),
             Address::ZERO,
             0,
         ),
