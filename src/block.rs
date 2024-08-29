@@ -9,18 +9,15 @@ use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
 use crate::types::translator_types::NameToAddressCache;
-use alloy::primitives::{Bloom, Bytes, FixedBytes, Log, B256, U256};
+use alloy::primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Eip658Value, Header, Receipt, ReceiptWithBloom, TxEnvelope};
 use alloy_rlp::Encodable;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::chain::Decoder;
-use num_bigint::BigUint;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
-use serde::Serialize;
 use std::cmp::Ordering;
-use std::hash::Hash;
 use tracing::warn;
 
 pub trait BasicTrace {
@@ -393,7 +390,7 @@ impl ProcessingEVMBlock {
         let mut receipts: Vec<ReceiptWithBloom> = vec![];
         for transaction in &self.transactions {
             let tx_gas_used = u128::from_str_radix(&transaction.receipt.gasused, 16).unwrap();
-            let mut logs = transaction.receipt.logs.clone();
+            let logs = transaction.receipt.logs.clone();
             let mut logs_bloom = Bloom::default();
             for log in &logs {
                 logs_bloom.accrue_log(log);

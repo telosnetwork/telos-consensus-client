@@ -3,10 +3,8 @@ use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, Withdra
 use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::private::alloy_rlp::Error;
 use alloy::primitives::TxKind::Call;
-use alloy::primitives::{Address, Log, Signature, TxHash, B256, U256};
-use alloy_consensus::{
-    ReceiptWithBloom, SignableTransaction, Signed, TxEnvelope, TxLegacy, TxReceipt,
-};
+use alloy::primitives::{Address, Log, Signature, B256, U256};
+use alloy_consensus::{SignableTransaction, TxEnvelope, TxLegacy};
 use alloy_rlp::Decodable;
 use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
@@ -44,7 +42,7 @@ impl TelosEVMTransaction {
     ) -> Result<Self, Error> {
         // TODO: Check for unsigned transactions and handle correctly
         // TODO: Set trx_index properly for signed and unsigned transactions
-        let mut tx_raw = &mut raw.tx.as_slice();
+        let tx_raw = &mut raw.tx.as_slice();
 
         if tx_raw[0] >= 0xc0 && tx_raw[0] <= 0xfe {
             let signed_legacy_result = TxLegacy::decode_signed_fields(tx_raw);
@@ -82,7 +80,7 @@ impl TelosEVMTransaction {
             let type_bit = tx_raw[0];
             match type_bit {
                 2 => {
-                    let envelope = TxEnvelope::decode(&mut tx_raw).unwrap();
+                    let envelope = TxEnvelope::decode(tx_raw).unwrap();
                     Ok(TelosEVMTransaction { envelope, receipt })
                 }
                 _ => panic!("tx type {} not implemented!", type_bit),
