@@ -446,8 +446,8 @@ pub fn compare_transaction(
     block_num: u32,
 ) {
     match &tx.envelope {
-        TxEnvelope::Legacy(stx) => compare_legacy(stx, &tx15, trx_index, block_num),
-        TxEnvelope::Eip1559(_stx) => compare_1559(&tx.envelope, &tx15, trx_index, block_num),
+        TxEnvelope::Legacy(stx) => compare_legacy(stx, tx15, trx_index, block_num),
+        TxEnvelope::Eip1559(_stx) => compare_1559(&tx.envelope, tx15, trx_index, block_num),
         _ => panic!("not implemented!"),
     }
 }

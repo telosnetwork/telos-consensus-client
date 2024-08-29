@@ -8,7 +8,6 @@ use alloy_consensus::{SignableTransaction, TxEnvelope, TxLegacy};
 use alloy_rlp::Decodable;
 use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
-use std::str::FromStr;
 
 pub fn make_unique_vrs(
     block_hash_native: Checksum256,

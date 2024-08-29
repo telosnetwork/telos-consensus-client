@@ -1,7 +1,6 @@
 use alloy::hex;
 use alloy::hex::FromHex;
-use alloy::primitives::Parity::Eip155;
-use alloy::primitives::{Address, B256, U256};
+use alloy::primitives::{Address, B256};
 use alloy_consensus::TxLegacy;
 use antelope::chain::checksum::Checksum256;
 use telos_translator_rs::rlp::telos_rlp_decode::TelosTxDecodable;
