@@ -117,7 +117,7 @@ impl ExecutionApiClient {
         &self,
         rpc_requests: Vec<RpcRequest>,
     ) -> Result<Vec<JsonResponseBody>, ExecutionApiError> {
-        let counter = 0;
+        let mut counter = 0;
         const JSONRPC: &str = "2.0";
         let mut batch_requests = vec![];
         for rpc_request in rpc_requests {
@@ -130,6 +130,7 @@ impl ExecutionApiClient {
                 id,
             };
             batch_requests.push(rpc_payload);
+            counter += 1;
         }
 
         let token = self.jwt_secret.generate_token()?;
