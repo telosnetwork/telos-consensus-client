@@ -222,7 +222,7 @@ impl ConsensusClient {
         debug!("fork_choice_updated_result {:?}", fork_choice_updated);
 
         if fork_choice_updated.is_invalid() || fork_choice_updated.is_syncing() {
-            info!("Fork choice update status is {} ", fork_choice_updated.payload_status.status);
+            debug!("Fork choice update status is {} ", fork_choice_updated.payload_status.status);
             return Err(ForkChoiceUpdatedError(format!("Invalid status {}", fork_choice_updated.payload_status.status)));
         }
 
