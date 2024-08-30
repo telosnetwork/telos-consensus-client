@@ -27,8 +27,8 @@ pub enum Error {
     SpawnTranslatorError,
     #[error("Executor hash mismatch.")]
     ExecutorHashMismatch,
-    #[error("Fork choice updated error.")]
-    ForkChoiceUpdatedError,
+    #[error("Fork choice updated error")]
+    ForkChoiceUpdatedError(String),
 }
 
 pub struct ConsensusClient {
@@ -209,21 +209,21 @@ impl ConsensusClient {
 
         let fork_choice_updated = fork_choice_updated_result.map_err(|e| {
             debug!("Fork choice error: {}", e);
-            ForkChoiceUpdatedError
+            ForkChoiceUpdatedError(e.to_string())
         })?;
 
 
         if let Some(error) = fork_choice_updated.error {
             debug!("Fork choice error: {:?}", error);
-            return Err(ForkChoiceUpdatedError);
+            return Err(ForkChoiceUpdatedError(error.message));
         }
 
         let fork_choice_updated: ForkchoiceUpdated = serde_json::from_value(fork_choice_updated.result).unwrap();
-        info!("fork_choice_updated_result {:?}", fork_choice_updated);
+        debug!("fork_choice_updated_result {:?}", fork_choice_updated);
 
         if fork_choice_updated.is_invalid() || fork_choice_updated.is_syncing() {
             info!("Fork choice update status is {} ", fork_choice_updated.payload_status.status);
-            return Err(Error::ForkChoiceUpdatedError);
+            return Err(ForkChoiceUpdatedError(format!("Invalid status {}", fork_choice_updated.payload_status.status)));
         }
 
 
