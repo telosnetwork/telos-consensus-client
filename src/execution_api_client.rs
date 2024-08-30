@@ -1,15 +1,15 @@
 use std::fmt;
 use std::fmt::Display;
 
+use crate::auth::{strip_prefix, Auth, Error, JwtKey};
+use crate::execution_api_client::ExecutionApiError::{ApiError, AuthError, CannotDeserialize};
+use crate::json_rpc::{JsonRequestBody, JsonResponseBody};
 use alloy::primitives::private::derive_more::Display;
-use reqwest::Client;
 use reqwest::header::CONTENT_TYPE;
+use reqwest::Client;
 use reth_rpc_types::Block;
 use serde_json::{json, Value};
 use tracing::info;
-use crate::auth::{Auth, Error, JwtKey, strip_prefix};
-use crate::execution_api_client::ExecutionApiError::{ApiError, AuthError, CannotDeserialize};
-use crate::json_rpc::{JsonRequestBody, JsonResponseBody};
 
 #[derive(Debug, Display)]
 pub enum ExecutionApiError {
@@ -19,7 +19,7 @@ pub enum ExecutionApiError {
 }
 
 pub enum BlockStatus {
-    Latest
+    Latest,
 }
 
 impl fmt::Display for BlockStatus {
@@ -30,7 +30,6 @@ impl fmt::Display for BlockStatus {
         write!(f, "{}", status_str)
     }
 }
-
 
 impl From<Error> for ExecutionApiError {
     fn from(e: Error) -> Self {
@@ -86,7 +85,10 @@ impl ExecutionApiClient {
         }
     }
 
-    pub async fn rpc(&self, rpc_request: RpcRequest) -> Result<JsonResponseBody, ExecutionApiError> {
+    pub async fn rpc(
+        &self,
+        rpc_request: RpcRequest,
+    ) -> Result<JsonResponseBody, ExecutionApiError> {
         let id: Value = json!(1);
         const JSONRPC: &str = "2.0";
         let method = rpc_request.method.to_string();
@@ -144,7 +146,11 @@ impl ExecutionApiClient {
     }
 
     // block_by_number queries api using block number if provided or it returns the latest block.
-    pub async fn block_by_number(&self, block_number: Option<u64>, full: bool) -> Result<Option<Block>, ExecutionApiError> {
+    pub async fn block_by_number(
+        &self,
+        block_number: Option<u64>,
+        full: bool,
+    ) -> Result<Option<Block>, ExecutionApiError> {
         let block_request_param: String;
         if let Some(number) = block_number {
             block_request_param = format!("0x{:x}", number);
@@ -162,7 +168,8 @@ impl ExecutionApiClient {
         if response.result.is_null() {
             Ok(None)
         } else {
-            let block = serde_json::from_value::<Block>(response.result).map_err(|_| CannotDeserialize)?;
+            let block =
+                serde_json::from_value::<Block>(response.result).map_err(|_| CannotDeserialize)?;
             Ok(Some(block))
         }
     }

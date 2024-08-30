@@ -1,11 +1,12 @@
+use crate::client::Error::ForkChoiceUpdated;
 use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
 use alloy_rlp::encode;
 use eyre::Result;
 use log::{debug, error};
-use reth_primitives::{Bytes, B256, U256};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
+use reth_primitives::{Bytes, B256, U256};
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
@@ -13,7 +14,6 @@ use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use crate::client::Error::ForkChoiceUpdatedError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -24,11 +24,11 @@ pub enum Error {
     // #[error("Latest block not found.")]
     // LatestBlockNotFound,
     #[error("Spawn translator error")]
-    SpawnTranslatorError,
+    SpawnTranslator,
     #[error("Executor hash mismatch.")]
     ExecutorHashMismatch,
     #[error("Fork choice updated error")]
-    ForkChoiceUpdatedError(String),
+    ForkChoiceUpdated(String),
 }
 
 pub struct ConsensusClient {
@@ -48,7 +48,6 @@ impl ConsensusClient {
         let latest_executor_block_response =
             ConsensusClient::get_latest_executor_block(&execution_api).await;
 
-
         let latest_executor_block = latest_executor_block_response.unwrap_or_else(|e| {
             panic!("Cannot fetch latest executor block: {}", e);
         });
@@ -62,10 +61,10 @@ impl ConsensusClient {
         }
     }
 
-    async fn get_latest_executor_block(execution_api: &ExecutionApiClient) -> Result<Option<Block>, ExecutionApiError> {
-        execution_api
-            .block_by_number(None, false)
-            .await
+    async fn get_latest_executor_block(
+        execution_api: &ExecutionApiClient,
+    ) -> Result<Option<Block>, ExecutionApiError> {
+        execution_api.block_by_number(None, false).await
     }
 
     fn make_translator(config: &AppConfig) -> Translator {
@@ -95,7 +94,7 @@ impl ConsensusClient {
             translator
                 .launch(Some(tx))
                 .await
-                .map_err(|_| Error::SpawnTranslatorError)
+                .map_err(|_| Error::SpawnTranslator)
         });
 
         let mut batch = vec![];
@@ -104,8 +103,7 @@ impl ConsensusClient {
             // Set this to true only once, if we are caught up from reader to executor's latest block
             if let Some(latest_block) = self.latest_valid_executor_block.clone() {
                 if send_to_executor {
-                    if latest_block.header.number.unwrap() == block.block_num.as_u64()
-                    {
+                    if latest_block.header.number.unwrap() == block.block_num.as_u64() {
                         // We've received the same block from translator as the latest executor block, check if hashes match
                         if latest_block.header.hash.unwrap() != block.block_hash {
                             error!("Fork detected! Latest executor block hash {:?} does not match consensus block hash {:?}",
@@ -115,8 +113,8 @@ impl ConsensusClient {
                     }
 
                     // if this block is older than the latest valid executor block, skip it
-                    send_to_executor = block.block_num
-                        > latest_block.header.number.unwrap().as_u32();
+                    send_to_executor =
+                        block.block_num > latest_block.header.number.unwrap().as_u32();
                 }
             }
 
@@ -134,7 +132,7 @@ impl ConsensusClient {
         }
 
         if launch_handle.await.is_err() {
-            return Err(Error::SpawnTranslatorError);
+            return Err(Error::SpawnTranslator);
         }
 
         Ok(())
@@ -203,28 +201,32 @@ impl ConsensusClient {
             )
             .await;
 
-
         let fork_choice_updated = fork_choice_updated_result.map_err(|e| {
             debug!("Fork choice update error: {}", e);
-            ForkChoiceUpdatedError(e.to_string())
+            ForkChoiceUpdated(e.to_string())
         })?;
-
 
         if let Some(error) = fork_choice_updated.error {
             debug!("Fork choice error: {:?}", error);
-            return Err(ForkChoiceUpdatedError(error.message));
+            return Err(ForkChoiceUpdated(error.message));
         }
 
-        let fork_choice_updated: ForkchoiceUpdated = serde_json::from_value(fork_choice_updated.result).unwrap();
+        let fork_choice_updated: ForkchoiceUpdated =
+            serde_json::from_value(fork_choice_updated.result).unwrap();
         debug!("fork_choice_updated_result {:?}", fork_choice_updated);
 
         // TODO check for all invalid statuses, possible values are:
         // Valid, Invalid, Accepted, Syncing
         if fork_choice_updated.is_invalid() || fork_choice_updated.is_syncing() {
-            debug!("Fork choice update status is {} ", fork_choice_updated.payload_status.status);
-            return Err(ForkChoiceUpdatedError(format!("Invalid status {}", fork_choice_updated.payload_status.status)));
+            debug!(
+                "Fork choice update status is {} ",
+                fork_choice_updated.payload_status.status
+            );
+            return Err(ForkChoiceUpdated(format!(
+                "Invalid status {}",
+                fork_choice_updated.payload_status.status
+            )));
         }
-
 
         // TODO: Check status of fork_choice_updated_result and handle the failure case
         debug!(
@@ -253,14 +255,12 @@ impl ConsensusClient {
             finalized_block_hash: finalized_hash,
         };
 
-        let response = self.execution_api
+        self.execution_api
             .rpc(RpcRequest {
                 method: crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
                 params: json![vec![fork_choice_state]],
             })
-            .await;
-
-        response
+            .await
     }
 
     /*
