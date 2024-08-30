@@ -6,7 +6,7 @@ use reqwest::Client;
 use reqwest::header::CONTENT_TYPE;
 use reth_rpc_types::Block;
 use serde_json::{json, Value};
-
+use tracing::info;
 use crate::auth::{Auth, Error, JwtKey, strip_prefix};
 use crate::execution_api_client::ExecutionApiError::{ApiError, AuthError, CannotDeserialize};
 use crate::json_rpc::{JsonRequestBody, JsonResponseBody};
@@ -160,7 +160,7 @@ impl ExecutionApiClient {
             .await?;
 
         if response.result.is_null() {
-            return Ok(None);
+            Ok(None)
         } else {
             let block = serde_json::from_value::<Block>(response.result).map_err(|_| CannotDeserialize)?;
             Ok(Some(block))
