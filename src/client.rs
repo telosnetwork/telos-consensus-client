@@ -208,7 +208,7 @@ impl ConsensusClient {
 
 
         let fork_choice_updated = fork_choice_updated_result.map_err(|e| {
-            debug!("Fork choice error: {}", e);
+            debug!("Fork choice update error: {}", e);
             ForkChoiceUpdatedError(e.to_string())
         })?;
 
@@ -221,6 +221,8 @@ impl ConsensusClient {
         let fork_choice_updated: ForkchoiceUpdated = serde_json::from_value(fork_choice_updated.result).unwrap();
         debug!("fork_choice_updated_result {:?}", fork_choice_updated);
 
+        // TODO check for all invalid statuses, possible values are:
+        // Valid, Invalid, Accepted, Syncing
         if fork_choice_updated.is_invalid() || fork_choice_updated.is_syncing() {
             debug!("Fork choice update status is {} ", fork_choice_updated.payload_status.status);
             return Err(ForkChoiceUpdatedError(format!("Invalid status {}", fork_choice_updated.payload_status.status)));
