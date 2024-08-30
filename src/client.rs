@@ -3,7 +3,7 @@ use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequ
 use crate::json_rpc::JsonResponseBody;
 use alloy_rlp::encode;
 use eyre::Result;
-use log::{debug, error, info};
+use log::{debug, error};
 use reth_primitives::{Bytes, B256, U256};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
@@ -99,15 +99,14 @@ impl ConsensusClient {
         });
 
         let mut batch = vec![];
-        let mut send_to_executor = false;
+        let mut send_to_executor = true;
         while let Some(block) = rx.recv().await {
             // Set this to true only once, if we are caught up from reader to executor's latest block
-
             if let Some(latest_block) = self.latest_valid_executor_block.clone() {
-                if !send_to_executor {
+                if send_to_executor {
                     if latest_block.header.number.unwrap() == block.block_num.as_u64()
                     {
-                        // We've received the same block from transaltor as the latest executor block, check if hashes match
+                        // We've received the same block from translator as the latest executor block, check if hashes match
                         if latest_block.header.hash.unwrap() != block.block_hash {
                             error!("Fork detected! Latest executor block hash {:?} does not match consensus block hash {:?}",
                                latest_block.header.hash.unwrap(), block.block_hash);
@@ -119,8 +118,6 @@ impl ConsensusClient {
                     send_to_executor = block.block_num
                         > latest_block.header.number.unwrap().as_u32();
                 }
-            } else {
-                send_to_executor = true;
             }
 
             if !send_to_executor {
