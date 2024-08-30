@@ -5,7 +5,6 @@ use crate::json_rpc::JsonResponseBody;
 use alloy_rlp::encode;
 use eyre::Result;
 use log::{debug, error};
-use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_primitives::{Bytes, B256, U256};
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::{Block, ExecutionPayloadV1};
@@ -98,35 +97,34 @@ impl ConsensusClient {
         });
 
         let mut batch = vec![];
-        let mut send_to_executor = true;
         while let Some(block) = rx.recv().await {
-            // Set this to true only once, if we are caught up from reader to executor's latest block
-            if let Some(latest_block) = self.latest_valid_executor_block.clone() {
-                if send_to_executor {
-                    if latest_block.header.number.unwrap() == block.block_num.as_u64() {
-                        // We've received the same block from translator as the latest executor block, check if hashes match
-                        if latest_block.header.hash.unwrap() != block.block_hash {
-                            error!("Fork detected! Latest executor block hash {:?} does not match consensus block hash {:?}",
-                               latest_block.header.hash.unwrap(), block.block_hash);
-                            return Err(Error::ExecutorHashMismatch);
-                        }
-                    }
+            let block_num = block.block_num as u64;
+            let block_hash = block.block_hash;
 
-                    // if this block is older than the latest valid executor block, skip it
-                    send_to_executor =
-                        block.block_num > latest_block.header.number.unwrap().as_u32();
+            let latest_num_hash = self
+                .latest_valid_executor_block
+                .as_ref()
+                .map(|latest| &latest.header)
+                .and_then(|header| header.number.zip(header.hash));
+
+            if let Some((latest_num, latest_hash)) = latest_num_hash {
+                // Check fork
+                if block_num == latest_num && block_hash != latest_hash {
+                    error!("Fork detected! Latest executor block hash {latest_num:?} does not match consensus block hash {block_num:?}" );
+                    return Err(Error::ExecutorHashMismatch);
                 }
-            }
 
-            if !send_to_executor {
-                continue;
+                // Skip synced blocks
+                if block_num <= latest_num {
+                    continue;
+                }
             }
 
             // TODO: Check if we are caught up, if so do not batch anything
 
             batch.push(block);
-            if self.config.batch_size >= batch.len() {
-                self.send_batch(batch).await?;
+            if batch.len() >= self.config.batch_size {
+                self.send_batch(&batch).await?;
                 batch = vec![];
             }
         }
@@ -138,7 +136,7 @@ impl ConsensusClient {
         Ok(())
     }
 
-    async fn send_batch(&self, batch: Vec<TelosEVMBlock>) -> Result<(), Error> {
+    async fn send_batch(&self, batch: &[TelosEVMBlock]) -> Result<(), Error> {
         let rpc_batch = batch
             .iter()
             .map(|block| {
