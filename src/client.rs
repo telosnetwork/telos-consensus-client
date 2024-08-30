@@ -144,9 +144,14 @@ impl ConsensusClient {
             .map(|block| {
                 // println!("block: {:?}", block);
                 let base_fee_per_gas = if block.header.base_fee_per_gas.is_some() {
-                    U256::from(block.header.base_fee_per_gas.unwrap())
+                    let header_base_fee_per_gas = block.header.base_fee_per_gas.unwrap();
+                    if (header_base_fee_per_gas as u64) > 7 {
+                        U256::from(header_base_fee_per_gas as u64)
+                    } else {
+                        U256::from(7)        
+                    }
                 } else {
-                    U256::ZERO
+                    U256::from(7)
                 };
 
                 let mut transactions = vec![];
@@ -183,7 +188,7 @@ impl ConsensusClient {
                 };
                 RpcRequest {
                     method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
-                    params: json![execution_payload],
+                    params: json![vec![execution_payload]],
                 }
             })
             .collect::<Vec<RpcRequest>>();
