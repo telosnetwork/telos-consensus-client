@@ -114,36 +114,22 @@ impl ConsensusClient {
     }
 
     async fn send_batch(&self, batch: &[TelosEVMBlock]) -> Result<(), Error> {
+        const MINIMUM_FEE: u128 = 7;
+
         let rpc_batch = batch
             .iter()
             .map(|block| {
-                // println!("block: {:?}", block);
-                let base_fee_per_gas = if block.header.base_fee_per_gas.is_some() {
-                    let header_base_fee_per_gas = block.header.base_fee_per_gas.unwrap();
-                    if (header_base_fee_per_gas as u64) > 7 {
-                        U256::from(header_base_fee_per_gas as u64)
-                    } else {
-                        U256::from(7)
-                    }
-                } else {
-                    U256::from(7)
-                };
+                let base_fee_per_gas = block
+                    .header
+                    .base_fee_per_gas
+                    .filter(|&fee| fee > MINIMUM_FEE)
+                    .unwrap_or(MINIMUM_FEE);
 
-                let mut transactions = vec![];
-                for tx in block.transactions.iter() {
-                    let encoded = encode(tx.envelope.clone());
-                    transactions.push(Bytes::from(encoded));
-                    // match tx.envelope {
-                    //     TxEnvelope::Legacy(l) => {
-                    //         let tx_envelope = TxEnvelope::from(l.clone());
-                    //         let encoded = encode(tx_envelope);
-                    //         transactions.push(Bytes::from(encoded));
-                    //     }
-                    //     TxEnvelope::Eip2930(_) => {}
-                    //     TxEnvelope::Eip1559(_) => {}
-                    //     TxEnvelope::Eip4844(_) => {}
-                    // }
-                }
+                let transactions = block
+                    .transactions
+                    .iter()
+                    .map(|transaction| Bytes::from(encode(&transaction.envelope)))
+                    .collect::<Vec<_>>();
 
                 let execution_payload = ExecutionPayloadV1 {
                     parent_hash: block.header.parent_hash,
@@ -157,7 +143,7 @@ impl ConsensusClient {
                     gas_used: block.header.gas_used as u64,
                     timestamp: block.header.timestamp,
                     extra_data: block.header.extra_data.clone(),
-                    base_fee_per_gas,
+                    base_fee_per_gas: U256::from(base_fee_per_gas),
                     block_hash: block.block_hash,
                     transactions,
                 };
