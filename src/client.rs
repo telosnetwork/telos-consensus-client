@@ -12,7 +12,6 @@ use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -89,7 +88,7 @@ impl ConsensusClient {
 
         let mut translator = Self::make_translator(&self.config);
 
-        let launch_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
+        let launch_handle = tokio::spawn(async move {
             translator
                 .launch(Some(tx))
                 .await
@@ -129,11 +128,7 @@ impl ConsensusClient {
             }
         }
 
-        if launch_handle.await.is_err() {
-            return Err(Error::SpawnTranslator);
-        }
-
-        Ok(())
+        launch_handle.await.map_err(|_| Error::SpawnTranslator)?
     }
 
     async fn send_batch(&self, batch: &[TelosEVMBlock]) -> Result<(), Error> {
@@ -146,7 +141,7 @@ impl ConsensusClient {
                     if (header_base_fee_per_gas as u64) > 7 {
                         U256::from(header_base_fee_per_gas as u64)
                     } else {
-                        U256::from(7)        
+                        U256::from(7)
                     }
                 } else {
                     U256::from(7)
