@@ -10,7 +10,7 @@ use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
-use telos_translator_rs::translator::{Translator, TranslatorConfig};
+use telos_translator_rs::translator::Translator;
 use tokio::sync::mpsc;
 
 #[derive(Debug, thiserror::Error)]
@@ -65,28 +65,10 @@ impl ConsensusClient {
         execution_api.block_by_number(None, false).await
     }
 
-    fn make_translator(config: &AppConfig) -> Translator {
-        Translator::new(TranslatorConfig {
-            chain_id: config.chain_id,
-            start_block: config.start_block,
-            stop_block: config.stop_block,
-            block_delta: config.block_delta.unwrap_or(0u32),
-            prev_hash: config.prev_hash.clone(),
-            validate_hash: config.validate_hash.clone(),
-            http_endpoint: config.chain_endpoint.clone(),
-            ship_endpoint: config.ship_endpoint.clone(),
-            raw_ds_threads: None,
-            block_process_threads: None,
-            raw_message_channel_size: None,
-            block_message_channel_size: None,
-            final_message_channel_size: None,
-        })
-    }
-
     pub async fn run(&mut self) -> Result<(), Error> {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 
-        let mut translator = Self::make_translator(&self.config);
+        let mut translator = Translator::new((&self.config).into());
 
         let launch_handle = tokio::spawn(async move {
             translator
