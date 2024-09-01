@@ -2,27 +2,46 @@ use std::fmt;
 use std::fmt::Display;
 
 use crate::auth::{strip_prefix, Auth, Error, JwtKey};
-use crate::execution_api_client::ExecutionApiError::{ApiError, AuthError, CannotDeserialize};
-use crate::json_rpc::{JsonRequestBody, JsonResponseBody};
-use alloy::primitives::private::derive_more::Display;
+use crate::execution_api_client::ExecutionApiError::{ApiError, AuthError, CannotDeserialize, ExecutionApi};
+use crate::json_rpc::{JsonError, JsonRequestBody, JsonResponseBody};
+use log::debug;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::Client;
 use reth_rpc_types::Block;
 use serde_json::{json, Value};
 use tracing::info;
 
-#[derive(Debug, Display)]
+#[derive(Debug)]
 pub enum ExecutionApiError {
     AuthError(Error),
     ApiError(reqwest::Error),
     CannotDeserialize,
+    ExecutionApi(Vec<JsonError>),
+}
+
+impl Display for ExecutionApiError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AuthError(err) => write!(f, "Authentication Error: {}", err),
+            ApiError(err) => write!(f, "API Error: {}", err),
+            CannotDeserialize => write!(f, "Cannot Deserialize Response"),
+            ExecutionApi(errors) => {
+                let errors_str = errors
+                    .iter()
+                    .map(|err| err.message.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "Execution API Errors: [{}]", errors_str)
+            }
+        }
+    }
 }
 
 pub enum BlockStatus {
     Latest,
 }
 
-impl fmt::Display for BlockStatus {
+impl Display for BlockStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let status_str = match self {
             BlockStatus::Latest => "latest",
@@ -43,6 +62,7 @@ impl From<reqwest::Error> for ExecutionApiError {
     }
 }
 
+#[derive(Debug)]
 pub enum ExecutionApiMethod {
     BlockByNumber,
     NewPayloadV1,
@@ -59,6 +79,7 @@ impl Display for ExecutionApiMethod {
     }
 }
 
+#[derive(Debug)]
 pub struct RpcRequest {
     pub method: ExecutionApiMethod,
     pub params: Value,
@@ -143,6 +164,19 @@ impl ExecutionApiClient {
 
         let response = request.send().await?;
         let json_response = response.json::<Vec<JsonResponseBody>>().await?;
+        let errors: Vec<JsonError> = json_response
+            .iter()
+            .filter_map(|response| response.error.clone())
+            .collect();
+
+        if !errors.is_empty() {
+            debug!("Errors calling executor batch. Errors: {:?}", errors);
+            return Err(ExecutionApi(errors));
+        } else {
+            debug!("Successfully executor batch. {:?}", json_response);
+        }
+
+
         Ok(json_response)
     }
 
@@ -152,12 +186,8 @@ impl ExecutionApiClient {
         block_number: Option<u64>,
         full: bool,
     ) -> Result<Option<Block>, ExecutionApiError> {
-        let block_request_param: String;
-        if let Some(number) = block_number {
-            block_request_param = format!("0x{:x}", number);
-        } else {
-            block_request_param = BlockStatus::Latest.to_string();
-        }
+        let block_request_param = block_number
+            .map_or_else(|| BlockStatus::Latest.to_string(), |number| format!("0x{:x}", number));
 
         let response = self
             .rpc(RpcRequest {
