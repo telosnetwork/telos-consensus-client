@@ -6,6 +6,7 @@ use alloy_rlp::encode;
 use eyre::Result;
 use log::{debug, error};
 use reth_primitives::{Bytes, B256, U256};
+use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
@@ -27,6 +28,8 @@ pub enum Error {
     ExecutorHashMismatch,
     #[error("Fork choice updated error")]
     ForkChoiceUpdated(String),
+    #[error("New payload error")]
+    NewPayloadV1(String),
 }
 
 pub struct ConsensusClient {
@@ -79,7 +82,7 @@ impl ConsensusClient {
 
         let mut batch = vec![];
         while let Some(block) = rx.recv().await {
-            let block_num = block.block_num as u64;
+            let block_num = block.block_num.as_u64();
             let block_hash = block.block_hash;
 
             let latest_num_hash = self
@@ -154,7 +157,10 @@ impl ConsensusClient {
             })
             .collect::<Vec<RpcRequest>>();
 
-        let new_payloadv1_result = self.execution_api.rpc_batch(rpc_batch).await.unwrap();
+        let new_payloadv1_result = self.execution_api.rpc_batch(rpc_batch).await
+            .map_err(|e| {
+                Error::NewPayloadV1(e.to_string())
+            })?;
         // TODO: check for VALID status on new_payloadv1_result, and handle the failure case
         debug!("NewPayloadV1 result: {:?}", new_payloadv1_result);
 
