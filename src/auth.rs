@@ -1,6 +1,7 @@
+use hex::FromHexError;
 use jsonwebtoken::{encode, get_current_timestamp, Algorithm, EncodingKey, Header};
-use reth_primitives::alloy_primitives::private::derive_more::Display;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use zeroize::Zeroize;
 
 /// Default algorithm used for JWT token signing.
@@ -9,16 +10,14 @@ const DEFAULT_ALGORITHM: Algorithm = Algorithm::HS256;
 /// JWT secret length in bytes.
 pub const JWT_SECRET_LENGTH: usize = 32;
 
-#[derive(Debug, Display)]
+#[derive(Debug, Error)]
 pub enum Error {
-    Jwt(jsonwebtoken::errors::Error),
-    InvalidKey(String),
-}
-
-impl From<jsonwebtoken::errors::Error> for Error {
-    fn from(e: jsonwebtoken::errors::Error) -> Self {
-        Error::Jwt(e)
-    }
+    #[error("Failed to encode JWT: {0}")]
+    JwtEncode(jsonwebtoken::errors::Error),
+    #[error("Invalid hex string: {0}")]
+    InvalidKey(FromHexError),
+    #[error("Invalid JWT: {0}")]
+    InvalidJwt(String),
 }
 
 /// Provides wrapper around `[u8; JWT_SECRET_LENGTH]` that implements `Zeroize`.
@@ -47,14 +46,6 @@ impl JwtKey {
     }
 }
 
-pub fn strip_prefix(s: &str) -> &str {
-    if let Some(stripped) = s.strip_prefix("0x") {
-        stripped
-    } else {
-        s
-    }
-}
-
 /// Contains the JWT secret and claims parameters.
 pub struct Auth {
     key: EncodingKey,
@@ -80,7 +71,7 @@ impl Auth {
     /// Generate a JWT token with the given claims.
     fn generate_token_with_claims(&self, claims: &Claims) -> Result<String, Error> {
         let header = Header::new(DEFAULT_ALGORITHM);
-        Ok(encode(&header, claims, &self.key)?)
+        encode(&header, claims, &self.key).map_err(Error::JwtEncode)
     }
 
     /// Generate a `Claims` struct with `iat` set to current time
