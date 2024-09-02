@@ -28,22 +28,22 @@ pub enum ExecutionApiError {
 }
 
 #[derive(Debug)]
-pub struct JsonErrors(Vec<JsonError>);
+pub struct JsonErrors(Vec<(Value, JsonError)>);
 
 impl fmt::Display for JsonErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(errors) = self;
         let errors = errors
             .iter()
-            .map(|error| error.message.as_str())
-            .collect::<Vec<&str>>()
+            .map(|(id, error)| format!("({id}, {}", error.message))
+            .collect::<Vec<String>>()
             .join(", ");
         write!(f, "{errors}")
     }
 }
 
-impl From<Vec<JsonError>> for JsonErrors {
-    fn from(value: Vec<JsonError>) -> Self {
+impl From<Vec<(Value, JsonError)>> for JsonErrors {
+    fn from(value: Vec<(Value, JsonError)>) -> Self {
         JsonErrors(value)
     }
 }
@@ -143,11 +143,11 @@ impl ExecutionApiClient {
         let batch_requests = rpc_requests
             .into_iter()
             .enumerate()
-            .map(|(counter, RpcRequest { method, params })| JsonRequestBody {
+            .map(|(id, RpcRequest { method, params })| JsonRequestBody {
                 jsonrpc: JSONRPC,
                 method: method.to_string(),
                 params,
-                id: json!(counter),
+                id: json!(id),
             })
             .collect::<Vec<_>>();
 
@@ -161,9 +161,11 @@ impl ExecutionApiClient {
 
         let response = request.send().await?;
         let json_response = response.json::<Vec<JsonResponseBody>>().await?;
-        let errors: Vec<JsonError> = json_response
+        let errors: Vec<(Value, JsonError)> = json_response
             .iter()
-            .filter_map(|response| response.error.clone())
+            .filter_map(|JsonResponseBody { error, id, .. }| {
+                error.as_ref().map(|error| (id.clone(), error.clone()))
+            })
             .collect();
 
         if !errors.is_empty() {
