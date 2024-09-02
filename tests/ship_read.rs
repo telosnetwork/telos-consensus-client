@@ -219,7 +219,7 @@ async fn evm_deploy() {
         stop_block: Some(60),
     };
 
-    let mut client_under_test = ConsensusClient::new(&config).await.unwrap();
+    let mut client_under_test = ConsensusClient::new(config).await.unwrap();
     let _ = client_under_test.run().await;
 
     // Shutdown mock execution API
