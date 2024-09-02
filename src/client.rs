@@ -5,8 +5,8 @@ use crate::json_rpc::JsonResponseBody;
 use alloy_rlp::encode;
 use eyre::Result;
 use log::{debug, error};
-use reth_primitives::{Bytes, B256, U256};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
+use reth_primitives::{Bytes, B256, U256};
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
@@ -157,10 +157,11 @@ impl ConsensusClient {
             })
             .collect::<Vec<RpcRequest>>();
 
-        let new_payloadv1_result = self.execution_api.rpc_batch(rpc_batch).await
-            .map_err(|e| {
-                Error::NewPayloadV1(e.to_string())
-            })?;
+        let new_payloadv1_result = self
+            .execution_api
+            .rpc_batch(rpc_batch)
+            .await
+            .map_err(|e| Error::NewPayloadV1(e.to_string()))?;
         // TODO: check for VALID status on new_payloadv1_result, and handle the failure case
         debug!("NewPayloadV1 result: {:?}", new_payloadv1_result);
 
