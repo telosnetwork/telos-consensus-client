@@ -24,7 +24,7 @@ async fn main() {
 
     info!("Starting Telos consensus client...");
 
-    let mut client = ConsensusClient::new(config).await;
+    let mut client = ConsensusClient::new(&config).await.unwrap();
     info!("Created client...");
     let result = client.run();
     info!("Started client, awaiting result...");

@@ -3,7 +3,7 @@ use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
 use alloy_rlp::encode;
-use eyre::Result;
+use eyre::{eyre, Context, Result};
 use log::{debug, error};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_primitives::{Bytes, B256, U256};
@@ -41,31 +41,20 @@ pub struct ConsensusClient {
 }
 
 impl ConsensusClient {
-    pub async fn new(config: AppConfig) -> Self {
-        let my_config = config.clone();
+    pub async fn new(config: &AppConfig) -> Result<Self> {
+        let execution_api = ExecutionApiClient::new(&config.execution_endpoint, &config.jwt_secret)
+            .wrap_err("Failed to create Execution API client")?;
 
-        let execution_api = ExecutionApiClient::new(config.execution_endpoint, config.jwt_secret);
-        //let latest_consensus_block = ConsensusClient::get_latest_consensus_block(&translator).await;
-        let latest_executor_block_response =
-            ConsensusClient::get_latest_executor_block(&execution_api).await;
+        let latest_valid_executor_block = execution_api
+            .block_by_number(None, false)
+            .await
+            .map_err(|error| eyre!("Cannot fetch latest executor block {error}"))?;
 
-        let latest_executor_block = latest_executor_block_response.unwrap_or_else(|e| {
-            panic!("Cannot fetch latest executor block: {}", e);
-        });
-
-        Self {
-            config: my_config,
+        Ok(Self {
+            config: config.clone(),
             execution_api,
-            //latest_consensus_block,
-            latest_valid_executor_block: latest_executor_block,
-            // is_forked: true,
-        }
-    }
-
-    async fn get_latest_executor_block(
-        execution_api: &ExecutionApiClient,
-    ) -> Result<Option<Block>, ExecutionApiError> {
-        execution_api.block_by_number(None, false).await
+            latest_valid_executor_block,
+        })
     }
 
     pub async fn run(&mut self) -> Result<(), Error> {
