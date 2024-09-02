@@ -4,11 +4,11 @@ use crate::{
     types::translator_types::NameToAddressCache,
 };
 use alloy::primitives::FixedBytes;
+use alloy_rlp::Encodable;
 use antelope::api::client::{APIClient, DefaultProvider};
 use eyre::{eyre, Context, Result};
 use hex::encode;
 use std::str::FromStr;
-use alloy_rlp::Encodable;
 use tokio::{
     sync::{mpsc, oneshot},
     time::Instant,
@@ -40,7 +40,10 @@ pub async fn final_processor(
     let mut validated = validate_hash.is_none();
 
     let native_to_evm_cache = NameToAddressCache::new(api_client);
-    let stop_block = config.stop_block.map(|n| n + config.block_delta).unwrap_or(u32::MAX);
+    let stop_block = config
+        .stop_block
+        .map(|n| n + config.block_delta)
+        .unwrap_or(u32::MAX);
 
     while let Some(mut block) = rx.recv().await {
         if block.block_num > stop_block {
@@ -62,7 +65,7 @@ pub async fn final_processor(
         let mut out = Vec::<u8>::new();
         header.encode(&mut out);
         debug!("Encoded header: 0x{}", hex::encode(out));
-        debug!("Hash of header: {:?}",  block_hash);
+        debug!("Hash of header: {:?}", block_hash);
 
         if !validated {
             if let Some(validate_hash) = validate_hash {
