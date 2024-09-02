@@ -177,7 +177,7 @@ impl ExecutionApiClient {
 
         Ok(json_response)
     }
-    
+
     /// Gets a block by number
     pub async fn get_block_by_number(
         &self,
@@ -208,7 +208,7 @@ impl ExecutionApiClient {
 
         if result.is_null() {
             // This should only happen on a fresh chain where only genesis block exists
-            return self.get_block_by_number(0).await;        
+            return self.get_block_by_number(0).await;
         }
 
         serde_json::from_value(result)
