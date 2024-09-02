@@ -6,62 +6,58 @@ use reqwest::header::CONTENT_TYPE;
 use reqwest::Client;
 use reth_rpc_types::Block;
 use serde_json::{json, Value};
+use thiserror::Error;
 use tracing::info;
 
-use crate::auth::{Auth, Error, JwtKey};
-use crate::execution_api_client::ExecutionApiError::{
-    ApiError, AuthError, CannotDeserialize, ExecutionApi,
-};
+use crate::auth::{self, Auth, Error, JwtKey};
 use crate::json_rpc::{JsonError, JsonRequestBody, JsonResponseBody};
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ExecutionApiError {
-    AuthError(Error),
-    ApiError(reqwest::Error),
+    #[error("Authentication Error: {0}")]
+    AuthError(#[from] auth::Error),
+
+    #[error("API Error: {0}")]
+    ApiError(#[from] reqwest::Error),
+
+    #[error("Cannot Deserialize Response")]
     CannotDeserialize,
-    ExecutionApi(Vec<JsonError>),
+
+    #[error("Execution API Errors: [{0}]")]
+    ExecutionApi(JsonErrors),
 }
 
-impl Display for ExecutionApiError {
+#[derive(Debug)]
+pub struct JsonErrors(Vec<JsonError>);
+
+impl fmt::Display for JsonErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AuthError(err) => write!(f, "Authentication Error: {}", err),
-            ApiError(err) => write!(f, "API Error: {}", err),
-            CannotDeserialize => write!(f, "Cannot Deserialize Response"),
-            ExecutionApi(errors) => {
-                let errors_str = errors
-                    .iter()
-                    .map(|err| err.message.to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ");
-                write!(f, "Execution API Errors: [{}]", errors_str)
-            }
-        }
+        let Self(errors) = self;
+        let errors = errors
+            .iter()
+            .map(|error| error.message.as_str())
+            .collect::<Vec<&str>>()
+            .join(", ");
+        write!(f, "{errors}")
+    }
+}
+
+impl From<Vec<JsonError>> for JsonErrors {
+    fn from(value: Vec<JsonError>) -> Self {
+        JsonErrors(value)
     }
 }
 
 pub enum BlockStatus {
-    Latest,
+    Finalized,
 }
 
 impl Display for BlockStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let status_str = match self {
-            BlockStatus::Latest => "latest",
+            BlockStatus::Finalized => "finalized",
         };
         write!(f, "{}", status_str)
-    }
-}
-
-impl From<Error> for ExecutionApiError {
-    fn from(e: Error) -> Self {
-        AuthError(e)
-    }
-}
-
-impl From<reqwest::Error> for ExecutionApiError {
-    fn from(e: reqwest::Error) -> Self {
-        ApiError(e)
     }
 }
 
@@ -172,7 +168,7 @@ impl ExecutionApiClient {
 
         if !errors.is_empty() {
             debug!("Errors calling executor batch. Errors: {:?}", errors);
-            return Err(ExecutionApi(errors));
+            return Err(ExecutionApiError::ExecutionApi(errors.into()));
         } else {
             debug!("Successfully executor batch. {:?}", json_response);
         }
@@ -180,30 +176,20 @@ impl ExecutionApiClient {
         Ok(json_response)
     }
 
-    // block_by_number queries api using block number if provided or it returns the latest block.
-    pub async fn block_by_number(
-        &self,
-        block_number: Option<u64>,
-        full: bool,
-    ) -> Result<Option<Block>, ExecutionApiError> {
-        let block_request_param = block_number.map_or_else(
-            || BlockStatus::Latest.to_string(),
-            |number| format!("0x{:x}", number),
-        );
+    /// Gets latest finalized block
+    pub async fn get_latest_finalized_block(&self) -> Result<Option<Block>, ExecutionApiError> {
+        let request = RpcRequest {
+            method: ExecutionApiMethod::BlockByNumber,
+            params: json!([BlockStatus::Finalized.to_string(), true]),
+        };
+        let result = self.rpc(request).await?.result;
 
-        let response = self
-            .rpc(RpcRequest {
-                method: ExecutionApiMethod::BlockByNumber,
-                params: json!([block_request_param, full]),
-            })
-            .await?;
-
-        if response.result.is_null() {
-            Ok(None)
-        } else {
-            let block =
-                serde_json::from_value::<Block>(response.result).map_err(|_| CannotDeserialize)?;
-            Ok(Some(block))
+        if result.is_null() {
+            return Ok(None);
         }
+
+        serde_json::from_value(result)
+            .map_err(|_| ExecutionApiError::CannotDeserialize)
+            .map(Some)
     }
 }

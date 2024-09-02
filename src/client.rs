@@ -3,7 +3,7 @@ use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
 use alloy_rlp::encode;
-use eyre::{eyre, Context, Result};
+use eyre::{Context, Result};
 use log::{debug, error};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_primitives::{Bytes, B256, U256};
@@ -36,22 +36,24 @@ pub struct ConsensusClient {
     pub config: AppConfig,
     execution_api: ExecutionApiClient,
     //latest_consensus_block: ExecutionPayloadV1,
-    latest_valid_executor_block: Option<Block>,
+    pub latest_valid_executor_block: Option<Block>,
     //is_forked: bool,
 }
 
 impl ConsensusClient {
-    pub async fn new(config: &AppConfig) -> Result<Self> {
+    pub async fn new(config: AppConfig) -> Result<Self> {
         let execution_api = ExecutionApiClient::new(&config.execution_endpoint, &config.jwt_secret)
             .wrap_err("Failed to create Execution API client")?;
 
         let latest_valid_executor_block = execution_api
-            .block_by_number(None, false)
+            .get_latest_finalized_block()
             .await
-            .map_err(|error| eyre!("Cannot fetch latest executor block {error}"))?;
+            .wrap_err("Failed to get latest valid executor block")?;
+
+        debug!("Latest valid executor block is: {latest_valid_executor_block:?}");
 
         Ok(Self {
-            config: config.clone(),
+            config,
             execution_api,
             latest_valid_executor_block,
         })
