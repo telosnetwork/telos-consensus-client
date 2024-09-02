@@ -2,7 +2,9 @@ use std::fmt;
 use std::fmt::Display;
 
 use crate::auth::{strip_prefix, Auth, Error, JwtKey};
-use crate::execution_api_client::ExecutionApiError::{ApiError, AuthError, CannotDeserialize, ExecutionApi};
+use crate::execution_api_client::ExecutionApiError::{
+    ApiError, AuthError, CannotDeserialize, ExecutionApi,
+};
 use crate::json_rpc::{JsonError, JsonRequestBody, JsonResponseBody};
 use log::debug;
 use reqwest::header::CONTENT_TYPE;
@@ -138,21 +140,18 @@ impl ExecutionApiClient {
         &self,
         rpc_requests: Vec<RpcRequest>,
     ) -> Result<Vec<JsonResponseBody>, ExecutionApiError> {
-        let mut counter = 0;
         const JSONRPC: &str = "2.0";
-        let mut batch_requests = vec![];
-        for rpc_request in rpc_requests {
-            let method = rpc_request.method.to_string();
-            let id = json!(counter);
-            let rpc_payload = JsonRequestBody {
+
+        let batch_requests = rpc_requests
+            .into_iter()
+            .enumerate()
+            .map(|(counter, RpcRequest { method, params })| JsonRequestBody {
                 jsonrpc: JSONRPC,
-                method,
-                params: rpc_request.params,
-                id,
-            };
-            batch_requests.push(rpc_payload);
-            counter += 1;
-        }
+                method: method.to_string(),
+                params,
+                id: json!(counter),
+            })
+            .collect::<Vec<_>>();
 
         let token = self.jwt_secret.generate_token()?;
         let request = self
@@ -176,7 +175,6 @@ impl ExecutionApiClient {
             debug!("Successfully executor batch. {:?}", json_response);
         }
 
-
         Ok(json_response)
     }
 
@@ -186,8 +184,10 @@ impl ExecutionApiClient {
         block_number: Option<u64>,
         full: bool,
     ) -> Result<Option<Block>, ExecutionApiError> {
-        let block_request_param = block_number
-            .map_or_else(|| BlockStatus::Latest.to_string(), |number| format!("0x{:x}", number));
+        let block_request_param = block_number.map_or_else(
+            || BlockStatus::Latest.to_string(),
+            |number| format!("0x{:x}", number),
+        );
 
         let response = self
             .rpc(RpcRequest {
