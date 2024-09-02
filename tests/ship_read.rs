@@ -24,7 +24,7 @@ async fn evm_deploy() {
     //   and should be the tag for linux/amd64
     let container: ContainerAsync<GenericImage> = GenericImage::new(
         "ghcr.io/telosnetwork/testcontainer-nodeos-evm",
-        "v0.1.4@sha256:a8dc857e46404d74b286f8c8d8646354ca6674daaaf9eb6f972966052c95eb4a",
+        "v0.1.6@sha256:bd1692372f42bacef7b41a398ba1a32c7cceb87240e778abee85261651faf95e",
     )
     .with_exposed_port(Tcp(8888))
     .with_exposed_port(Tcp(18999))
@@ -41,7 +41,7 @@ async fn evm_deploy() {
         ship_endpoint: format!("ws://localhost:{port_18999}",),
         validate_hash: None,
         start_block: 1,
-        stop_block: Some(55),
+        stop_block: Some(31),
         block_delta: 1,
         ..TESTNET_GENESIS_CONFIG.clone()
     };
