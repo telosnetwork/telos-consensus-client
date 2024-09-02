@@ -106,7 +106,7 @@ async fn handle_post(
             assert!(json_rpc_payload.params.is_array(), "Params is not an array");
             let params = json_rpc_payload.params.as_array().unwrap();
             assert_eq!(params.len(), 2, "Params array is not of length 2");
-            assert_eq!(params.get(0).unwrap(), "0x0", "First param is not 0x0");
+            assert_eq!(params.first().unwrap(), "0x0", "First param is not 0x0");
             (StatusCode::OK, r#"{
                 "jsonrpc": "2.0",
                 "error": null,
@@ -219,7 +219,7 @@ async fn evm_deploy() {
         stop_block: Some(60),
     };
 
-    let mut client_under_test = ConsensusClient::new(config).await;
+    let mut client_under_test = ConsensusClient::new(&config).await.unwrap();
     let _ = client_under_test.run().await;
 
     // Shutdown mock execution API
