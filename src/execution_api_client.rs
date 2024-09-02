@@ -177,6 +177,26 @@ impl ExecutionApiClient {
 
         Ok(json_response)
     }
+    
+    /// Gets a block by number
+    pub async fn get_block_by_number(
+        &self,
+        block_number: u64,
+    ) -> Result<Option<Block>, ExecutionApiError> {
+        let request = RpcRequest {
+            method: ExecutionApiMethod::BlockByNumber,
+            params: json!([format!("0x{:x}", block_number), true]),
+        };
+        let result = self.rpc(request).await?.result;
+
+        if result.is_null() {
+            return Ok(None);
+        }
+
+        serde_json::from_value(result)
+            .map_err(|_| ExecutionApiError::CannotDeserialize)
+            .map(Some)
+    }
 
     /// Gets latest finalized block
     pub async fn get_latest_finalized_block(&self) -> Result<Option<Block>, ExecutionApiError> {
@@ -187,7 +207,8 @@ impl ExecutionApiClient {
         let result = self.rpc(request).await?.result;
 
         if result.is_null() {
-            return Ok(None);
+            // This should only happen on a fresh chain where only genesis block exists
+            return self.get_block_by_number(0).await;        
         }
 
         serde_json::from_value(result)
