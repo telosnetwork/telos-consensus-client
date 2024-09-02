@@ -1,17 +1,18 @@
 use std::fmt;
 use std::fmt::Display;
 
-use crate::auth::{strip_prefix, Auth, Error, JwtKey};
-use crate::execution_api_client::ExecutionApiError::{
-    ApiError, AuthError, CannotDeserialize, ExecutionApi,
-};
-use crate::json_rpc::{JsonError, JsonRequestBody, JsonResponseBody};
 use log::debug;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::Client;
 use reth_rpc_types::Block;
 use serde_json::{json, Value};
 use tracing::info;
+
+use crate::auth::{Auth, Error, JwtKey};
+use crate::execution_api_client::ExecutionApiError::{
+    ApiError, AuthError, CannotDeserialize, ExecutionApi,
+};
+use crate::json_rpc::{JsonError, JsonRequestBody, JsonResponseBody};
 
 #[derive(Debug)]
 pub enum ExecutionApiError {
@@ -94,18 +95,19 @@ pub struct ExecutionApiClient {
 }
 
 impl ExecutionApiClient {
-    pub fn new(base_url: String, jwt_secret: String) -> Self {
-        let secret_bytes = hex::decode(strip_prefix(jwt_secret.trim_end()))
-            .map_err(|e| Error::InvalidKey(format!("Invalid hex string: {:?}", e)))
-            .unwrap();
-        let jwt_key = JwtKey::from_slice(&secret_bytes)
-            .map_err(Error::InvalidKey)
-            .unwrap();
-        Self {
+    pub fn new(base_url: &str, jwt_secret: &str) -> Result<Self, Error> {
+        let jwt_key_encoded = jwt_secret
+            .strip_prefix("0x")
+            .unwrap_or(jwt_secret)
+            .trim_end();
+        let jwt_key_decoded = hex::decode(jwt_key_encoded).map_err(Error::InvalidKey)?;
+        let jwt_key = JwtKey::from_slice(&jwt_key_decoded).map_err(Error::InvalidJwt)?;
+
+        Ok(Self {
             client: Client::new(),
-            base_url,
+            base_url: base_url.to_string(),
             jwt_secret: Auth::new(jwt_key, None, None),
-        }
+        })
     }
 
     pub async fn rpc(
