@@ -38,3 +38,6 @@ bytes = "1.7.1"
 [dev-dependencies]
 axum = "0.7.5"
 testcontainers = "0.21.1"
+
+[features]
+bad_sig_padding = ["telos-translator-rs/bad_sig_padding"]
