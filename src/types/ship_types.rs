@@ -264,7 +264,7 @@ pub struct BlockHeader {
     pub transaction_mroot: Checksum256,
     pub action_mroot: Checksum256,
     pub schedule_version: u32,
-    pub new_producers: Option<Vec<u8>>,
+    pub new_producers: Option<ProducerSchedule>,
     pub header_extensions: Vec<Extension>,
 }
 
