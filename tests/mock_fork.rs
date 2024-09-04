@@ -72,8 +72,10 @@ async fn mock_fork() {
 
     let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 
+    let (stop_tx, stop_rx) = mpsc::channel::<()>(1);
+
     let mut translator = Translator::new(config);
-    match translator.launch(Some(tx)).await {
+    match translator.launch(Some(tx), stop_tx, stop_rx).await {
         Ok(_) => info!("Translator launched successfully"),
         Err(e) => panic!("Failed to launch translator: {:?}", e),
     }

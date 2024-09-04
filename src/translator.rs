@@ -6,7 +6,7 @@ use eyre::{eyre, Context, Result};
 use futures_util::future::join_all;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc};
 use tokio_tungstenite::connect_async;
 use tracing::info;
 
@@ -43,7 +43,11 @@ impl Translator {
         Self { config }
     }
 
-    pub async fn launch(&mut self, output_tx: Option<mpsc::Sender<TelosEVMBlock>>) -> Result<()> {
+    pub async fn launch(&mut self,
+                        output_tx: Option<mpsc::Sender<TelosEVMBlock>>,
+                        stop_tx: mpsc::Sender<()>,
+                        stop_rx: mpsc::Receiver<()>,
+    ) -> Result<()> {
         let api_client =
             APIClient::<DefaultProvider>::default_provider(self.config.http_endpoint.clone())
                 .map_err(|error| eyre!(error))
@@ -70,7 +74,6 @@ impl Translator {
         let (finalize_tx, finalize_rx) =
             mpsc::channel::<ProcessingEVMBlock>(self.config.final_message_channel_size);
 
-        let (stop_tx, stop_rx) = oneshot::channel::<()>();
 
         // Start the final processing task
         let final_processor_handle = tokio::spawn(final_processor(
@@ -99,7 +102,7 @@ impl Translator {
             evm_block_processor_handle,
             final_processor_handle,
         ])
-        .await;
+            .await;
 
         result
             .into_iter()

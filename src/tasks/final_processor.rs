@@ -10,7 +10,7 @@ use eyre::{eyre, Context, Result};
 use hex::encode;
 use std::str::FromStr;
 use tokio::{
-    sync::{mpsc, oneshot},
+    sync::{mpsc},
     time::Instant,
 };
 use tracing::{debug, error, info};
@@ -20,7 +20,7 @@ pub async fn final_processor(
     api_client: APIClient<DefaultProvider>,
     mut rx: mpsc::Receiver<ProcessingEVMBlock>,
     tx: Option<mpsc::Sender<TelosEVMBlock>>,
-    stop_tx: oneshot::Sender<()>,
+    stop_tx: mpsc::Sender<()>,
 ) -> Result<()> {
     let mut last_log = Instant::now();
     let mut unlogged_blocks = 0;
@@ -143,7 +143,7 @@ pub async fn final_processor(
         if block_num == stop_block {
             debug!("Processed stop block #{block_num}, exiting...");
             stop_tx
-                .send(())
+                .send(()).await
                 .map_err(|_| eyre!("Can't send stop message"))?;
             break;
         }

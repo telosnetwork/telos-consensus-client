@@ -2,7 +2,7 @@ use eyre::Result;
 use futures_util::stream::SplitStream;
 use futures_util::StreamExt;
 use tokio::net::TcpStream;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::debug;
 use tracing::info;
@@ -10,7 +10,7 @@ use tracing::info;
 pub async fn ship_reader(
     mut ws_rx: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
     raw_ds_tx: mpsc::Sender<Vec<u8>>,
-    mut stop_rx: oneshot::Receiver<()>,
+    mut stop_rx: mpsc::Receiver<()>,
 ) -> Result<()> {
     let mut counter: u64 = 0;
 
@@ -18,7 +18,7 @@ pub async fn ship_reader(
         // Read the websocket
         let message = tokio::select! {
             message = ws_rx.next() => message,
-            _ = &mut stop_rx => break
+            _ = stop_rx.recv() => break
         };
 
         counter += 1;
