@@ -10,9 +10,9 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::connect_async;
 use tracing::info;
 
-pub const DEFAULT_RAW_MESSAGE_CHANNEL_SIZE: usize = 10000;
-pub const DEFAULT_BLOCK_PROCESS_CHANNEL_SIZE: usize = 1000;
-pub const DEFAULT_MESSAGE_FINALIZER_CHANNEL_SIZE: usize = 1000;
+pub fn default_channel_size() -> usize {
+    1000
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranslatorConfig {
@@ -26,9 +26,12 @@ pub struct TranslatorConfig {
     pub http_endpoint: String,
     pub ship_endpoint: String,
 
-    pub raw_message_channel_size: Option<usize>,
-    pub block_message_channel_size: Option<usize>,
-    pub final_message_channel_size: Option<usize>,
+    #[serde(default = "default_channel_size")]
+    pub raw_message_channel_size: usize,
+    #[serde(default = "default_channel_size")]
+    pub block_message_channel_size: usize,
+    #[serde(default = "default_channel_size")]
+    pub final_message_channel_size: usize,
 }
 
 pub struct Translator {
@@ -59,23 +62,13 @@ impl Translator {
 
         // Buffer size here should be the readahead buffer size, in blocks.  This could get large if we are reading
         //  a block range with larges blocks/trxs, so this should be tuned based on the largest blocks we hit
-        let (raw_ds_tx, raw_ds_rx) = mpsc::channel::<Vec<u8>>(
-            self.config
-                .raw_message_channel_size
-                .unwrap_or(DEFAULT_RAW_MESSAGE_CHANNEL_SIZE),
-        );
+        let (raw_ds_tx, raw_ds_rx) = mpsc::channel::<Vec<u8>>(self.config.raw_message_channel_size);
 
-        let (process_tx, process_rx) = mpsc::channel::<ProcessingEVMBlock>(
-            self.config
-                .block_message_channel_size
-                .unwrap_or(DEFAULT_BLOCK_PROCESS_CHANNEL_SIZE),
-        );
+        let (process_tx, process_rx) =
+            mpsc::channel::<ProcessingEVMBlock>(self.config.block_message_channel_size);
 
-        let (finalize_tx, finalize_rx) = mpsc::channel::<ProcessingEVMBlock>(
-            self.config
-                .final_message_channel_size
-                .unwrap_or(DEFAULT_MESSAGE_FINALIZER_CHANNEL_SIZE),
-        );
+        let (finalize_tx, finalize_rx) =
+            mpsc::channel::<ProcessingEVMBlock>(self.config.final_message_channel_size);
 
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
 

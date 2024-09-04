@@ -3,7 +3,7 @@ use std::str::FromStr;
 use alloy::primitives::FixedBytes;
 use lazy_static::lazy_static;
 
-use crate::translator::TranslatorConfig;
+use crate::translator::{default_channel_size, TranslatorConfig};
 
 pub const ANTELOPE_EPOCH_MS: u64 = 946684800000;
 pub const ANTELOPE_INTERVAL_MS: u64 = 500;
@@ -27,9 +27,9 @@ lazy_static! {
         http_endpoint: String::from("http://127.0.0.1:8888"),
         ship_endpoint: String::from("ws://127.0.0.1:29999"),
 
-        raw_message_channel_size: None,
-        block_message_channel_size: None,
-        final_message_channel_size: None
+        raw_message_channel_size: default_channel_size(),
+        block_message_channel_size: default_channel_size(),
+        final_message_channel_size: default_channel_size()
     };
     pub static ref MAINNET_DEPLOY_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 40,
@@ -46,9 +46,9 @@ lazy_static! {
         http_endpoint: String::from("http://127.0.0.1:8888"),
         ship_endpoint: String::from("ws://127.0.0.1:29999"),
 
-        raw_message_channel_size: None,
-        block_message_channel_size: None,
-        final_message_channel_size: None
+        raw_message_channel_size: default_channel_size(),
+        block_message_channel_size: default_channel_size(),
+        final_message_channel_size: default_channel_size()
     };
     pub static ref TESTNET_GENESIS_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 41,
@@ -65,9 +65,9 @@ lazy_static! {
         http_endpoint: String::from("http://127.0.0.1:8888"),
         ship_endpoint: String::from("ws://127.0.0.1:29999"),
 
-        raw_message_channel_size: None,
-        block_message_channel_size: None,
-        final_message_channel_size: None
+        raw_message_channel_size: default_channel_size(),
+        block_message_channel_size: default_channel_size(),
+        final_message_channel_size: default_channel_size()
     };
     pub static ref TESTNET_DEPLOY_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 41,
@@ -82,8 +82,8 @@ lazy_static! {
         http_endpoint: String::from("http://127.0.0.1:8888"),
         ship_endpoint: String::from("ws://127.0.0.1:29999"),
 
-        raw_message_channel_size: None,
-        block_message_channel_size: None,
-        final_message_channel_size: None
+        raw_message_channel_size: default_channel_size(),
+        block_message_channel_size: default_channel_size(),
+        final_message_channel_size: default_channel_size()
     };
 }
