@@ -10,8 +10,6 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::connect_async;
 use tracing::info;
 
-pub const DEFAULT_BLOCK_PROCESS_THREADS: u8 = 4;
-
 pub const DEFAULT_RAW_MESSAGE_CHANNEL_SIZE: usize = 10000;
 pub const DEFAULT_BLOCK_PROCESS_CHANNEL_SIZE: usize = 1000;
 pub const DEFAULT_MESSAGE_FINALIZER_CHANNEL_SIZE: usize = 1000;
