@@ -19,7 +19,7 @@ use antelope::serializer::Packer;
 use reth_rpc_types::ExecutionPayloadV1;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
 use std::cmp::Ordering;
-use tracing::warn;
+use tracing::{info, warn};
 
 const MINIMUM_FEE_PER_GAS: u128 = 7;
 
@@ -215,7 +215,25 @@ impl ProcessingEVMBlock {
         let action_account = action.action_account();
         let action_receiver = action.receiver();
 
-        if action_account == EOSIO_EVM && action_name == RAW {
+        if action_account == EOSIO_EVM && action_name == INIT {
+
+            let config_delta_row = self
+                .decoded_rows
+                .iter()
+                .find_map(|row| {
+                    if let DecodedRow::Config(config) = row {
+                        Some(config)
+                    } else {
+                        None
+                    }
+                })
+                .expect("Table delta for the init action not found");
+
+            let gas_price = U256::from_be_slice(&config_delta_row.gas_price.data);
+
+            self.new_gas_price = Some(gas_price);
+
+        } else if action_account == EOSIO_EVM && action_name == RAW {
             // Normally signed EVM transaction
             let raw: RawAction = decode(&action.data());
             let printed_receipt = PrintedReceipt::from_console(action.console());

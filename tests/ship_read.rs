@@ -42,7 +42,7 @@ async fn evm_deploy() {
         validate_hash: None,
         start_block: 1,
         stop_block: Some(30),
-        block_delta: 1,
+        block_delta: 57,
         ..TESTNET_GENESIS_CONFIG.clone()
     };
 
