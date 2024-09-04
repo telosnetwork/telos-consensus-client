@@ -15,7 +15,6 @@ use alloy_consensus::{Eip658Value, Header, Receipt, ReceiptWithBloom, TxEnvelope
 use alloy_rlp::Encodable;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
-use antelope::chain::Decoder;
 use antelope::serializer::Packer;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
 use std::cmp::Ordering;
@@ -140,48 +139,27 @@ impl ProcessingEVMBlock {
     }
 
     pub fn deserialize(&mut self) {
-        if let Some(b) = &self.result.block {
-            let mut decoder = Decoder::new(b.as_slice());
-            let signed_block = &mut SignedBlock::default();
-            decoder.unpack(signed_block);
-            self.signed_block = Some(signed_block.clone());
-        }
+        self.signed_block = self.result.block.as_deref().map(decode);
 
-        if let Some(t) = &self.result.traces {
-            let mut decoder = Decoder::new(t.as_slice());
-            let block_traces: &mut Vec<TransactionTrace> = &mut vec![];
-            decoder.unpack(block_traces);
-            self.block_traces = Some(block_traces.to_vec());
-        } else {
-            self.block_traces = Some(vec![]);
+        if self.result.traces.is_none() {
             warn!("No block traces found for block: {}", self.block_num);
         }
 
-        if let Some(d) = &self.result.deltas {
-            let mut decoder = Decoder::new(d.as_slice());
-            let block_deltas: &mut Vec<TableDelta> = &mut vec![];
-            let contract_rows: &mut Vec<ContractRow> = &mut vec![];
-            decoder.unpack(block_deltas);
-            for delta in block_deltas.iter_mut() {
-                match delta {
-                    TableDelta::V0(d) => {
-                        if d.name == "contract_row" {
-                            for row in d.rows.iter_mut() {
-                                // TODO: Handle present: false here?  How to account for empty/deleted rows?
-                                let mut row_decoder = Decoder::new(row.data.as_slice());
-                                let contract_row = &mut ContractRow::default();
-                                row_decoder.unpack(contract_row);
-                                contract_rows.push(contract_row.clone());
-                            }
-                        }
-                    }
-                }
-            }
-            self.contract_rows = Some(contract_rows.to_vec());
-        } else {
-            self.contract_rows = Some(vec![]);
+        self.block_traces = self.result.traces.as_deref().map(decode).or(Some(vec![]));
+
+        if self.result.deltas.is_none() {
             warn!("No deltas found for block: {}", self.block_num);
-        }
+        };
+
+        // TODO: Handle present: false here?  How to account for empty/deleted rows?
+        self.contract_rows = self.result.deltas.as_deref().map(|deltas| {
+            decode::<Vec<TableDelta>>(deltas)
+                .iter()
+                .filter(|TableDelta::V0(delta)| delta.name == "contract_row")
+                .map(|TableDelta::V0(delta)| delta.rows.as_slice())
+                .flat_map(|rows| rows.iter().map(|row| row.data.as_slice()).map(decode))
+                .collect::<Vec<ContractRow>>()
+        });
     }
 
     async fn handle_action(
