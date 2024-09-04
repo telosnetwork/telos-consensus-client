@@ -4676,7 +4676,7 @@ dependencies = [
 [[package]]
 name = "telos-translator-rs"
 version = "0.1.0"
-source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=master#d55191aaf123d5d74a3a5107d747ae48ca5c2d7f"
+source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=use-stop-signal-externaly#36a4b7bd2309c836efe7db1a9db5343d7108845e"
 dependencies = [
  "alloy",
  "alloy-consensus",

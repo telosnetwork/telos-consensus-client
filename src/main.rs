@@ -3,6 +3,7 @@ use crate::config::{AppConfig, CliArgs};
 use clap::Parser;
 use env_logger::Builder;
 use log::{error, info, LevelFilter};
+use tokio::sync::oneshot;
 
 mod auth;
 mod client;
@@ -24,9 +25,11 @@ async fn main() {
 
     info!("Starting Telos consensus client...");
 
+    let (_, receiver) = oneshot::channel();
+
     let mut client = ConsensusClient::new(config).await.unwrap();
     info!("Created client...");
-    let result = client.run();
+    let result = client.run(receiver);
     info!("Started client, awaiting result...");
     match result.await {
         Ok(()) => {
