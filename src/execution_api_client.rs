@@ -84,6 +84,7 @@ pub struct RpcRequest {
     pub params: Value,
 }
 
+#[derive(Clone)]
 pub struct ExecutionApiClient {
     pub client: Client,
     pub base_url: String,
