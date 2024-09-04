@@ -1,7 +1,7 @@
-use std::fs;
 use clap::Parser;
-use tokio::sync::mpsc;
+use std::fs;
 use telos_translator_rs::translator::{Translator, TranslatorConfig};
+use tokio::sync::mpsc;
 use tracing::error;
 
 #[derive(Parser, Debug)]

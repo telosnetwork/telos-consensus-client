@@ -9,10 +9,7 @@ use antelope::api::client::{APIClient, DefaultProvider};
 use eyre::{eyre, Context, Result};
 use hex::encode;
 use std::str::FromStr;
-use tokio::{
-    sync::{mpsc},
-    time::Instant,
-};
+use tokio::{sync::mpsc, time::Instant};
 use tracing::{debug, error, info};
 
 pub async fn final_processor(
@@ -143,7 +140,8 @@ pub async fn final_processor(
         if block_num == stop_block {
             debug!("Processed stop block #{block_num}, exiting...");
             stop_tx
-                .send(()).await
+                .send(())
+                .await
                 .map_err(|_| eyre!("Can't send stop message"))?;
             break;
         }
