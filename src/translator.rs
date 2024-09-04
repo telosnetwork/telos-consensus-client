@@ -28,9 +28,6 @@ pub struct TranslatorConfig {
     pub http_endpoint: String,
     pub ship_endpoint: String,
 
-    pub raw_ds_threads: Option<u8>,
-    pub block_process_threads: Option<u8>,
-
     pub raw_message_channel_size: Option<usize>,
     pub block_message_channel_size: Option<usize>,
     pub final_message_channel_size: Option<usize>,

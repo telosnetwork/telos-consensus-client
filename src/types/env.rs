@@ -27,9 +27,6 @@ lazy_static! {
         http_endpoint: String::from("http://127.0.0.1:8888"),
         ship_endpoint: String::from("ws://127.0.0.1:29999"),
 
-        raw_ds_threads: None,
-        block_process_threads: None,
-
         raw_message_channel_size: None,
         block_message_channel_size: None,
         final_message_channel_size: None
@@ -48,9 +45,6 @@ lazy_static! {
 
         http_endpoint: String::from("http://127.0.0.1:8888"),
         ship_endpoint: String::from("ws://127.0.0.1:29999"),
-
-        raw_ds_threads: None,
-        block_process_threads: None,
 
         raw_message_channel_size: None,
         block_message_channel_size: None,
@@ -71,9 +65,6 @@ lazy_static! {
         http_endpoint: String::from("http://127.0.0.1:8888"),
         ship_endpoint: String::from("ws://127.0.0.1:29999"),
 
-        raw_ds_threads: None,
-        block_process_threads: None,
-
         raw_message_channel_size: None,
         block_message_channel_size: None,
         final_message_channel_size: None
@@ -90,9 +81,6 @@ lazy_static! {
 
         http_endpoint: String::from("http://127.0.0.1:8888"),
         ship_endpoint: String::from("ws://127.0.0.1:29999"),
-
-        raw_ds_threads: None,
-        block_process_threads: None,
 
         raw_message_channel_size: None,
         block_message_channel_size: None,
