@@ -4676,7 +4676,7 @@ dependencies = [
 [[package]]
 name = "telos-translator-rs"
 version = "0.1.0"
-source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=master#5b8d0b88ac0fd8c28d7f1c30104a99ebdb5782cd"
+source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=master#311f9ed632f8f7a0d60aa1d17a143f99742c9b5f"
 dependencies = [
  "alloy",
  "alloy-consensus",
@@ -4957,9 +4957,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.11"
+version = "0.7.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf6b47b3771c49ac75ad09a6162f53ad4b8088b76ac60e8ec1455b31a189fe1"
+checksum = "61e7c3654c13bcd040d4a03abee2c75b1d14a37b423cf5a813ceae1cc903ec6a"
 dependencies = [
  "bytes",
  "futures-core",
