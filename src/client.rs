@@ -59,8 +59,32 @@ impl ConsensusClient {
         })
     }
 
+    fn latest_valid_block(&self) -> Option<(u32, String)> {
+        let latest = self.latest_valid_executor_block.as_ref()?;
+        match (latest.header.number, latest.header.hash) {
+            (Some(number), Some(hash)) => Some((number.as_u32(), hash.to_string())),
+            _ => None,
+        }
+    }
+
+    fn is_in_start_stop_range(&self, num: u32) -> bool {
+        let Some(stop_block) = self.config.stop_block else {
+            return false;
+        };
+
+        self.config.start_block <= num && num <= stop_block
+    }
+
     pub async fn run(&mut self) -> Result<(), Error> {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
+
+        if let Some((number, hash)) = self.latest_valid_block() {
+            if self.is_in_start_stop_range(number + 1) {
+                self.config.start_block = number + 1;
+                self.config.prev_hash = hash
+            }
+        }
+        debug!("Starting translator from block {}", self.config.start_block);
 
         let mut translator = Translator::new((&self.config).into());
 
