@@ -206,6 +206,16 @@ impl ProcessingEVMBlock {
         });
     }
 
+    fn find_config_row(&self) -> Option<&EvmContractConfigRow> {
+        return self.decoded_rows.iter().find_map(|row| {
+            if let DecodedRow::Config(config) = row {
+                Some(config)
+            } else {
+                None
+            }
+        });
+    }
+
     async fn handle_action(
         &mut self,
         action: Box<dyn BasicTrace + Send>,
@@ -217,15 +227,7 @@ impl ProcessingEVMBlock {
 
         if action_account == EOSIO_EVM && action_name == INIT {
             let config_delta_row = self
-                .decoded_rows
-                .iter()
-                .find_map(|row| {
-                    if let DecodedRow::Config(config) = row {
-                        Some(config)
-                    } else {
-                        None
-                    }
-                })
+                .find_config_row()
                 .expect("Table delta for the init action not found");
 
             let gas_price = U256::from_be_slice(&config_delta_row.gas_price.data);
@@ -293,15 +295,7 @@ impl ProcessingEVMBlock {
             self.transactions.push(transaction.clone());
         } else if action_account == EOSIO_EVM && action_name == DORESOURCES {
             let config_delta_row = self
-                .decoded_rows
-                .iter()
-                .find_map(|row| {
-                    if let DecodedRow::Config(config) = row {
-                        Some(config)
-                    } else {
-                        None
-                    }
-                })
+                .find_config_row()
                 .expect("Table delta for the doresources action not found");
 
             let gas_price = U256::from_be_slice(&config_delta_row.gas_price.data);
