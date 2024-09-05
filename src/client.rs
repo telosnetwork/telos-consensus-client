@@ -246,6 +246,7 @@ impl ConsensusClient {
     }
 
     // shutdown the consensus client
+    #[allow(dead_code)]
     pub fn shutdown(&self, sender: oneshot::Sender<()>) -> Result<(), Error> {
         sender.send(()).map_err(|error| {
             error!("Failed to send shutdown signal: {error:?}");
