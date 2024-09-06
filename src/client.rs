@@ -4,7 +4,7 @@ use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequ
 use crate::json_rpc::JsonResponseBody;
 use alloy_rlp::encode;
 use eyre::{Context, Result};
-use log::{debug, error};
+use log::{debug, error, info};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_primitives::{Bytes, B256, U256};
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
@@ -87,6 +87,8 @@ impl ConsensusClient {
         debug!("Starting translator from block {}", self.config.start_block);
 
         let mut translator = Translator::new((&self.config).into());
+
+        info!("Launching translator with log level {}", self.config.log_level);
 
         let launch_handle = tokio::spawn(async move {
             translator

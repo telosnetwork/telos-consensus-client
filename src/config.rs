@@ -53,6 +53,7 @@ pub struct AppConfig {
 impl From<&AppConfig> for TranslatorConfig {
     fn from(config: &AppConfig) -> Self {
         Self {
+            log_level: config.log_level.clone(),
             chain_id: config.chain_id,
             start_block: config.start_block,
             stop_block: config.stop_block,

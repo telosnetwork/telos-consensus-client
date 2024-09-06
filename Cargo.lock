@@ -4676,7 +4676,6 @@ dependencies = [
 [[package]]
 name = "telos-translator-rs"
 version = "0.1.0"
-source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=master#5b8d0b88ac0fd8c28d7f1c30104a99ebdb5782cd"
 dependencies = [
  "alloy",
  "alloy-consensus",
@@ -4685,6 +4684,7 @@ dependencies = [
  "bytes",
  "clap",
  "dashmap",
+ "env_logger",
  "eyre",
  "futures-util",
  "hex",
