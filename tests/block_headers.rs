@@ -61,6 +61,9 @@ async fn generate_block(
         chain_id,
         block_num,
         block_pos.block_id,
+        // Block is always final
+        block_num,
+        block_pos.block_id,
         GetBlocksResultV0 {
             head: block_pos.clone(),
             last_irreversible: block_pos.clone(),

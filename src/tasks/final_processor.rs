@@ -100,6 +100,8 @@ pub async fn final_processor(
             header,
             block_num: evm_block_num,
             block_hash,
+            lib_num: block.lib_num,
+            lib_hash: FixedBytes::from_slice(&block.lib_hash.data),
             transactions: block.transactions,
 
             new_revision: block.new_revision,

@@ -95,6 +95,8 @@ pub struct ProcessingEVMBlock {
     pub new_gas_price: Option<U256>,
     pub new_revision: Option<u32>,
     pub new_wallets: Vec<WalletEvents>,
+    pub lib_num: u32,
+    pub lib_hash: Checksum256,
 }
 
 #[derive(Clone)]
@@ -102,6 +104,8 @@ pub struct TelosEVMBlock {
     pub header: Header,
     pub block_num: u32,
     pub block_hash: B256,
+    pub lib_num: u32,
+    pub lib_hash: B256,
     pub transactions: Vec<TelosEVMTransaction>,
 
     pub new_gas_price: Option<U256>,
@@ -155,11 +159,15 @@ impl ProcessingEVMBlock {
         chain_id: u64,
         block_num: u32,
         block_hash: Checksum256,
+        lib_num: u32,
+        lib_hash: Checksum256,
         result: GetBlocksResultV0,
     ) -> Self {
         Self {
             block_num,
             block_hash,
+            lib_num,
+            lib_hash,
             chain_id,
             result,
             signed_block: None,

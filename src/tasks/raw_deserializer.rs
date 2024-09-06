@@ -81,6 +81,8 @@ pub async fn raw_deserializer(
                         config.chain_id,
                         b.block_num,
                         b.block_id,
+                        r.last_irreversible.block_num,
+                        r.last_irreversible.block_id,
                         r.clone(),
                     );
                     debug!("Block #{} sending to block deserializer...", b.block_num);
