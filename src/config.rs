@@ -9,6 +9,9 @@ pub struct CliArgs {
     /// Path to the configuration file
     #[clap(short, long, value_parser)]
     pub config: String,
+    /// Start translator from clean state
+    #[arg(long, default_value = "false")]
+    pub clean: bool,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -48,6 +51,15 @@ pub struct AppConfig {
 
     /// (Optional) Block number to stop on, default is U32::MAX
     pub stop_block: Option<u32>,
+
+    /// Path to the RocksDB folder
+    pub data_path: String,
+
+    /// Interval at which block hashes are stored in database
+    pub block_checkpoint_interval: u64,
+
+    /// Maximum range between the latest reth block and the latest stored block
+    pub maximum_sync_range: u32,
 }
 
 impl From<&AppConfig> for TranslatorConfig {

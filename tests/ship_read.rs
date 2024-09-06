@@ -7,7 +7,7 @@ use reth_primitives::B256;
 use serde_json::Value;
 use std::sync::Arc;
 use telos_consensus_client::client::ConsensusClient;
-use telos_consensus_client::config::AppConfig;
+use telos_consensus_client::config::{AppConfig, CliArgs};
 use telos_consensus_client::json_rpc::JsonRequestBody;
 use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
@@ -204,6 +204,11 @@ async fn evm_deploy() {
 
     let shutdown_tx = mock_execution_api.start().await;
 
+    let args = CliArgs {
+        config: "config.toml".to_string(),
+        clean: true,
+    };
+
     let config = AppConfig {
         log_level: "debug".to_string(),
         chain_id: 41,
@@ -217,9 +222,12 @@ async fn evm_deploy() {
         start_block: 0,
         validate_hash: None,
         stop_block: Some(60),
+        data_path: "temp/db".to_string(),
+        block_checkpoint_interval: 1000,
+        maximum_sync_range: 100000,
     };
 
-    let mut client_under_test = ConsensusClient::new(config).await.unwrap();
+    let mut client_under_test = ConsensusClient::new(&args, config).await.unwrap();
     let (_sender, receiver) = oneshot::channel();
     let _ = client_under_test.run(receiver).await;
 
