@@ -92,8 +92,8 @@ pub struct ProcessingEVMBlock {
     contract_rows: Option<Vec<ContractRow>>,
     pub decoded_rows: Vec<DecodedRow>,
     pub transactions: Vec<TelosEVMTransaction>,
-    pub new_gas_price: Option<U256>,
-    pub new_revision: Option<u32>,
+    pub new_gas_price: Option<(usize, U256)>,
+    pub new_revision: Option<(usize, u32)>,
     pub new_wallets: Vec<WalletEvents>,
     pub lib_num: u32,
     pub lib_hash: Checksum256,
@@ -108,8 +108,8 @@ pub struct TelosEVMBlock {
     pub lib_hash: B256,
     pub transactions: Vec<TelosEVMTransaction>,
 
-    pub new_gas_price: Option<U256>,
-    pub new_revision: Option<u32>,
+    pub new_gas_price: Option<(usize, U256)>,
+    pub new_revision: Option<(usize, u32)>,
     pub new_wallets: Vec<WalletEvents>,
     pub account_rows: Vec<AccountRow>,
     pub account_state_rows: Vec<AccountStateRow>,
@@ -232,7 +232,7 @@ impl ProcessingEVMBlock {
 
             let gas_price = U256::from_be_slice(&config_delta_row.gas_price.data);
 
-            self.new_gas_price = Some(gas_price);
+            self.new_gas_price = Some((self.transactions.len(), gas_price));
         } else if action_account == EOSIO_EVM && action_name == RAW {
             // Normally signed EVM transaction
             let raw: RawAction = decode(&action.data());
@@ -300,11 +300,11 @@ impl ProcessingEVMBlock {
 
             let gas_price = U256::from_be_slice(&config_delta_row.gas_price.data);
 
-            self.new_gas_price = Some(gas_price);
+            self.new_gas_price = Some((self.transactions.len(), gas_price));
         } else if action_account == EOSIO_EVM && action_name == SETREVISION {
             let rev_action: SetRevisionAction = decode(&action.data());
 
-            self.new_revision = Some(rev_action.new_revision);
+            self.new_revision = Some((self.transactions.len(), rev_action.new_revision));
         } else if action_account == EOSIO_EVM && action_name == OPENWALLET {
             let wallet_action: OpenWalletAction = decode(&action.data());
 
