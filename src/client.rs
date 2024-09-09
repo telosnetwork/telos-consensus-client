@@ -4,7 +4,6 @@ use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequ
 use crate::json_rpc::JsonResponseBody;
 use alloy_rlp::encode;
 use eyre::{Context, Result};
-use log::{debug, error};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_primitives::{Bytes, B256, U256};
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
@@ -13,6 +12,7 @@ use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
 use tokio::sync::mpsc;
+use tracing::{debug, error};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

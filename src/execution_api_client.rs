@@ -1,13 +1,12 @@
 use std::fmt;
 use std::fmt::Display;
 
-use log::debug;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::Client;
 use reth_rpc_types::Block;
 use serde_json::{json, Value};
 use thiserror::Error;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::auth::{self, Auth, Error, JwtKey};
 use crate::json_rpc::{JsonError, JsonRequestBody, JsonResponseBody};

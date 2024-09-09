@@ -1,8 +1,11 @@
 use crate::client::ConsensusClient;
 use crate::config::{AppConfig, CliArgs};
 use clap::Parser;
-use env_logger::Builder;
-use log::{error, info, LevelFilter};
+use tracing::level_filters::LevelFilter;
+use tracing::{error, info};
+use tracing_subscriber::fmt;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 mod auth;
 mod client;
@@ -15,12 +18,12 @@ async fn main() {
     let cli_args = CliArgs::parse();
     let config_contents = std::fs::read_to_string(cli_args.config).unwrap();
     let config: AppConfig = toml::from_str(&config_contents).unwrap();
-    let log_level = parse_log_level(&config.log_level).unwrap();
+    let log_level_filter = parse_log_level(&config.log_level).unwrap();
 
-    let mut builder = Builder::from_default_env();
-    builder.filter_level(log_level);
-    builder.filter_module(env!("CARGO_PKG_NAME"), log_level);
-    builder.init();
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(log_level_filter)
+        .init();
 
     info!("Starting Telos consensus client...");
 
@@ -40,12 +43,12 @@ async fn main() {
 
 fn parse_log_level(s: &str) -> Result<LevelFilter, String> {
     match s.to_lowercase().as_str() {
-        "off" => Ok(LevelFilter::Off),
-        "error" => Ok(LevelFilter::Error),
-        "warn" => Ok(LevelFilter::Warn),
-        "info" => Ok(LevelFilter::Info),
-        "debug" => Ok(LevelFilter::Debug),
-        "trace" => Ok(LevelFilter::Trace),
+        "off" => Ok(LevelFilter::OFF),
+        "error" => Ok(LevelFilter::ERROR),
+        "warn" => Ok(LevelFilter::WARN),
+        "info" => Ok(LevelFilter::INFO),
+        "debug" => Ok(LevelFilter::DEBUG),
+        "trace" => Ok(LevelFilter::TRACE),
         _ => Err(format!("Unknown log level: {}", s)),
     }
 }
