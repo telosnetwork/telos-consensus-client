@@ -1,4 +1,4 @@
-use crate::client::Error::ForkChoiceUpdated;
+use crate::client::Error::{ConsensusClientShutdown, ForkChoiceUpdated};
 use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
@@ -10,7 +10,7 @@ use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error};
 
 #[derive(Debug, thiserror::Error)]
@@ -29,8 +29,11 @@ pub enum Error {
     ForkChoiceUpdated(String),
     #[error("New payload error")]
     NewPayloadV1(String),
+    #[error("Consensus client shutdown error")]
+    ConsensusClientShutdown(String),
 }
 
+#[derive(Clone)]
 pub struct ConsensusClient {
     pub config: AppConfig,
     execution_api: ExecutionApiClient,
@@ -74,8 +77,9 @@ impl ConsensusClient {
         self.config.start_block <= num && num <= stop_block
     }
 
-    pub async fn run(&mut self) -> Result<(), Error> {
+    pub async fn run(&mut self, mut shutdown_rx: oneshot::Receiver<()>) -> Result<(), Error> {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
+        let (sender, receiver) = mpsc::channel::<()>(1);
 
         if let Some((number, hash)) = self.latest_valid_block() {
             if self.is_in_start_stop_range(number + 1) {
@@ -86,16 +90,29 @@ impl ConsensusClient {
         debug!("Starting translator from block {}", self.config.start_block);
 
         let mut translator = Translator::new((&self.config).into());
+        let sender_tx = sender.clone();
 
         let launch_handle = tokio::spawn(async move {
             translator
-                .launch(Some(tx))
+                .launch(Some(tx), sender, receiver)
                 .await
                 .map_err(|_| Error::SpawnTranslator)
         });
-
         let mut batch = vec![];
-        while let Some(block) = rx.recv().await {
+        loop {
+            let message = tokio::select! {
+                message = rx.recv() => message,
+                _ = &mut shutdown_rx => {
+                    debug!("Shutdown signal received");
+                    sender_tx.send(()).await.map_err(|e | ConsensusClientShutdown(e.to_string()))?;
+                    break;
+                }
+            };
+
+            let Some(block) = message else {
+                break;
+            };
+
             let block_num = block.block_num.as_u64();
             let block_hash = block.block_hash;
 
@@ -220,6 +237,15 @@ impl ConsensusClient {
                 params: json![vec![fork_choice_state]],
             })
             .await
+    }
+
+    // shutdown the consensus client
+    #[allow(dead_code)]
+    pub fn shutdown(&self, sender: oneshot::Sender<()>) -> Result<(), Error> {
+        sender.send(()).map_err(|error| {
+            error!("Failed to send shutdown signal: {error:?}");
+            ConsensusClientShutdown(format!("Failed to send shutdown signal {error:?}"))
+        })
     }
 
     /*
