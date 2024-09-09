@@ -3877,7 +3877,6 @@ dependencies = [
  "hex",
  "k256",
  "lazy_static",
- "log",
  "moka",
  "num-bigint",
  "num-traits",
