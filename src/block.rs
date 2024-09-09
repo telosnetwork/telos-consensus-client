@@ -12,13 +12,16 @@ use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Eip658Value, Header, Receipt, ReceiptWithBloom, TxEnvelope};
-use alloy_rlp::Encodable;
+use alloy_rlp::{encode, Encodable};
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::serializer::Packer;
+use reth_rpc_types::ExecutionPayloadV1;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
 use std::cmp::Ordering;
 use tracing::warn;
+
+const MINIMUM_FEE_PER_GAS: u128 = 7;
 
 pub trait BasicTrace {
     fn action_name(&self) -> u64;
@@ -106,6 +109,39 @@ pub struct TelosEVMBlock {
     pub new_wallets: Vec<WalletEvents>,
     pub account_rows: Vec<AccountRow>,
     pub account_state_rows: Vec<AccountStateRow>,
+}
+
+impl From<&TelosEVMBlock> for ExecutionPayloadV1 {
+    fn from(block: &TelosEVMBlock) -> Self {
+        let base_fee_per_gas = block
+            .header
+            .base_fee_per_gas
+            .filter(|&fee| fee > MINIMUM_FEE_PER_GAS)
+            .unwrap_or(MINIMUM_FEE_PER_GAS);
+
+        let transactions = block
+            .transactions
+            .iter()
+            .map(|transaction| Bytes::from(encode(&transaction.envelope)))
+            .collect::<Vec<_>>();
+
+        ExecutionPayloadV1 {
+            parent_hash: block.header.parent_hash,
+            fee_recipient: block.header.beneficiary,
+            state_root: block.header.state_root,
+            receipts_root: block.header.receipts_root,
+            logs_bloom: block.header.logs_bloom,
+            prev_randao: B256::ZERO,
+            block_number: block.block_num as u64,
+            gas_limit: block.header.gas_limit as u64,
+            gas_used: block.header.gas_used as u64,
+            timestamp: block.header.timestamp,
+            extra_data: block.header.extra_data.clone(),
+            base_fee_per_gas: U256::from(base_fee_per_gas),
+            block_hash: block.block_hash,
+            transactions,
+        }
+    }
 }
 
 pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {

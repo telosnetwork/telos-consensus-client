@@ -209,6 +209,7 @@ dependencies = [
  "cfg-if",
  "const-hex",
  "derive_more",
+ "getrandom",
  "hex-literal",
  "itoa",
  "k256",
@@ -297,6 +298,74 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-rpc-types"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6c31a3750b8f5a350d17354e46a52b0f2f19ec5f2006d816935af599dedc521"
+dependencies = [
+ "alloy-rpc-types-engine",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
+ "serde",
+]
+
+[[package]]
+name = "alloy-rpc-types-admin"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbfb8b2c2eea8acd5580c9804a1ee58038938b16efb24eec09c3005f65b0e4ad"
+dependencies = [
+ "alloy-genesis",
+ "alloy-primitives",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "alloy-rpc-types-anvil"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52ab6509cd38b2e8c8da726e0f61c1e314a81df06a38d37ddec8bced3f8d25ed"
+dependencies = [
+ "alloy-primitives",
+ "alloy-serde",
+ "serde",
+]
+
+[[package]]
+name = "alloy-rpc-types-beacon"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8a24bcff4f9691d7a4971b43e5da46aa7b4ce22ed7789796612dc1eed220983"
+dependencies = [
+ "alloy-eips",
+ "alloy-primitives",
+ "alloy-rpc-types-engine",
+ "serde",
+ "serde_with",
+ "thiserror",
+]
+
+[[package]]
+name = "alloy-rpc-types-engine"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff63f51b2fb2f547df5218527fd0653afb1947bf7fead5b3ce58c75d170b30f7"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
+ "jsonrpsee-types",
+ "jsonwebtoken",
+ "rand",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "alloy-rpc-types-eth"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -310,9 +379,49 @@ dependencies = [
  "alloy-serde",
  "alloy-sol-types",
  "itertools 0.13.0",
+ "jsonrpsee-types",
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "alloy-rpc-types-mev"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a0593a17b4b009598eb3e8380e298c53bd5581f3f37d85a38e6a34881c90ea1"
+dependencies = [
+ "alloy-eips",
+ "alloy-primitives",
+ "alloy-serde",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "alloy-rpc-types-trace"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a86eeb49ea0cc79f249faa1d35c20541bb1c317a59b5962cb07b1890355b0064"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "alloy-rpc-types-txpool"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2342fed8175642b15a37a51f8729b05b2469281fbeb816f0ccbb0087e2dd74a"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
+ "serde",
 ]
 
 [[package]]
@@ -990,9 +1099,9 @@ checksum = "c3ac9f8b63eca6fd385229b3675f6cc0dc5c8a5c8a54a59d4f52ffd670d87b0c"
 
 [[package]]
 name = "bytemuck"
-version = "1.17.1"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "773d90827bc3feecfb67fab12e24de0749aad83c74b9504ecde46237b5cd24e2"
+checksum = "94bbb0ad554ad961ddc5da507a12a29b14e4ae5bda06b19f575a3e6079d2e2ae"
 
 [[package]]
 name = "byteorder"
@@ -1706,8 +1815,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4567c8db10ae91089c99af84c68c38da3ec2f087c3f82960bcdbf3656b6f4d7"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -2204,6 +2315,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonrpsee-types"
+version = "0.24.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23b67d6e008164f027afbc2e7bb79662650158d26df200040282d2aa1cbb093b"
+dependencies = [
+ "http 1.1.0",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "jsonwebtoken"
+version = "9.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9ae10193d25051e74945f1ea2d0b42e03cc3b890f7e4cc5faa44997d808193f"
+dependencies = [
+ "base64 0.21.7",
+ "js-sys",
+ "pem",
+ "ring",
+ "serde",
+ "serde_json",
+ "simple_asn1",
+]
+
+[[package]]
 name = "k256"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2267,7 +2405,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -2691,6 +2829,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
+name = "pem"
+version = "3.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e459365e590736a54c3fa561947c84837534b8e9af6fc5bf781307e82658fae"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+]
+
+[[package]]
 name = "pem-rfc7468"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3090,7 +3238,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git#15f441221100c585045cad7043b89c751ac9323f"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -3106,7 +3254,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs-derive"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git#15f441221100c585045cad7043b89c751ac9323f"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -3117,7 +3265,7 @@ dependencies = [
 [[package]]
 name = "reth-primitives-traits"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git#15f441221100c585045cad7043b89c751ac9323f"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -3135,9 +3283,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-rpc-types"
+version = "1.0.5"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types",
+ "alloy-rpc-types-admin",
+ "alloy-rpc-types-anvil",
+ "alloy-rpc-types-beacon",
+ "alloy-rpc-types-engine",
+ "alloy-rpc-types-mev",
+ "alloy-rpc-types-trace",
+ "alloy-rpc-types-txpool",
+ "alloy-serde",
+ "jsonrpsee-types",
+]
+
+[[package]]
 name = "reth-trie-common"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git#15f441221100c585045cad7043b89c751ac9323f"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -3157,7 +3323,7 @@ dependencies = [
 [[package]]
 name = "revm-primitives"
 version = "8.0.0"
-source = "git+https://github.com/telosnetwork/telos-revm?branch=telos-main#d015966b5131bf4d645465f8802d7a5ed7ca002a"
+source = "git+https://github.com/telosnetwork/telos-revm?branch=telos-main#e8dab814da3cf35f456901db814d39d6aaf94a88"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -3674,6 +3840,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "simple_asn1"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adc4e5204eb1910f40f9cfa375f6f05b68c3abac4b6fd879c8ff5e7ae8a0a085"
+dependencies = [
+ "num-bigint",
+ "num-traits",
+ "thiserror",
+ "time",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3881,6 +4059,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "reqwest 0.12.5",
+ "reth-rpc-types",
  "reth-trie-common",
  "rlp",
  "ruint 0.3.0",
