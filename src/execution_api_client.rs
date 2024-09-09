@@ -6,7 +6,7 @@ use reqwest::Client;
 use reth_rpc_types::Block;
 use serde_json::{json, Value};
 use thiserror::Error;
-use tracing::{debug};
+use tracing::debug;
 
 use crate::auth::{self, Auth, Error, JwtKey};
 use crate::json_rpc::{JsonError, JsonRequestBody, JsonResponseBody};
