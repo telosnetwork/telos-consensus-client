@@ -3689,23 +3689,7 @@ dependencies = [
  "alloy-trie",
  "bytes",
  "modular-bitfield",
- "reth-codecs-derive 1.0.5 (git+https://github.com/telosnetwork/telos-reth?branch=telos-main)",
- "serde",
-]
-
-[[package]]
-name = "reth-codecs"
-version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git#30dc0f31b2eb19169a5bbabc44b663b64fc6fa68"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-genesis",
- "alloy-primitives",
- "alloy-trie",
- "bytes",
- "modular-bitfield",
- "reth-codecs-derive 1.0.5 (git+https://github.com/telosnetwork/telos-reth.git)",
+ "reth-codecs-derive",
  "serde",
 ]
 
@@ -3713,17 +3697,6 @@ dependencies = [
 name = "reth-codecs-derive"
 version = "1.0.5"
 source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#30dc0f31b2eb19169a5bbabc44b663b64fc6fa68"
-dependencies = [
- "convert_case 0.6.0",
- "proc-macro2",
- "quote",
- "syn 2.0.77",
-]
-
-[[package]]
-name = "reth-codecs-derive"
-version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git#30dc0f31b2eb19169a5bbabc44b663b64fc6fa68"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -3765,11 +3738,11 @@ dependencies = [
  "modular-bitfield",
  "once_cell",
  "rayon",
- "reth-codecs 1.0.5 (git+https://github.com/telosnetwork/telos-reth?branch=telos-main)",
+ "reth-codecs",
  "reth-ethereum-forks",
- "reth-primitives-traits 1.0.5 (git+https://github.com/telosnetwork/telos-reth?branch=telos-main)",
+ "reth-primitives-traits",
  "reth-static-file-types",
- "reth-trie-common 1.0.5 (git+https://github.com/telosnetwork/telos-reth?branch=telos-main)",
+ "reth-trie-common",
  "revm-primitives",
  "secp256k1",
  "serde",
@@ -3793,27 +3766,7 @@ dependencies = [
  "bytes",
  "derive_more",
  "modular-bitfield",
- "reth-codecs 1.0.5 (git+https://github.com/telosnetwork/telos-reth?branch=telos-main)",
- "revm-primitives",
- "roaring",
- "serde",
-]
-
-[[package]]
-name = "reth-primitives-traits"
-version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git#30dc0f31b2eb19169a5bbabc44b663b64fc6fa68"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-genesis",
- "alloy-primitives",
- "alloy-rlp",
- "byteorder",
- "bytes",
- "derive_more",
- "modular-bitfield",
- "reth-codecs 1.0.5 (git+https://github.com/telosnetwork/telos-reth.git)",
+ "reth-codecs",
  "revm-primitives",
  "roaring",
  "serde",
@@ -3862,28 +3815,8 @@ dependencies = [
  "derive_more",
  "itertools 0.13.0",
  "nybbles",
- "reth-codecs 1.0.5 (git+https://github.com/telosnetwork/telos-reth?branch=telos-main)",
- "reth-primitives-traits 1.0.5 (git+https://github.com/telosnetwork/telos-reth?branch=telos-main)",
- "revm-primitives",
- "serde",
-]
-
-[[package]]
-name = "reth-trie-common"
-version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git#30dc0f31b2eb19169a5bbabc44b663b64fc6fa68"
-dependencies = [
- "alloy-consensus",
- "alloy-genesis",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-trie",
- "bytes",
- "derive_more",
- "itertools 0.13.0",
- "nybbles",
- "reth-codecs 1.0.5 (git+https://github.com/telosnetwork/telos-reth.git)",
- "reth-primitives-traits 1.0.5 (git+https://github.com/telosnetwork/telos-reth.git)",
+ "reth-codecs",
+ "reth-primitives-traits",
  "revm-primitives",
  "serde",
 ]
@@ -4676,7 +4609,7 @@ dependencies = [
 [[package]]
 name = "telos-translator-rs"
 version = "0.1.0"
-source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=use-stop-signal-externaly#36a4b7bd2309c836efe7db1a9db5343d7108845e"
+source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=master#f21a51f8474387b08087c1e279fe446dfb49b696"
 dependencies = [
  "alloy",
  "alloy-consensus",
@@ -4690,10 +4623,10 @@ dependencies = [
  "hex",
  "k256",
  "lazy_static",
- "log",
  "moka",
  "num-bigint",
- "reth-trie-common 1.0.5 (git+https://github.com/telosnetwork/telos-reth.git)",
+ "reth-rpc-types",
+ "reth-trie-common",
  "rlp",
  "ruint 0.3.0",
  "serde",

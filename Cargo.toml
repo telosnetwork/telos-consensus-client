@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 log = "0.4"
 env_logger = "0.10"
 #telos-translator-rs = { path = "../../telos/telos-translator-rs" }
-telos-translator-rs = { git = "https://github.com/telosnetwork/telos-translator-rs.git", branch = "use-stop-signal-externaly" }
+telos-translator-rs = { git = "https://github.com/telosnetwork/telos-translator-rs.git", branch = "master" }
 
 reth-primitives = { git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }
 reth-rpc-types = { git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }
