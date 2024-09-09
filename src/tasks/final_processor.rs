@@ -8,7 +8,6 @@ use alloy_rlp::Encodable;
 use antelope::api::client::{APIClient, DefaultProvider};
 use eyre::{eyre, Context, Result};
 use hex::encode;
-use reth_rpc_types::admin::PeerEventType::Add;
 use reth_telos_rpc_engine_api::structs::{
     TelosAccountStateTableRow, TelosAccountTableRow, TelosEngineAPIExtraFields,
 };
@@ -114,12 +113,10 @@ pub async fn final_processor(
                 }),
                 DecodedRow::AccountState(acc_state_diff) => {
                     statediffs_accountstate.push(TelosAccountStateTableRow {
-                        address: Address::from(
-                            native_to_evm_cache
-                                .get_index(acc_state_diff.index)
-                                .await
-                                .unwrap(),
-                        ),
+                        address: native_to_evm_cache
+                            .get_index(acc_state_diff.index)
+                            .await
+                            .unwrap(),
                         key: U256::from_be_slice(&acc_state_diff.key.data),
                         value: U256::from_be_slice(&acc_state_diff.value.data),
                     });
