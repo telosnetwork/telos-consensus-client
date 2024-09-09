@@ -19,6 +19,7 @@ pub type WebsocketReceiver = SplitStream<WebSocketStream<MaybeTlsStream<tokio::n
 
 pub struct NameToAddressCache {
     cache: Cache<u64, Address>,
+    index_cache: Cache<u64, Address>,
     api_client: APIClient<DefaultProvider>,
 }
 
@@ -26,6 +27,7 @@ impl NameToAddressCache {
     pub fn new(api_client: APIClient<DefaultProvider>) -> Self {
         NameToAddressCache {
             cache: Cache::new(10_000),
+            index_cache: Cache::new(10_000),
             api_client,
         }
     }
@@ -64,9 +66,50 @@ impl NameToAddressCache {
                 return None;
             }
 
+            let row_index = account_result.rows[0].index;
             let address_checksum = account_result.rows[0].address;
             let address = Address::from(address_checksum.data);
             self.cache.insert(name, address);
+            self.index_cache.insert(row_index, address);
+            Some(address)
+        }
+    }
+
+    pub async fn get_index(&self, index: u64) -> Option<Address> {
+        let cached = self.index_cache.get(&index);
+        info!("getting index {} cache hit = {:?}", index, cached.is_some());
+        if let Some(cached) = cached {
+            Some(cached)
+        } else {
+            let evm_contract = Name::from_u64(EOSIO_EVM);
+            // TODO: hardcode this in names.rs for performance
+            let account = Name::new_from_str("account");
+            let account_result = self
+                .api_client
+                .v1_chain
+                .get_table_rows::<AccountRow>(GetTableRowsParams {
+                    code: evm_contract,
+                    table: account,
+                    scope: Some(evm_contract),
+                    lower_bound: Some(TableIndexType::UINT64(index)),
+                    upper_bound: Some(TableIndexType::UINT64(index)),
+                    limit: Some(1),
+                    reverse: None,
+                    index_position: Some(IndexPosition::PRIMARY),
+                    show_payer: None,
+                })
+                .await
+                .unwrap();
+            if account_result.rows.is_empty() {
+                info!("Got empty rows for {}", index);
+                return None;
+            }
+
+            let row_name = account_result.rows[0].account;
+            let address_checksum = account_result.rows[0].address;
+            let address = Address::from(address_checksum.data);
+            self.cache.insert(row_name.value(), address);
+            self.index_cache.insert(index, address);
             Some(address)
         }
     }

@@ -95,15 +95,15 @@ async fn genesis_mainnet() {
 
     block.deserialize();
 
-    let evm_block = block
+    let (header, payload) = block
         .generate_evm_data(zero_bytes, evm_delta, &native_to_evm_cache)
         .await;
 
-    println!("genesis: {:#?}", evm_block);
-    println!("hash: {:#?}", evm_block.hash_slow());
+    println!("genesis: {:#?}", header);
+    println!("hash: {:#?}", payload.block_hash);
 
     assert_eq!(
-        evm_block.hash_slow(),
+        payload.block_hash,
         FixedBytes::from_hex("36fe7024b760365e3970b7b403e161811c1e626edd68460272fcdfa276272563")
             .unwrap()
     );
@@ -130,15 +130,15 @@ async fn deploy_mainnet() {
 
     block.deserialize();
 
-    let evm_block = block
+    let (header, payload) = block
         .generate_evm_data(parent_hash, evm_delta, &native_to_evm_cache)
         .await;
 
-    println!("block: {:#?}", evm_block);
-    println!("hash: {:#?}", evm_block.hash_slow());
+    println!("genesis: {:#?}", header);
+    println!("hash: {:#?}", payload.block_hash);
 
     assert_eq!(
-        evm_block.hash_slow(),
+        payload.block_hash,
         FixedBytes::from_hex(MAINNET_DEPLOY_CONFIG.validate_hash.clone().unwrap()).unwrap()
     );
 }

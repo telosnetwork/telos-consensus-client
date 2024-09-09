@@ -17,6 +17,7 @@ use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::serializer::Packer;
 use reth_rpc_types::ExecutionPayloadV1;
+use reth_telos_rpc_engine_api::structs::TelosEngineAPIExtraFields;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
 use std::cmp::Ordering;
 use tracing::warn;
@@ -92,8 +93,8 @@ pub struct ProcessingEVMBlock {
     contract_rows: Option<Vec<ContractRow>>,
     pub decoded_rows: Vec<DecodedRow>,
     pub transactions: Vec<TelosEVMTransaction>,
-    pub new_gas_price: Option<(usize, U256)>,
-    pub new_revision: Option<(usize, u32)>,
+    pub new_gas_price: Option<(u64, U256)>,
+    pub new_revision: Option<(u64, u64)>,
     pub new_wallets: Vec<WalletEvents>,
     pub lib_num: u32,
     pub lib_hash: Checksum256,
@@ -101,51 +102,14 @@ pub struct ProcessingEVMBlock {
 
 #[derive(Clone)]
 pub struct TelosEVMBlock {
-    pub header: Header,
     pub block_num: u32,
     pub block_hash: B256,
     pub lib_num: u32,
     pub lib_hash: B256,
+    pub header: Header,
     pub transactions: Vec<TelosEVMTransaction>,
-
-    pub new_gas_price: Option<(usize, U256)>,
-    pub new_revision: Option<(usize, u32)>,
-    pub new_wallets: Vec<WalletEvents>,
-    pub account_rows: Vec<AccountRow>,
-    pub account_state_rows: Vec<AccountStateRow>,
-}
-
-impl From<&TelosEVMBlock> for ExecutionPayloadV1 {
-    fn from(block: &TelosEVMBlock) -> Self {
-        let base_fee_per_gas = block
-            .header
-            .base_fee_per_gas
-            .filter(|&fee| fee > MINIMUM_FEE_PER_GAS)
-            .unwrap_or(MINIMUM_FEE_PER_GAS);
-
-        let transactions = block
-            .transactions
-            .iter()
-            .map(|transaction| Bytes::from(encode(&transaction.envelope)))
-            .collect::<Vec<_>>();
-
-        ExecutionPayloadV1 {
-            parent_hash: block.header.parent_hash,
-            fee_recipient: block.header.beneficiary,
-            state_root: block.header.state_root,
-            receipts_root: block.header.receipts_root,
-            logs_bloom: block.header.logs_bloom,
-            prev_randao: B256::ZERO,
-            block_number: block.block_num as u64,
-            gas_limit: block.header.gas_limit as u64,
-            gas_used: block.header.gas_used as u64,
-            timestamp: block.header.timestamp,
-            extra_data: block.header.extra_data.clone(),
-            base_fee_per_gas: U256::from(base_fee_per_gas),
-            block_hash: block.block_hash,
-            transactions,
-        }
-    }
+    pub execution_payload: ExecutionPayloadV1,
+    pub extra_fields: TelosEngineAPIExtraFields,
 }
 
 pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
@@ -232,7 +196,7 @@ impl ProcessingEVMBlock {
 
             let gas_price = U256::from_be_slice(&config_delta_row.gas_price.data);
 
-            self.new_gas_price = Some((self.transactions.len(), gas_price));
+            self.new_gas_price = Some((self.transactions.len() as u64, gas_price));
         } else if action_account == EOSIO_EVM && action_name == RAW {
             // Normally signed EVM transaction
             let raw: RawAction = decode(&action.data());
@@ -300,11 +264,14 @@ impl ProcessingEVMBlock {
 
             let gas_price = U256::from_be_slice(&config_delta_row.gas_price.data);
 
-            self.new_gas_price = Some((self.transactions.len(), gas_price));
+            self.new_gas_price = Some((self.transactions.len() as u64, gas_price));
         } else if action_account == EOSIO_EVM && action_name == SETREVISION {
             let rev_action: SetRevisionAction = decode(&action.data());
 
-            self.new_revision = Some((self.transactions.len(), rev_action.new_revision));
+            self.new_revision = Some((
+                self.transactions.len() as u64,
+                rev_action.new_revision as u64,
+            ));
         } else if action_account == EOSIO_EVM && action_name == OPENWALLET {
             let wallet_action: OpenWalletAction = decode(&action.data());
 
@@ -326,7 +293,7 @@ impl ProcessingEVMBlock {
         parent_hash: FixedBytes<32>,
         block_delta: u32,
         native_to_evm_cache: &NameToAddressCache,
-    ) -> Header {
+    ) -> (Header, ExecutionPayloadV1) {
         if self.signed_block.is_none()
             || self.block_traces.is_none()
             || self.contract_rows.is_none()
@@ -416,7 +383,7 @@ impl ProcessingEVMBlock {
             logs_bloom.accrue_bloom(&receipt.logs_bloom);
         }
 
-        Header {
+        let header = Header {
             parent_hash,
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: Default::default(),
@@ -441,7 +408,39 @@ impl ProcessingEVMBlock {
             parent_beacon_block_root: None,
             requests_root: None,
             extra_data: Bytes::from(self.block_hash.data),
-        }
+        };
+
+        let base_fee_per_gas = U256::from(
+            header
+                .base_fee_per_gas
+                .filter(|&fee| fee > MINIMUM_FEE_PER_GAS)
+                .unwrap_or(MINIMUM_FEE_PER_GAS),
+        );
+
+        let transactions = self
+            .transactions
+            .iter()
+            .map(|transaction| Bytes::from(encode(&transaction.envelope)))
+            .collect::<Vec<_>>();
+
+        let exec_payload = ExecutionPayloadV1 {
+            parent_hash,
+            fee_recipient: Default::default(),
+            state_root: EMPTY_ROOT_HASH,
+            receipts_root: receipts_root_hash,
+            logs_bloom,
+            prev_randao: B256::ZERO,
+            block_number: header.number,
+            gas_limit: header.gas_limit as u64,
+            gas_used: header.gas_used as u64,
+            timestamp: header.timestamp,
+            extra_data: header.extra_data.clone(),
+            base_fee_per_gas,
+            block_hash: header.hash_slow(),
+            transactions,
+        };
+
+        (header, exec_payload)
     }
 }
 
