@@ -2,10 +2,9 @@ use crate::client::Error::ForkChoiceUpdated;
 use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
-use alloy_rlp::encode;
 use eyre::{Context, Result};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
-use reth_primitives::{Bytes, B256, U256};
+use reth_primitives::B256;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
@@ -132,39 +131,11 @@ impl ConsensusClient {
     }
 
     async fn send_batch(&self, batch: &[TelosEVMBlock]) -> Result<(), Error> {
-        const MINIMUM_FEE: u128 = 7;
-
         let rpc_batch = batch
             .iter()
             .map(|block| {
-                let base_fee_per_gas = block
-                    .header
-                    .base_fee_per_gas
-                    .filter(|&fee| fee > MINIMUM_FEE)
-                    .unwrap_or(MINIMUM_FEE);
-
-                let transactions = block
-                    .transactions
-                    .iter()
-                    .map(|transaction| Bytes::from(encode(&transaction.envelope)))
-                    .collect::<Vec<_>>();
-
-                let execution_payload = ExecutionPayloadV1 {
-                    parent_hash: block.header.parent_hash,
-                    fee_recipient: block.header.beneficiary,
-                    state_root: block.header.state_root,
-                    receipts_root: block.header.receipts_root,
-                    logs_bloom: block.header.logs_bloom,
-                    prev_randao: B256::ZERO,
-                    block_number: block.block_num as u64,
-                    gas_limit: block.header.gas_limit as u64,
-                    gas_used: block.header.gas_used as u64,
-                    timestamp: block.header.timestamp,
-                    extra_data: block.header.extra_data.clone(),
-                    base_fee_per_gas: U256::from(base_fee_per_gas),
-                    block_hash: block.block_hash,
-                    transactions,
-                };
+                let execution_payload: ExecutionPayloadV1 = block.into();
+                // TODO additional rpc call fields should be added.
                 RpcRequest {
                     method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
                     params: json![vec![execution_payload]],
