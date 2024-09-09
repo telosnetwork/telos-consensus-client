@@ -1,8 +1,8 @@
 use crate::client::ConsensusClient;
 use crate::config::{AppConfig, CliArgs};
 use clap::Parser;
-use tracing::{error, info};
 use tracing::level_filters::LevelFilter;
+use tracing::{error, info};
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -24,7 +24,6 @@ async fn main() {
         .with(fmt::layer())
         .with(log_level_filter)
         .init();
-
 
     info!("Starting Telos consensus client...");
 
