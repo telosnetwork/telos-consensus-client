@@ -2,7 +2,7 @@ use std::cmp;
 
 use crate::client::Error::{ConsensusClientShutdown, ForkChoiceUpdated};
 use crate::config::{AppConfig, CliArgs};
-use crate::data::{Database, Lib};
+use crate::data::{self, Database, Lib};
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
 use eyre::{Context, Result};
@@ -37,7 +37,7 @@ pub enum Error {
     #[error("Database error: {0}")]
     Database(eyre::Report),
     #[error("Client is too many blocks ({0}) behind the executor, start from a more recent block or increase maximum range")]
-    RangeAboveMaximum(u32),
+    RangeAboveMaximum(u64),
 }
 
 pub struct ConsensusClient {
@@ -88,18 +88,27 @@ impl ConsensusClient {
         }
     }
 
+    fn latest_evm_number(&self) -> Option<u64> {
+        self.latest_valid_executor_block.as_ref()?.header.number
+    }
+
+    fn min_latest_or_lib(&self, lib: Option<&data::Block>) -> Option<u32> {
+        Some(cmp::min(lib?.number, self.latest_evm_number()?.as_u32()))
+    }
+
+    fn sync_range(&self) -> Option<u64> {
+        self.latest_evm_number()?
+            .checked_sub(self.config.start_block.as_u64())
+    }
+
     pub async fn run(&mut self, mut shutdown_rx: oneshot::Receiver<()>) -> Result<(), Error> {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
         let (sender, receiver) = mpsc::channel::<()>(1);
 
         let mut lib = self.db.get_lib()?;
-        let latest_evm_block = self.latest_evm_block();
 
-        if let Some((latest, lib)) = latest_evm_block.as_ref().zip(lib.as_ref()) {
-            let &(latest_number, _) = latest;
-
-            let lib_or_latest = cmp::min(lib.number, latest_number);
-            let last_checked = self.db.get_block_or_prev(lib_or_latest)?;
+        if let Some(latest_number) = self.min_latest_or_lib(lib.as_ref()) {
+            let last_checked = self.db.get_block_or_prev(latest_number)?;
 
             if let Some(last_checked) = last_checked {
                 if self.is_in_start_stop_range(last_checked.number + 1) {
@@ -108,8 +117,8 @@ impl ConsensusClient {
                 }
             }
 
-            if let Some(sync_range) = latest_number.checked_sub(self.config.start_block) {
-                if sync_range > self.config.maximum_sync_range {
+            if let Some(sync_range) = self.sync_range() {
+                if sync_range > self.config.maximum_sync_range.as_u64() {
                     return Err(Error::RangeAboveMaximum(sync_range));
                 }
             }
@@ -156,7 +165,7 @@ impl ConsensusClient {
                 debug!("LIB {} put in the database", block.lib_num);
             }
 
-            if let Some((latest_num, latest_hash)) = &latest_evm_block {
+            if let Some((latest_num, latest_hash)) = &self.latest_evm_block() {
                 // Check fork
                 if block_num == latest_num.as_u64() && &block_hash.to_string() != latest_hash {
                     error!("Fork detected! Latest executor block hash {latest_num:?} does not match consensus block hash {block_num:?}" );
