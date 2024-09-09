@@ -6,7 +6,7 @@ use reqwest::Client;
 use reth_rpc_types::Block;
 use serde_json::{json, Value};
 use thiserror::Error;
-use tracing::{debug, info};
+use tracing::{debug};
 
 use crate::auth::{self, Auth, Error, JwtKey};
 use crate::json_rpc::{JsonError, JsonRequestBody, JsonResponseBody};
@@ -129,7 +129,7 @@ impl ExecutionApiClient {
 
         let response = request.send().await?;
         let json_response = response.json::<JsonResponseBody>().await?;
-        info!("rpc response: {:?}", serde_json::to_string(&json_response));
+        debug!("rpc response: {:?}", serde_json::to_string(&json_response));
         Ok(json_response)
     }
 
