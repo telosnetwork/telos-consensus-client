@@ -61,11 +61,9 @@ impl From<&AppConfig> for TranslatorConfig {
             validate_hash: config.validate_hash.clone(),
             http_endpoint: config.chain_endpoint.clone(),
             ship_endpoint: config.ship_endpoint.clone(),
-            raw_ds_threads: None,
-            block_process_threads: None,
-            raw_message_channel_size: None,
-            block_message_channel_size: None,
-            final_message_channel_size: None,
+            raw_message_channel_size: 1000,
+            block_message_channel_size: 1000,
+            final_message_channel_size: 1000,
         }
     }
 }

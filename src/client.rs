@@ -2,18 +2,17 @@ use crate::client::Error::{ConsensusClientShutdown, ForkChoiceUpdated};
 use crate::config::AppConfig;
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
-use alloy_rlp::encode;
-use eyre::Context;
-use eyre::Result;
+use eyre::{Context, Result};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
-use reth_primitives::{Bytes, B256, U256};
+use reth_primitives::B256;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::{Block, ExecutionPayloadV1};
 use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
-use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error};
+use tokio::sync::{mpsc, oneshot};
+
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -63,9 +62,33 @@ impl ConsensusClient {
         })
     }
 
+    fn latest_valid_block(&self) -> Option<(u32, String)> {
+        let latest = self.latest_valid_executor_block.as_ref()?;
+        match (latest.header.number, latest.header.hash) {
+            (Some(number), Some(hash)) => Some((number.as_u32(), hash.to_string())),
+            _ => None,
+        }
+    }
+
+    fn is_in_start_stop_range(&self, num: u32) -> bool {
+        let Some(stop_block) = self.config.stop_block else {
+            return false;
+        };
+
+        self.config.start_block <= num && num <= stop_block
+    }
+
     pub async fn run(&mut self, mut shutdown_rx: oneshot::Receiver<()>) -> Result<(), Error> {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
         let (sender, receiver) = mpsc::channel::<()>(1);
+
+        if let Some((number, hash)) = self.latest_valid_block() {
+            if self.is_in_start_stop_range(number + 1) {
+                self.config.start_block = number + 1;
+                self.config.prev_hash = hash
+            }
+        }
+        debug!("Starting translator from block {}", self.config.start_block);
 
         let mut translator = Translator::new((&self.config).into());
         let sender_tx = sender.clone();
@@ -126,39 +149,11 @@ impl ConsensusClient {
     }
 
     async fn send_batch(&self, batch: &[TelosEVMBlock]) -> Result<(), Error> {
-        const MINIMUM_FEE: u128 = 7;
-
         let rpc_batch = batch
             .iter()
             .map(|block| {
-                let base_fee_per_gas = block
-                    .header
-                    .base_fee_per_gas
-                    .filter(|&fee| fee > MINIMUM_FEE)
-                    .unwrap_or(MINIMUM_FEE);
-
-                let transactions = block
-                    .transactions
-                    .iter()
-                    .map(|transaction| Bytes::from(encode(&transaction.envelope)))
-                    .collect::<Vec<_>>();
-
-                let execution_payload = ExecutionPayloadV1 {
-                    parent_hash: block.header.parent_hash,
-                    fee_recipient: block.header.beneficiary,
-                    state_root: block.header.state_root,
-                    receipts_root: block.header.receipts_root,
-                    logs_bloom: block.header.logs_bloom,
-                    prev_randao: B256::ZERO,
-                    block_number: block.block_num as u64,
-                    gas_limit: block.header.gas_limit as u64,
-                    gas_used: block.header.gas_used as u64,
-                    timestamp: block.header.timestamp,
-                    extra_data: block.header.extra_data.clone(),
-                    base_fee_per_gas: U256::from(base_fee_per_gas),
-                    block_hash: block.block_hash,
-                    transactions,
-                };
+                let execution_payload: ExecutionPayloadV1 = block.into();
+                // TODO additional rpc call fields should be added.
                 RpcRequest {
                     method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
                     params: json![vec![execution_payload]],
