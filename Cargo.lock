@@ -3665,7 +3665,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -3681,7 +3681,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs-derive"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -3692,7 +3692,7 @@ dependencies = [
 [[package]]
 name = "reth-ethereum-forks"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
@@ -3709,7 +3709,7 @@ dependencies = [
 [[package]]
 name = "reth-primitives"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
@@ -3739,7 +3739,7 @@ dependencies = [
 [[package]]
 name = "reth-primitives-traits"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -3760,7 +3760,7 @@ dependencies = [
 [[package]]
 name = "reth-rpc-types"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
@@ -3778,7 +3778,7 @@ dependencies = [
 [[package]]
 name = "reth-static-file-types"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
 dependencies = [
  "alloy-primitives",
  "derive_more",
@@ -3787,9 +3787,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-telos-rpc-engine-api"
+version = "1.0.5"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
+dependencies = [
+ "reth-primitives",
+ "serde",
+]
+
+[[package]]
 name = "reth-trie-common"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#a76668d66b5e6c92cea97031940824be2e101002"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -3981,9 +3990,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.12"
+version = "0.23.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c58f8c84392efc0a126acce10fa59ff7b3d2ac06ab451a33f2741989b806b044"
+checksum = "f2dabaac7466917e566adb06783a81ca48944c6898a1b08b9374106dd671f4c8"
 dependencies = [
  "once_cell",
  "ring",
@@ -4033,9 +4042,9 @@ checksum = "fc0a2ce646f8655401bb81e7927b812614bd5d91dbc968696be50603510fcaf0"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.102.7"
+version = "0.102.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84678086bd54edf2b415183ed7a94d0efb049f1b646a33e22a36f3794be6ae56"
+checksum = "64ca1bc8749bd4cf37b5ce386cc146580777b4e8572c7b97baf22c83f444bee9"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -4593,7 +4602,7 @@ dependencies = [
 [[package]]
 name = "telos-translator-rs"
 version = "0.1.0"
-source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=master#f21a51f8474387b08087c1e279fe446dfb49b696"
+source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=master#660764222383b45417e5dfd7c6677bbd3d2a3ad2"
 dependencies = [
  "alloy",
  "alloy-consensus",
@@ -4610,6 +4619,7 @@ dependencies = [
  "moka",
  "num-bigint",
  "reth-rpc-types",
+ "reth-telos-rpc-engine-api",
  "reth-trie-common",
  "rlp",
  "ruint 0.3.0",
