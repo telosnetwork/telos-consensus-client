@@ -154,7 +154,11 @@ impl ConsensusClient {
                 // TODO additional rpc call fields should be added.
                 RpcRequest {
                     method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
-                    params: json![vec![block.execution_payload.clone()]],
+                    params: vec![
+                        json![block.execution_payload.clone()],
+                        json![block.extra_fields.clone()],
+                    ]
+                    .into(),
                 }
             })
             .collect::<Vec<RpcRequest>>();
