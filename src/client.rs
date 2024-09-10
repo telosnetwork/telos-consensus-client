@@ -7,7 +7,7 @@ use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundament
 use reth_primitives::B256;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::Block;
-use serde_json::json;
+use serde_json::{json};
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
 use tokio::sync::{mpsc, oneshot};
@@ -154,7 +154,7 @@ impl ConsensusClient {
                 // TODO additional rpc call fields should be added.
                 RpcRequest {
                     method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
-                    params: json![vec![block.execution_payload.clone()]],
+                    params: vec![json![block.execution_payload.clone()], json![block.extra_fields.clone()]].into(),
                 }
             })
             .collect::<Vec<RpcRequest>>();
