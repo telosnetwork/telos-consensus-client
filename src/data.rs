@@ -40,7 +40,7 @@ pub struct Database {
 
 impl Database {
     fn block_key(number: u32) -> String {
-        format!("blocks:{number}")
+        format!("blocks:{number:020}")
     }
 
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -71,6 +71,13 @@ impl Database {
         self.db
             .put(Self::block_key(block.number), value)
             .wrap_err("Failed to put block into database")
+            .map_err(Error::Database)
+    }
+
+    pub fn delete_block(&self, number: u32) -> Result<(), Error> {
+        self.db
+            .delete(Self::block_key(number))
+            .wrap_err("Failed to delete block from database")
             .map_err(Error::Database)
     }
 

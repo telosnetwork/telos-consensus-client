@@ -225,6 +225,7 @@ async fn evm_deploy() {
         data_path: "temp/db".to_string(),
         block_checkpoint_interval: 1000,
         maximum_sync_range: 100000,
+        latest_blocks_in_db_num: 100,
     };
 
     let mut client_under_test = ConsensusClient::new(&args, config).await.unwrap();

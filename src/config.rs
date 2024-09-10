@@ -55,11 +55,14 @@ pub struct AppConfig {
     /// Path to the RocksDB folder
     pub data_path: String,
 
-    /// Interval at which block hashes are stored in database
-    pub block_checkpoint_interval: u64,
+    /// Interval at which block hashes are stored in the database
+    pub block_checkpoint_interval: u32,
 
     /// Maximum range between the latest reth block and the latest stored block
     pub maximum_sync_range: u32,
+
+    /// Number of latest blocks to keep stored in the database
+    pub latest_blocks_in_db_num: u32,
 }
 
 impl From<&AppConfig> for TranslatorConfig {

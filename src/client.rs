@@ -93,7 +93,10 @@ impl ConsensusClient {
     }
 
     fn min_latest_or_lib(&self, lib: Option<&data::Block>) -> Option<u32> {
-        Some(cmp::min(lib?.number, self.latest_evm_number()?.as_u32()))
+        match (lib, self.latest_evm_block().as_ref()) {
+            (Some(lib), Some(latest)) => Some(cmp::min(lib.number, latest.0)),
+            (_, _) => None,
+        }
     }
 
     fn sync_range(&self) -> Option<u64> {
@@ -107,20 +110,23 @@ impl ConsensusClient {
 
         let mut lib = self.db.get_lib()?;
 
-        if let Some(latest_number) = self.min_latest_or_lib(lib.as_ref()) {
-            let last_checked = self.db.get_block_or_prev(latest_number)?;
+        let latest_number = self.min_latest_or_lib(lib.as_ref());
 
-            if let Some(last_checked) = last_checked {
-                if self.is_in_start_stop_range(last_checked.number + 1) {
-                    self.config.start_block = last_checked.number + 1;
-                    self.config.prev_hash = last_checked.hash
-                }
+        let last_checked = match latest_number {
+            Some(latest_number) => self.db.get_block_or_prev(latest_number)?,
+            None => None,
+        };
+
+        if let Some(last_checked) = last_checked {
+            if self.is_in_start_stop_range(last_checked.number + 1) {
+                self.config.start_block = last_checked.number + 1;
+                self.config.prev_hash = last_checked.hash
             }
+        }
 
-            if let Some(sync_range) = self.sync_range() {
-                if sync_range > self.config.maximum_sync_range.as_u64() {
-                    return Err(Error::RangeAboveMaximum(sync_range));
-                }
+        if let Some(sync_range) = self.sync_range() {
+            if sync_range > self.config.maximum_sync_range.as_u64() {
+                return Err(Error::RangeAboveMaximum(sync_range));
             }
         }
 
@@ -154,9 +160,23 @@ impl ConsensusClient {
             let block_hash = block.block_hash;
             let lib_num = block.lib_num;
 
-            if block_num % self.config.block_checkpoint_interval == 0 {
+            if block_num % self.config.block_checkpoint_interval.as_u64() != 0 {
                 self.db.put_block(From::from(&block))?;
                 debug!("Block {} put in the database", block.block_num);
+            }
+
+            if block_num % self.config.block_checkpoint_interval.as_u64() == 0 {
+                self.db.put_block(From::from(&block))?;
+                debug!("Block {} put in the database", block.block_num);
+            }
+
+            let latest_start: u32 = block_num
+                .saturating_sub(self.config.latest_blocks_in_db_num.into())
+                .as_u32();
+
+            if latest_start > 0 && latest_start % self.config.block_checkpoint_interval != 0 {
+                self.db.delete_block(latest_start)?;
+                debug!("Block {} delete from the database", latest_start);
             }
 
             if lib.as_ref().map(|lib| lib.number < lib_num).unwrap_or(true) {
