@@ -28,7 +28,7 @@ async fn main() {
 
     info!("Starting Telos consensus client...");
 
-    let (_, receiver) = oneshot::channel();
+    let (_sender, receiver) = oneshot::channel();
 
     let mut client = ConsensusClient::new(config).await.unwrap();
     info!("Created client...");
