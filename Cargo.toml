@@ -9,7 +9,7 @@ edition = "2021"
 antelope-client = { git = "https://github.com/telosnetwork/antelope-rs.git", branch = "finish_table_rows_params" }
 reth-trie-common = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
 reth-rpc-types  = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
-reth-telos-rpc-engine-api = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "extra_fields" }
+reth-telos-rpc-engine-api = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
 
 #alloy = { version = "0.2.1", features = ["k256"] }
 alloy = "0.2.1"
