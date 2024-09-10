@@ -453,7 +453,7 @@ pub fn compare_transaction(
 }
 
 pub fn compare_block(block: &TelosEVMBlock, block15: &TelosEVM15Block) {
-    for (i, tx) in block.transactions.iter().enumerate() {
+    for (i, (tx, _receipt)) in block.transactions.iter().enumerate() {
         let tx15 = &block15
             .transactions
             .get(i)

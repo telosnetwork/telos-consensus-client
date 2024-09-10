@@ -124,6 +124,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "c-kzg",
+ "derive_more",
  "k256",
  "once_cell",
  "serde",
@@ -636,7 +637,7 @@ dependencies = [
 [[package]]
 name = "antelope-client"
 version = "0.2.1"
-source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=finish_table_rows_params#c8d60b2f465f53c0245b615e6f76070755a8a587"
+source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=finish_table_rows_params#02d0e7e723c655d1103e4863af86eabfd4f1d69f"
 dependencies = [
  "antelope-client-macros",
  "async-trait",
@@ -1090,6 +1091,8 @@ version = "1.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b62ac837cdb5cb22e10a256099b4fc502b1dfe560cb282963a974d7abd80e476"
 dependencies = [
+ "jobserver",
+ "libc",
  "shlex",
 ]
 
@@ -2226,6 +2229,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
+name = "jobserver"
+version = "0.1.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48d1dbcbbeb6a7fec7e059840aa538bd62aaccf972c7346c4d9d2059312853d0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.70"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3130,7 +3142,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -3146,7 +3158,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs-derive"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -3157,7 +3169,7 @@ dependencies = [
 [[package]]
 name = "reth-ethereum-forks"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
@@ -3174,36 +3186,44 @@ dependencies = [
 [[package]]
 name = "reth-primitives"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
  "alloy-primitives",
  "alloy-rlp",
+ "alloy-rpc-types",
  "bytes",
+ "c-kzg",
  "derive_more",
  "k256",
+ "modular-bitfield",
  "once_cell",
  "rayon",
+ "reth-codecs",
  "reth-ethereum-forks",
  "reth-primitives-traits",
  "reth-static-file-types",
  "reth-trie-common",
  "revm-primitives",
+ "secp256k1",
  "serde",
+ "tempfile",
  "thiserror",
+ "zstd",
 ]
 
 [[package]]
 name = "reth-primitives-traits"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-genesis",
  "alloy-primitives",
  "alloy-rlp",
+ "alloy-rpc-types-eth",
  "byteorder",
  "bytes",
  "derive_more",
@@ -3217,7 +3237,7 @@ dependencies = [
 [[package]]
 name = "reth-rpc-types"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
@@ -3235,7 +3255,7 @@ dependencies = [
 [[package]]
 name = "reth-static-file-types"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-primitives",
  "derive_more",
@@ -3246,7 +3266,7 @@ dependencies = [
 [[package]]
 name = "reth-telos-rpc-engine-api"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "reth-primitives",
  "serde",
@@ -3255,7 +3275,7 @@ dependencies = [
 [[package]]
 name = "reth-trie-common"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#b0a9e71e94aca3fe5bf3a976b4464da8400b7ef8"
+source = "git+https://github.com/telosnetwork/telos-reth.git?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -3284,11 +3304,13 @@ dependencies = [
  "bitvec",
  "c-kzg",
  "cfg-if",
+ "derive_more",
  "dyn-clone",
  "enumn",
  "hashbrown 0.14.5",
  "hex",
  "kzg-rs",
+ "once_cell",
  "serde",
 ]
 
@@ -3445,9 +3467,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.12"
+version = "0.23.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c58f8c84392efc0a126acce10fa59ff7b3d2ac06ab451a33f2741989b806b044"
+checksum = "f2dabaac7466917e566adb06783a81ca48944c6898a1b08b9374106dd671f4c8"
 dependencies = [
  "once_cell",
  "ring",
@@ -3557,6 +3579,25 @@ dependencies = [
  "pkcs8",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "secp256k1"
+version = "0.29.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9465315bc9d4566e1724f0fffcbcc446268cb522e60f9a27bcded6b19c108113"
+dependencies = [
+ "rand",
+ "secp256k1-sys",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1433bd67156263443f14d603720b082dd3121779323fce20cba2aa07b874bc1b"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -4032,6 +4073,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "reqwest 0.12.7",
+ "reth-primitives",
  "reth-rpc-types",
  "reth-telos-rpc-engine-api",
  "reth-trie-common",
@@ -4937,4 +4979,32 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.77",
+]
+
+[[package]]
+name = "zstd"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcf2b778a664581e31e389454a7072dab1647606d44f7feea22cd5abb9c9f3f9"
+dependencies = [
+ "zstd-safe",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "7.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54a3ab4db68cea366acc5c897c7b4d4d1b8994a9cd6e6f841f8964566a419059"
+dependencies = [
+ "zstd-sys",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "2.0.13+zstd.1.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38ff0f21cfee8f97d94cef41359e0c89aa6113028ab0291aa8ca0038995a95aa"
+dependencies = [
+ "cc",
+ "pkg-config",
 ]

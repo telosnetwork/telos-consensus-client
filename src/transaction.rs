@@ -3,11 +3,12 @@ use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, Withdra
 use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::private::alloy_rlp::Error;
 use alloy::primitives::TxKind::Call;
-use alloy::primitives::{Address, Log, Signature, B256, U256};
+use alloy::primitives::{Address, Bloom, Log, Signature, B256, U256};
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxLegacy};
 use alloy_rlp::Decodable;
 use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
+use reth_primitives::{Receipt, ReceiptWithBloom};
 
 pub fn make_unique_vrs(
     block_hash_native: Checksum256,
@@ -206,5 +207,23 @@ impl TelosEVMTransaction {
 
     pub fn gas_used(&self) -> U256 {
         self.receipt.gasused.parse().unwrap()
+    }
+
+    pub fn receipt(&self, cumulative_gas_used: u64) -> ReceiptWithBloom {
+        let tx_gas_used = u64::from_str_radix(&self.receipt.gasused, 16).unwrap();
+        let logs = self.receipt.logs.clone();
+        let mut bloom = Bloom::default();
+        for log in &logs {
+            bloom.accrue_log(log);
+        }
+        ReceiptWithBloom {
+            receipt: Receipt {
+                tx_type: Default::default(),
+                cumulative_gas_used: cumulative_gas_used + tx_gas_used,
+                logs,
+                success: false,
+            },
+            bloom,
+        }
     }
 }

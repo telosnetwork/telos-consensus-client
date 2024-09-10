@@ -150,6 +150,14 @@ pub async fn final_processor(
             }
         }
 
+        let receipts = Some(
+            block
+                .transactions
+                .iter()
+                .map(|(_trx, full_receipt)| full_receipt.receipt.clone())
+                .collect(),
+        );
+
         let completed_block = TelosEVMBlock {
             block_num: evm_block_num,
             block_hash,
@@ -165,6 +173,7 @@ pub async fn final_processor(
                 gasprice_changes: block.new_gas_price,
                 new_addresses_using_create: Some(new_addresses_using_create),
                 new_addresses_using_openwallet: Some(new_addresses_using_openwallet),
+                receipts,
             },
         };
 
