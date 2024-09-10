@@ -1,5 +1,8 @@
+use std::cmp;
+
 use crate::client::Error::{ConsensusClientShutdown, ForkChoiceUpdated};
-use crate::config::AppConfig;
+use crate::config::{AppConfig, CliArgs};
+use crate::data::{self, Database, Lib};
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
 use eyre::{Context, Result};
@@ -31,22 +34,30 @@ pub enum Error {
     NewPayloadV1(String),
     #[error("Consensus client shutdown error")]
     ConsensusClientShutdown(String),
+    #[error("Database error: {0}")]
+    Database(eyre::Report),
+    #[error("Client is too many blocks ({0}) behind the executor, start from a more recent block or increase maximum range")]
+    RangeAboveMaximum(u64),
 }
 
-#[derive(Clone)]
 pub struct ConsensusClient {
     pub config: AppConfig,
     execution_api: ExecutionApiClient,
     //latest_consensus_block: ExecutionPayloadV1,
     pub latest_valid_executor_block: Option<Block>,
     //is_forked: bool,
+    db: Database,
 }
 
 impl ConsensusClient {
-    pub async fn new(config: AppConfig) -> Result<Self> {
+    pub async fn new(args: &CliArgs, config: AppConfig) -> Result<Self> {
         let execution_api = ExecutionApiClient::new(&config.execution_endpoint, &config.jwt_secret)
             .wrap_err("Failed to create Execution API client")?;
 
+        let db = match args.clean {
+            false => Database::open(&config.data_path)?,
+            true => Database::init(&config.data_path)?,
+        };
         let latest_valid_executor_block = execution_api
             .get_latest_finalized_block()
             .await
@@ -58,10 +69,11 @@ impl ConsensusClient {
             config,
             execution_api,
             latest_valid_executor_block,
+            db,
         })
     }
 
-    fn latest_valid_block(&self) -> Option<(u32, String)> {
+    fn latest_evm_block(&self) -> Option<(u32, String)> {
         let latest = self.latest_valid_executor_block.as_ref()?;
         match (latest.header.number, latest.header.hash) {
             (Some(number), Some(hash)) => Some((number.as_u32(), hash.to_string())),
@@ -70,23 +82,54 @@ impl ConsensusClient {
     }
 
     fn is_in_start_stop_range(&self, num: u32) -> bool {
-        let Some(stop_block) = self.config.stop_block else {
-            return false;
-        };
+        match (self.config.start_block, self.config.stop_block) {
+            (start_block, Some(stop_block)) => start_block <= num && num <= stop_block,
+            (start_block, None) => start_block <= num,
+        }
+    }
 
-        self.config.start_block <= num && num <= stop_block
+    fn latest_evm_number(&self) -> Option<u64> {
+        self.latest_valid_executor_block.as_ref()?.header.number
+    }
+
+    fn min_latest_or_lib(&self, lib: Option<&data::Block>) -> Option<u32> {
+        match (lib, self.latest_evm_block().as_ref()) {
+            (Some(lib), Some(latest)) => Some(cmp::min(lib.number, latest.0)),
+            (_, _) => None,
+        }
+    }
+
+    fn sync_range(&self) -> Option<u64> {
+        self.latest_evm_number()?
+            .checked_sub(self.config.start_block.as_u64())
     }
 
     pub async fn run(&mut self, mut shutdown_rx: oneshot::Receiver<()>) -> Result<(), Error> {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
         let (sender, receiver) = mpsc::channel::<()>(1);
 
-        if let Some((number, hash)) = self.latest_valid_block() {
-            if self.is_in_start_stop_range(number + 1) {
-                self.config.start_block = number + 1;
-                self.config.prev_hash = hash
+        let mut lib = self.db.get_lib()?;
+
+        let latest_number = self.min_latest_or_lib(lib.as_ref());
+
+        let last_checked = match latest_number {
+            Some(latest_number) => self.db.get_block_or_prev(latest_number)?,
+            None => None,
+        };
+
+        if let Some(last_checked) = last_checked {
+            if self.is_in_start_stop_range(last_checked.number + 1) {
+                self.config.start_block = last_checked.number + 1;
+                self.config.prev_hash = last_checked.hash
             }
         }
+
+        if let Some(sync_range) = self.sync_range() {
+            if sync_range > self.config.maximum_sync_range.as_u64() {
+                return Err(Error::RangeAboveMaximum(sync_range));
+            }
+        }
+
         debug!("Starting translator from block {}", self.config.start_block);
 
         let mut translator = Translator::new((&self.config).into());
@@ -115,22 +158,43 @@ impl ConsensusClient {
 
             let block_num = block.block_num.as_u64();
             let block_hash = block.block_hash;
+            let lib_num = block.lib_num;
 
-            let latest_num_hash = self
-                .latest_valid_executor_block
-                .as_ref()
-                .map(|latest| &latest.header)
-                .and_then(|header| header.number.zip(header.hash));
+            if block_num % self.config.block_checkpoint_interval.as_u64() != 0 {
+                self.db.put_block(From::from(&block))?;
+                debug!("Block {} put in the database", block.block_num);
+            }
 
-            if let Some((latest_num, latest_hash)) = latest_num_hash {
+            if block_num % self.config.block_checkpoint_interval.as_u64() == 0 {
+                self.db.put_block(From::from(&block))?;
+                debug!("Block {} put in the database", block.block_num);
+            }
+
+            let latest_start: u32 = block_num
+                .saturating_sub(self.config.latest_blocks_in_db_num.into())
+                .as_u32();
+
+            if latest_start > 0 && latest_start % self.config.block_checkpoint_interval != 0 {
+                self.db.delete_block(latest_start)?;
+                debug!("Block {} delete from the database", latest_start);
+            }
+
+            if lib.as_ref().map(|lib| lib.number < lib_num).unwrap_or(true) {
+                lib = Some(From::from(Lib(&block)));
+                self.db.put_lib(From::from(Lib(&block)))?;
+                debug!("LIB {} put in the database", block.lib_num);
+            }
+
+            if let Some((latest_num, latest_hash)) = &self.latest_evm_block() {
                 // Check fork
-                if block_num == latest_num && block_hash != latest_hash {
+                if block_num == latest_num.as_u64() && &block_hash.to_string() != latest_hash {
                     error!("Fork detected! Latest executor block hash {latest_num:?} does not match consensus block hash {block_num:?}" );
                     return Err(Error::ExecutorHashMismatch);
                 }
 
                 // Skip synced blocks
-                if block_num <= latest_num {
+                if block_num <= latest_num.as_u64() {
+                    debug!("Block {block_num} skipped as its behind {latest_num} evm block");
                     continue;
                 }
             }

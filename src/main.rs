@@ -11,13 +11,14 @@ use tracing_subscriber::util::SubscriberInitExt;
 mod auth;
 mod client;
 mod config;
+mod data;
 mod execution_api_client;
 mod json_rpc;
 
 #[tokio::main]
 async fn main() {
-    let cli_args = CliArgs::parse();
-    let config_contents = std::fs::read_to_string(cli_args.config).unwrap();
+    let args = CliArgs::parse();
+    let config_contents = std::fs::read_to_string(&args.config).unwrap();
     let config: AppConfig = toml::from_str(&config_contents).unwrap();
     let log_level_filter = parse_log_level(&config.log_level).unwrap();
 
@@ -30,7 +31,7 @@ async fn main() {
 
     let (_sender, receiver) = oneshot::channel();
 
-    let mut client = ConsensusClient::new(config).await.unwrap();
+    let mut client = ConsensusClient::new(&args, config).await.unwrap();
     info!("Created client...");
     let result = client.run(receiver);
     info!("Started client, awaiting result...");
