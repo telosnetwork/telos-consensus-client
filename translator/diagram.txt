@@ -1,0 +1,58 @@
+                _______________________________________
+               |                                       |
+            __\|          tokio_tungstenite            |
+           |  /|            WS Client                  |
+           |   |_______________________________________|
+         W |                      |
+         S |                      |
+           |                  WS Stream
+         S |                      |
+         T |    _________________\|/___________________
+         R |   |                                       |
+         E |   |             SHIP Reader               |
+         A |   |_______________________________________|
+         M |                      |
+           |                      |
+           |                Raw DS Stream
+      Depending on                |
+      message reply          _____|_____
+      to SHIP server        |     |     |
+           |                |     |     |                 Deserializes SHIP
+           |    ___________\|/___\|/___\|/_____________   messages,
+           |   |                                       |  forwards blocks
+           |___|           Raw Deserializer            |  to processors,
+               |           (Multi-Threaded)            |  on SHIP status
+               |_______________________________________|  messages, sends
+                    |                  |     |     |      control msg to
+                    |                  |_____|_____|      ordering task
+                    |                        |
+                    |                        |
+                    |                  Process Stream
+                    |                        |
+                    |                   _____|_____
+                    |                  |     |     |
+                    |      ___________\|/___\|/___\|/_____________
+                    |     |                                       |
+                    |     |          EVM Block Processor          | Generates EVM Block
+                    |     |           (Multi-Threaded)            | data from native
+                    |     |_______________________________________|
+                    |                        |
+                    |________________________|
+                                 |
+                                 |
+                            Order Stream
+                                 |
+                ________________\|/____________________   Maintains a
+               |                                       |  priority queue
+               |         Queue Ordering Task           |  and when next
+               |       (order_preserving_queue)        |  block in sequenc
+               |_______________________________________|  is found, pops it
+                                 |                        to final stream
+                                 |
+                            Final Stream
+                                 |
+                ________________\|/____________________
+               |                                       |
+               |          Post-Processor               | Final EVM data
+               |        (Final Processor)              | generation step (hash)
+               |_______________________________________|
