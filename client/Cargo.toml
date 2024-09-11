@@ -5,8 +5,7 @@ edition = "2021"
 
 [dependencies]
 env_logger = "0.10"
-#telos-translator-rs = { path = "../../telos/telos-translator-rs" }
-telos-translator-rs = { git = "https://github.com/telosnetwork/telos-translator-rs.git", branch = "master" }
+telos-translator-rs = { path = "../translator" }
 
 reth-primitives = { git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }
 reth-rpc-types = { git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }

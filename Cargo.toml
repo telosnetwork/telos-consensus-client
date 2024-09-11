@@ -1,6 +1,7 @@
 [workspace]
 members = [
-	"client"
+	"client",
+	"translator"
 ]
 default-members = ["client"]
 resolver = "2"
