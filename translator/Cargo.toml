@@ -15,6 +15,7 @@ reth-telos-rpc-engine-api = { git = "https://github.com/telosnetwork/telos-reth.
 #alloy = { version = "0.2.1", features = ["k256"] }
 alloy = "0.2.1"
 alloy-rlp = "0.3.8"
+alloy-eips = "0.2.1"
 alloy-consensus = "0.2.1"
 bytes = "1.4.0"
 num-bigint = "0.4.5"
