@@ -639,39 +639,7 @@ dependencies = [
 [[package]]
 name = "antelope-client"
 version = "0.2.1"
-source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=finish_table_rows_params#feb151b28499946698c25c3411b574801cc869e6"
-dependencies = [
- "antelope-client-macros",
- "async-trait",
- "base64 0.21.7",
- "bs58",
- "chrono",
- "digest 0.10.7",
- "ecdsa",
- "flate2",
- "hex",
- "hmac",
- "k256",
- "log",
- "once_cell",
- "p256",
- "rand",
- "rand_core",
- "reqwest 0.11.27",
- "ripemd",
- "serde",
- "serde-big-array",
- "serde_json",
- "sha2",
- "signature",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "antelope-client"
-version = "0.2.1"
-source = "git+https://github.com/telosnetwork/antelope-rs?branch=serialization#4bb0af2b4dab220b8185e450ba84f008209df896"
+source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=development#59f7e5ce8eee44d3550ed74ae7a827b3e62c8c55"
 dependencies = [
  "antelope-client-macros",
  "async-trait",
@@ -4766,7 +4734,7 @@ dependencies = [
  "alloy",
  "alloy-consensus",
  "alloy-rlp",
- "antelope-client 0.2.1 (git+https://github.com/telosnetwork/antelope-rs?branch=serialization)",
+ "antelope-client",
  "arrowbatch",
  "axum",
  "base64 0.22.1",
@@ -4774,7 +4742,6 @@ dependencies = [
  "chrono",
  "clap",
  "csv",
- "env_logger",
  "eyre",
  "futures",
  "hex",
@@ -4804,7 +4771,7 @@ dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-rlp",
- "antelope-client 0.2.1 (git+https://github.com/telosnetwork/antelope-rs.git?branch=finish_table_rows_params)",
+ "antelope-client",
  "async-trait",
  "bytes",
  "chrono",

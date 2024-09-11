@@ -6,43 +6,44 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-antelope-client = { git = "https://github.com/telosnetwork/antelope-rs.git", branch = "finish_table_rows_params" }
+reth-primitives = { workspace = true }
+reth-rpc-types  = { workspace = true }
+alloy = { workspace = true }
+alloy-rlp = { workspace = true }
+alloy-consensus = { workspace = true }
+antelope-client = { workspace = true }
+bytes = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+eyre = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+toml = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+hex = { workspace = true }
 reth-trie-common = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
-reth-rpc-types  = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
-reth-primitives = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
 reth-telos-rpc-engine-api = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
-
-#alloy = { version = "0.2.1", features = ["k256"] }
-alloy = "0.2.1"
-alloy-rlp = "0.3.8"
 alloy-eips = "0.2.1"
-alloy-consensus = "0.2.1"
-bytes = "1.4.0"
 num-bigint = "0.4.5"
-clap = { version = "4.5.6", features = ["derive"] }
 dashmap = "5.5.3"
 k256 = { version = "0.13.3", features = ["ecdsa"] }
-eyre = "0.6.5"
 moka = { version = "0.12.7", features = ["sync"] }
-tokio = { version = "1.38.0", features = ["rt", "rt-multi-thread", "macros"] }
-tracing = "0.1"
-tracing-subscriber = "0.3"
 tokio-tungstenite = "0.23.0"
 futures-util = "0.3.30"
 ruint = "0.3.0"
 rlp = "0.5.2"
-serde = { version = "1.0.203", features = ["derive"] }
-serde_json = "1.0.117"
-toml = "0.8.15"
 lazy_static = "1.5.0"
-hex = "0.4.3"
+
+#alloy = { version = "0.2.1", features = ["k256"] }
 
 [dev-dependencies]
+testcontainers = { workspace = true }
+
 async-trait = "0.1.80"
 chrono = "0.4.38"
 num-traits = "0.2.19"
 reqwest = { version = "0.12.5", features = ["json"] }
-testcontainers = "0.21.0"
 thiserror = "1.0.63"
 
 [features]
