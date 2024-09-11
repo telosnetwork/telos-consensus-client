@@ -216,11 +216,7 @@ impl TelosEVMTransaction {
         for log in &logs {
             bloom.accrue_log(log);
         }
-        let success = if self.receipt.status {
-            true
-        } else {
-            false
-        };
+        let success = self.receipt.status == 1u8;
         ReceiptWithBloom {
             receipt: Receipt {
                 tx_type: Default::default(),
