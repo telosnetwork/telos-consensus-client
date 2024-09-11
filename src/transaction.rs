@@ -216,12 +216,17 @@ impl TelosEVMTransaction {
         for log in &logs {
             bloom.accrue_log(log);
         }
+        let success = if self.receipt.status {
+            true
+        } else {
+            false
+        };
         ReceiptWithBloom {
             receipt: Receipt {
                 tx_type: Default::default(),
                 cumulative_gas_used: cumulative_gas_used + tx_gas_used,
                 logs,
-                success: false,
+                success,
             },
             bloom,
         }
