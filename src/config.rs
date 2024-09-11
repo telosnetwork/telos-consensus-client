@@ -16,7 +16,7 @@ pub struct CliArgs {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct AppConfig {
-    /// Log level for the application    
+    /// Log level for the application
     pub log_level: String,
 
     /// EVM Chain id, Telos mainnet is 40 and testnet is 41
