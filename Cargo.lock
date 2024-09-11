@@ -4802,6 +4802,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "alloy-consensus",
+ "alloy-eips",
  "alloy-rlp",
  "antelope-client 0.2.1 (git+https://github.com/telosnetwork/antelope-rs.git?branch=finish_table_rows_params)",
  "async-trait",

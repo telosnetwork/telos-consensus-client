@@ -12,7 +12,8 @@ use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Header, TxEnvelope};
-use alloy_rlp::{encode, Encodable};
+use alloy_eips::eip2718::Encodable2718;
+use alloy_rlp::Encodable;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::serializer::Packer;
@@ -412,8 +413,8 @@ impl ProcessingEVMBlock {
             .transactions
             .iter()
             .map(|(transaction, _receipt)| {
-                let encoded = vec![];
-                &transaction.envelope.encode_2718(&encoded);
+                let mut encoded = vec![];
+                transaction.envelope.encode_2718(&mut encoded);
                 Bytes::from(encoded)
             })
             .collect::<Vec<_>>();
