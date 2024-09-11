@@ -96,11 +96,10 @@ impl NameToAddressCache {
             let mut i = 0u8;
             while i <= MAX_RETRY {
                 info!(
-                    "Fetching address {} try {}",
+                    "Fetching address {} try attempt {}",
                     Name::from_u64(index).as_string(),
                     i
                 );
-
                 let account_result = self
                     .get_account_address(index, evm_contract, ACCOUNT, IndexPosition::PRIMARY)
                     .await;
