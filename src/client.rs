@@ -1,5 +1,3 @@
-use std::cmp;
-
 use crate::client::Error::{ConsensusClientShutdown, ForkChoiceUpdated};
 use crate::config::{AppConfig, CliArgs};
 use crate::data::{self, Database, Lib};
@@ -11,6 +9,7 @@ use reth_primitives::B256;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::Block;
 use serde_json::json;
+use std::cmp;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
 use tokio::sync::{mpsc, oneshot};
@@ -24,6 +23,8 @@ pub enum Error {
     // ExecutorBlockPastStopBlock,
     // #[error("Latest block not found.")]
     // LatestBlockNotFound,
+    #[error("Cannot start consensus client {0}")]
+    CannotStartConsensusClient(String),
     #[error("Spawn translator error")]
     SpawnTranslator,
     #[error("Executor hash mismatch.")]
@@ -40,6 +41,7 @@ pub enum Error {
     RangeAboveMaximum(u64),
 }
 
+#[derive(Clone)]
 pub struct ConsensusClient {
     pub config: AppConfig,
     execution_api: ExecutionApiClient,
@@ -104,10 +106,13 @@ impl ConsensusClient {
             .checked_sub(self.config.start_block.as_u64())
     }
 
-    pub async fn run(&mut self, mut shutdown_rx: oneshot::Receiver<()>) -> Result<(), Error> {
+    pub async fn run(
+        &mut self,
+        mut shutdown_rx: oneshot::Receiver<()>,
+        tr_sender_tx: mpsc::Sender<()>,
+        tr_receiver_rx: mpsc::Receiver<()>,
+    ) -> Result<(), Error> {
         let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
-        let (sender, receiver) = mpsc::channel::<()>(1);
-
         let mut lib = self.db.get_lib()?;
 
         let latest_number = self.min_latest_or_lib(lib.as_ref());
@@ -133,11 +138,11 @@ impl ConsensusClient {
         debug!("Starting translator from block {}", self.config.start_block);
 
         let mut translator = Translator::new((&self.config).into());
-        let sender_tx = sender.clone();
+        let sender_tx = tr_sender_tx.clone();
 
         let launch_handle = tokio::spawn(async move {
             translator
-                .launch(Some(tx), sender, receiver)
+                .launch(Some(tx), tr_sender_tx, tr_receiver_rx)
                 .await
                 .map_err(|_| Error::SpawnTranslator)
         });

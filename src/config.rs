@@ -3,7 +3,7 @@ use serde::Deserialize;
 use telos_translator_rs::translator::TranslatorConfig;
 
 /// Telos Consensus Client CLI Arguments
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[clap(author, version, about, long_about = None)]
 pub struct CliArgs {
     /// Path to the configuration file
@@ -63,6 +63,12 @@ pub struct AppConfig {
 
     /// Number of latest blocks to keep stored in the database
     pub latest_blocks_in_db_num: u32,
+
+    /// Number of retry attempts
+    pub max_retry: Option<u8>,
+
+    /// Delay between retries
+    pub retry_interval: Option<u64>,
 }
 
 impl From<&AppConfig> for TranslatorConfig {
