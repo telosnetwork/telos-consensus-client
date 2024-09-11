@@ -22,8 +22,8 @@ use tracing::{error, info, warn};
 pub type WebsocketTransmitter = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 pub type WebsocketReceiver = SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
 
-const MAX_RETRY: u8 = 8;
-const BASE_DELAY: Duration = Duration::from_millis(50);
+const MAX_RETRY: u8 = 10;
+const BASE_DELAY: Duration = Duration::from_millis(20);
 
 pub struct NameToAddressCache {
     cache: Cache<u64, Address>,
@@ -61,6 +61,7 @@ impl NameToAddressCache {
                 let account_result = self
                     .get_account_address(name, evm_contract, ACCOUNT, IndexPosition::TERTIARY)
                     .await;
+
                 if account_result.rows.is_empty() {
                     warn!("Got empty rows for {address}, retry attempt {i}",);
                     if i == MAX_RETRY {
