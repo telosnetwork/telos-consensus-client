@@ -639,7 +639,7 @@ dependencies = [
 [[package]]
 name = "antelope-client"
 version = "0.2.1"
-source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=finish_table_rows_params#feb151b28499946698c25c3411b574801cc869e6"
+source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=finish_table_rows_params#02d0e7e723c655d1103e4863af86eabfd4f1d69f"
 dependencies = [
  "antelope-client-macros",
  "async-trait",
@@ -1244,7 +1244,7 @@ dependencies = [
  "bitflags 2.6.0",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "lazy_static",
  "lazycell",
  "proc-macro2",
@@ -2678,15 +2678,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
@@ -2720,9 +2711,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-types"
-version = "0.24.4"
+version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "531e386460425e49679587871a056f2895a47dade21457324ad1262cd78ef6d9"
+checksum = "23b67d6e008164f027afbc2e7bb79662650158d26df200040282d2aa1cbb093b"
 dependencies = [
  "http 1.1.0",
  "serde",
@@ -2761,9 +2752,9 @@ dependencies = [
 
 [[package]]
 name = "keccak-asm"
-version = "0.1.4"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "505d1856a39b200489082f90d897c3f07c455563880bc5952e38eabf731c83b6"
+checksum = "422fbc7ff2f2f5bdffeb07718e5a5324dca72b0c9293d50df4026652385e3314"
 dependencies = [
  "digest 0.10.7",
  "sha3-asm",
@@ -3794,7 +3785,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -3810,7 +3801,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs-derive"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -3821,7 +3812,7 @@ dependencies = [
 [[package]]
 name = "reth-ethereum-forks"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
@@ -3838,7 +3829,7 @@ dependencies = [
 [[package]]
 name = "reth-primitives"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
@@ -3868,7 +3859,7 @@ dependencies = [
 [[package]]
 name = "reth-primitives-traits"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -3889,7 +3880,7 @@ dependencies = [
 [[package]]
 name = "reth-rpc-types"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
@@ -3907,7 +3898,7 @@ dependencies = [
 [[package]]
 name = "reth-static-file-types"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-primitives",
  "derive_more",
@@ -3918,7 +3909,7 @@ dependencies = [
 [[package]]
 name = "reth-telos-rpc-engine-api"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "reth-primitives",
  "serde",
@@ -3927,7 +3918,7 @@ dependencies = [
 [[package]]
 name = "reth-trie-common"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -4465,9 +4456,9 @@ dependencies = [
 
 [[package]]
 name = "sha3-asm"
-version = "0.1.4"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c28efc5e327c837aa837c59eae585fc250715ef939ac32881bcc11677cd02d46"
+checksum = "57d79b758b7cb2085612b11a235055e485605a5103faccdd633f35bd7aee69dd"
 dependencies = [
  "cc",
  "cfg-if",
@@ -4748,7 +4739,7 @@ dependencies = [
 [[package]]
 name = "telos-translator-rs"
 version = "0.1.0"
-source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=master#0686df5013d9385ea72eb3ce8431ee2efde9df4b"
+source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=master#a3f3bad24bb64b94076d4bcbd075854f2eeae4b9"
 dependencies = [
  "alloy",
  "alloy-consensus",
@@ -5249,9 +5240,9 @@ checksum = "08f95100a766bf4f8f28f90d77e0a5461bbdb219042e7679bebe79004fed8d75"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.13"
+version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
+checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
 
 [[package]]
 name = "unicode-normalization"
