@@ -411,7 +411,11 @@ impl ProcessingEVMBlock {
         let transactions = self
             .transactions
             .iter()
-            .map(|(transaction, _receipt)| Bytes::from(encode(&transaction.envelope)))
+            .map(|(transaction, _receipt)| {
+                let encoded = vec![];
+                &transaction.envelope.encode_2718(&encoded);
+                Bytes::from(encoded)
+            })
             .collect::<Vec<_>>();
 
         let exec_payload = ExecutionPayloadV1 {
