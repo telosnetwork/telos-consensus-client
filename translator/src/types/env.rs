@@ -10,6 +10,8 @@ pub const ANTELOPE_INTERVAL_MS: u64 = 500;
 
 pub const ZERO_HASH_HEX: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
+pub const DEFAULT_GAS_LIMIT: u128 = 0x7fffffff;
+
 lazy_static! {
     pub static ref ZERO_HASH: FixedBytes<32> = FixedBytes::from_str(ZERO_HASH_HEX).unwrap();
     pub static ref MAINNET_GENESIS_CONFIG: TranslatorConfig = TranslatorConfig {

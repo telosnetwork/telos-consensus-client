@@ -1,5 +1,5 @@
 use crate::transaction::TelosEVMTransaction;
-use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS};
+use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS, DEFAULT_GAS_LIMIT};
 use crate::types::evm_types::{
     AccountRow, AccountStateRow, CreateAction, EvmContractConfigRow, OpenWalletAction,
     PrintedReceipt, RawAction, SetRevisionAction, TransferAction, WithdrawAction,
@@ -22,7 +22,7 @@ use reth_rpc_types::ExecutionPayloadV1;
 use reth_telos_rpc_engine_api::structs::TelosEngineAPIExtraFields;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
 use std::cmp::{max, Ordering};
-use tracing::warn;
+use tracing::{debug, warn};
 
 const MINIMUM_FEE_PER_GAS: u128 = 7;
 
@@ -409,7 +409,12 @@ impl ProcessingEVMBlock {
             logs_bloom.accrue_bloom(&receipt.bloom);
         }
 
-        let gas_limit = max(0x7fffffff, self.gas_limit.unwrap_or((0, 0)).1);
+        let gas_limit = if let Some((tx_index, dyn_gas)) = self.gas_limit {
+            debug!("Dynamic gas limit: {}, {}", tx_index, dyn_gas);
+            max(DEFAULT_GAS_LIMIT, dyn_gas)
+        } else {
+            DEFAULT_GAS_LIMIT
+        };
 
         let header = Header {
             parent_hash,
