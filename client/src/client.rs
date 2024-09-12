@@ -130,7 +130,10 @@ impl ConsensusClient {
             }
         }
 
-        debug!("Starting translator from block {}", self.config.evm_start_block);
+        debug!(
+            "Starting translator from block {}",
+            self.config.evm_start_block
+        );
 
         let mut translator = Translator::new((&self.config).into());
         let sender_tx = sender.clone();

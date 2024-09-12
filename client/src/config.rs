@@ -37,9 +37,6 @@ pub struct AppConfig {
     /// Block count in between finalize block calls while syncing
     pub batch_size: usize,
 
-    /// Block delta between native block and EVM block
-    pub block_delta: Option<u32>,
-
     /// The parent hash of the start_block
     pub prev_hash: String,
 
@@ -67,11 +64,16 @@ pub struct AppConfig {
 
 impl From<&AppConfig> for TranslatorConfig {
     fn from(config: &AppConfig) -> Self {
+        let block_delta = match config.chain_id {
+            40 => 36,
+            41 => 57,
+            _ => 0,
+        };
         Self {
             chain_id: config.chain_id,
             evm_start_block: config.evm_start_block,
             evm_stop_block: config.evm_stop_block,
-            block_delta: config.block_delta.unwrap_or(0u32),
+            block_delta,
             prev_hash: config.prev_hash.clone(),
             validate_hash: config.validate_hash.clone(),
             http_endpoint: config.chain_endpoint.clone(),
