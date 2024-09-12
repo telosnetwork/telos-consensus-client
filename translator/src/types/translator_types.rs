@@ -13,8 +13,8 @@ use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundament
 use std::collections::BinaryHeap;
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
-use std::thread::sleep;
 use std::time::Duration;
+use tokio::time::sleep;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::{error, info, warn};
@@ -68,17 +68,17 @@ impl NameToAddressCache {
                         error!("Could not get account after {i} attempts for {address}",);
                         break;
                     }
-                    sleep(BASE_DELAY * 2u32.pow(i.as_u32()));
+                    sleep(BASE_DELAY * 2u32.pow(i.as_u32())).await;
                     i += 1;
-                } else {
-                    let row_index = account_result.rows[0].index;
-                    let address_checksum = account_result.rows[0].address;
-                    let address = Address::from(address_checksum.data);
-                    self.cache.insert(name, address);
-                    self.index_cache.insert(row_index, address);
-                    fetched_address = Some(address);
-                    break;
+                    continue;
                 }
+                let row_index = account_result.rows[0].index;
+                let address_checksum = account_result.rows[0].address;
+                let address = Address::from(address_checksum.data);
+                self.cache.insert(name, address);
+                self.index_cache.insert(row_index, address);
+                fetched_address = Some(address);
+                break;
             }
 
             fetched_address
@@ -118,17 +118,18 @@ impl NameToAddressCache {
                         );
                         break;
                     }
-                    sleep(BASE_DELAY * 2u32.pow(i.as_u32()));
+                    sleep(BASE_DELAY * 2u32.pow(i.as_u32())).await;
                     i += 1;
-                } else {
-                    let row_name = account_result.rows[0].account;
-                    let address_checksum = account_result.rows[0].address;
-                    let address = Address::from(address_checksum.data);
-                    self.cache.insert(row_name.value(), address);
-                    self.index_cache.insert(index, address);
-                    fetched_address = Some(address);
-                    break;
+                    continue;
                 }
+
+                let row_name = account_result.rows[0].account;
+                let address_checksum = account_result.rows[0].address;
+                let address = Address::from(address_checksum.data);
+                self.cache.insert(row_name.value(), address);
+                self.index_cache.insert(index, address);
+                fetched_address = Some(address);
+                break;
             }
             fetched_address
         }
