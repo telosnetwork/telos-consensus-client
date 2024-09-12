@@ -124,7 +124,7 @@ async fn deploy_mainnet() {
     let mut block = generate_block(
         evm_chain_id_mainnet,
         http_endpoint,
-        MAINNET_DEPLOY_CONFIG.start_block,
+        MAINNET_DEPLOY_CONFIG.evm_start_block,
     )
     .await;
 

@@ -2,7 +2,7 @@
 
 # These are basic mainnet values, all optional values are left out and will use default values
 chain_id = 40
-start_block = 0
+evm_start_block = 0
 block_delta = 36
 prev_hash =  "0000000000000000000000000000000000000000000000000000000000000000"
 http_endpoint = "http://localhost:8888"
