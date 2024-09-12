@@ -1,0 +1,9 @@
+# Check src/types/env.rs for testnet/mainnet values to use
+
+# These are basic mainnet values, all optional values are left out and will use default values
+chain_id = 40
+start_block = 0
+block_delta = 36
+prev_hash =  "0000000000000000000000000000000000000000000000000000000000000000"
+http_endpoint = "http://localhost:8888"
+ship_endpoint = "ws://localhost:18999"

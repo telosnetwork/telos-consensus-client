@@ -1,0 +1,32 @@
+# Log level for the application
+log_level = "info"
+# EVM Chain id, Telos mainnet is 40 and testnet is 41
+chain_id = 40
+# Execution API http endpoint (JWT protected endpoint on reth)
+execution_endpoint = "http://localhost:8551"
+# The JWT secret used to sign the JWT token
+jwt_secret = "0000000000000000000000000000000000000000000000000000000000000000"
+# Nodeos ship ws endpoint
+ship_endpoint = "ws://localhost:18999"
+# Nodeos http endpoint
+chain_endpoint = "http://localhost:8888"
+# Block count in between finalize block calls while syncing
+batch_size = 5
+# Block delta between native block and EVM block
+block_delta = 0
+# The parent hash of the start_block
+prev_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+# Start block to start with, should be at or before the first block of the execution node
+start_block = 0
+# (Optional) Expected block hash of the start block
+validate_hash = "00000000000000000000000000000000000000000000000000000000000000000"
+# (Optional) Block number to stop on, default is U32::MAX
+stop_block = 60
+# Path to the RocksDB folder
+data_path = "temp/db"
+# Interval at which block hashes are stored in the database
+block_checkpoint_interval = 1000
+# Maximum range between the latest reth block and the latest stored block
+maximum_sync_range = 100000
+# Number of latest blocks to keep stored in the database
+latest_blocks_in_db_num = 100

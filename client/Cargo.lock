@@ -639,7 +639,39 @@ dependencies = [
 [[package]]
 name = "antelope-client"
 version = "0.2.1"
-source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=development#59f7e5ce8eee44d3550ed74ae7a827b3e62c8c55"
+source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=finish_table_rows_params#02d0e7e723c655d1103e4863af86eabfd4f1d69f"
+dependencies = [
+ "antelope-client-macros",
+ "async-trait",
+ "base64 0.21.7",
+ "bs58",
+ "chrono",
+ "digest 0.10.7",
+ "ecdsa",
+ "flate2",
+ "hex",
+ "hmac",
+ "k256",
+ "log",
+ "once_cell",
+ "p256",
+ "rand",
+ "rand_core",
+ "reqwest 0.11.27",
+ "ripemd",
+ "serde",
+ "serde-big-array",
+ "serde_json",
+ "sha2",
+ "signature",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "antelope-client"
+version = "0.2.1"
+source = "git+https://github.com/telosnetwork/antelope-rs?branch=serialization#4bb0af2b4dab220b8185e450ba84f008209df896"
 dependencies = [
  "antelope-client-macros",
  "async-trait",
@@ -1093,12 +1125,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "atomic-waker"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
-
-[[package]]
 name = "auto_impl"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1218,7 +1244,7 @@ dependencies = [
  "bitflags 2.6.0",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools 0.10.5",
  "lazy_static",
  "lazycell",
  "proc-macro2",
@@ -2230,25 +2256,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "h2"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524e8ac6999421f49a846c2d4411f337e53497d8ec55d67753beffa43c5d9205"
-dependencies = [
- "atomic-waker",
- "bytes",
- "fnv",
- "futures-core",
- "futures-sink",
- "http 1.1.0",
- "indexmap 2.5.0",
- "slab",
- "tokio",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
 name = "half"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2420,7 +2427,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
- "h2 0.3.26",
+ "h2",
  "http 0.2.12",
  "http-body 0.4.6",
  "httparse",
@@ -2443,7 +2450,6 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "h2 0.4.6",
  "http 1.1.0",
  "http-body 1.0.1",
  "httparse",
@@ -2672,15 +2678,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
@@ -2714,9 +2711,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-types"
-version = "0.24.4"
+version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "531e386460425e49679587871a056f2895a47dade21457324ad1262cd78ef6d9"
+checksum = "23b67d6e008164f027afbc2e7bb79662650158d26df200040282d2aa1cbb093b"
 dependencies = [
  "http 1.1.0",
  "serde",
@@ -2755,9 +2752,9 @@ dependencies = [
 
 [[package]]
 name = "keccak-asm"
-version = "0.1.4"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "505d1856a39b200489082f90d897c3f07c455563880bc5952e38eabf731c83b6"
+checksum = "422fbc7ff2f2f5bdffeb07718e5a5324dca72b0c9293d50df4026652385e3314"
 dependencies = [
  "digest 0.10.7",
  "sha3-asm",
@@ -3717,7 +3714,7 @@ dependencies = [
  "encoding_rs",
  "futures-core",
  "futures-util",
- "h2 0.3.26",
+ "h2",
  "http 0.2.12",
  "http-body 0.4.6",
  "hyper 0.14.30",
@@ -3735,7 +3732,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "sync_wrapper 0.1.2",
- "system-configuration 0.5.1",
+ "system-configuration",
  "tokio",
  "tokio-native-tls",
  "tower-service",
@@ -3754,15 +3751,12 @@ checksum = "f8f4955649ef5c38cc7f9e8aa41761d48fb9677197daea9984dc54f56aad5e63"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "encoding_rs",
  "futures-core",
  "futures-util",
- "h2 0.4.6",
  "http 1.1.0",
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.4.1",
- "hyper-rustls",
  "hyper-tls 0.6.0",
  "hyper-util",
  "ipnet",
@@ -3778,7 +3772,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "sync_wrapper 1.0.1",
- "system-configuration 0.6.1",
  "tokio",
  "tokio-native-tls",
  "tower-service",
@@ -3792,7 +3785,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -3808,7 +3801,7 @@ dependencies = [
 [[package]]
 name = "reth-codecs-derive"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -3819,7 +3812,7 @@ dependencies = [
 [[package]]
 name = "reth-ethereum-forks"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
@@ -3836,7 +3829,7 @@ dependencies = [
 [[package]]
 name = "reth-primitives"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
@@ -3866,7 +3859,7 @@ dependencies = [
 [[package]]
 name = "reth-primitives-traits"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -3887,7 +3880,7 @@ dependencies = [
 [[package]]
 name = "reth-rpc-types"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
@@ -3905,7 +3898,7 @@ dependencies = [
 [[package]]
 name = "reth-static-file-types"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-primitives",
  "derive_more",
@@ -3916,7 +3909,7 @@ dependencies = [
 [[package]]
 name = "reth-telos-rpc-engine-api"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "reth-primitives",
  "serde",
@@ -3925,7 +3918,7 @@ dependencies = [
 [[package]]
 name = "reth-trie-common"
 version = "1.0.5"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#b7f371e1dc60a0d98c0a5c9c83765ebd5b5c7f6c"
+source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#634d91265baba68c8ad32d0b8b98743bc11e7d63"
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -4463,9 +4456,9 @@ dependencies = [
 
 [[package]]
 name = "sha3-asm"
-version = "0.1.4"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c28efc5e327c837aa837c59eae585fc250715ef939ac32881bcc11677cd02d46"
+checksum = "57d79b758b7cb2085612b11a235055e485605a5103faccdd633f35bd7aee69dd"
 dependencies = [
  "cc",
  "cfg-if",
@@ -4681,18 +4674,7 @@ checksum = "ba3a3adc5c275d719af8cb4272ea1c4a6d668a777f37e115f6d11ddbc1c8e0e7"
 dependencies = [
  "bitflags 1.3.2",
  "core-foundation",
- "system-configuration-sys 0.5.0",
-]
-
-[[package]]
-name = "system-configuration"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c879d448e9d986b661742763247d3693ed13609438cf3d006f51f5368a5ba6b"
-dependencies = [
- "bitflags 2.6.0",
- "core-foundation",
- "system-configuration-sys 0.6.0",
+ "system-configuration-sys",
 ]
 
 [[package]]
@@ -4700,16 +4682,6 @@ name = "system-configuration-sys"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a75fb188eb626b924683e3b95e3a48e63551fcfb51949de2f06a9d91dbee93c9"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
-
-[[package]]
-name = "system-configuration-sys"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -4734,7 +4706,7 @@ dependencies = [
  "alloy",
  "alloy-consensus",
  "alloy-rlp",
- "antelope-client",
+ "antelope-client 0.2.1 (git+https://github.com/telosnetwork/antelope-rs?branch=serialization)",
  "arrowbatch",
  "axum",
  "base64 0.22.1",
@@ -4742,6 +4714,7 @@ dependencies = [
  "chrono",
  "clap",
  "csv",
+ "env_logger",
  "eyre",
  "futures",
  "hex",
@@ -4757,7 +4730,6 @@ dependencies = [
  "testcontainers",
  "thiserror",
  "tokio",
- "tokio-retry",
  "toml",
  "tracing",
  "tracing-subscriber",
@@ -4767,15 +4739,13 @@ dependencies = [
 [[package]]
 name = "telos-translator-rs"
 version = "0.1.0"
+source = "git+https://github.com/telosnetwork/telos-translator-rs.git?branch=master#a3f3bad24bb64b94076d4bcbd075854f2eeae4b9"
 dependencies = [
  "alloy",
  "alloy-consensus",
- "alloy-eips",
  "alloy-rlp",
- "antelope-client",
- "async-trait",
+ "antelope-client 0.2.1 (git+https://github.com/telosnetwork/antelope-rs.git?branch=finish_table_rows_params)",
  "bytes",
- "chrono",
  "clap",
  "dashmap",
  "eyre",
@@ -4785,8 +4755,6 @@ dependencies = [
  "lazy_static",
  "moka",
  "num-bigint",
- "num-traits",
- "reqwest 0.12.7",
  "reth-primitives",
  "reth-rpc-types",
  "reth-telos-rpc-engine-api",
@@ -4795,8 +4763,6 @@ dependencies = [
  "ruint 0.3.0",
  "serde",
  "serde_json",
- "testcontainers",
- "thiserror",
  "tokio",
  "tokio-tungstenite 0.23.1",
  "toml",
@@ -5004,17 +4970,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
 dependencies = [
  "native-tls",
- "tokio",
-]
-
-[[package]]
-name = "tokio-retry"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f57eb36ecbe0fc510036adff84824dd3c24bb781e21bfa67b69d556aa85214f"
-dependencies = [
- "pin-project",
- "rand",
  "tokio",
 ]
 
@@ -5285,9 +5240,9 @@ checksum = "08f95100a766bf4f8f28f90d77e0a5461bbdb219042e7679bebe79004fed8d75"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.13"
+version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
+checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
 
 [[package]]
 name = "unicode-normalization"
