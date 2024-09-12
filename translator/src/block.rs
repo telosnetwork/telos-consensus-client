@@ -94,7 +94,7 @@ pub struct ProcessingEVMBlock {
     block_traces: Option<Vec<TransactionTrace>>,
     contract_rows: Option<Vec<(bool, ContractRow)>>,
     cumulative_gas_used: u64,
-    gas_limit: Option<(usize, u128)>,
+    dyn_gas_limit: Option<u128>,
     pub decoded_rows: Vec<DecodedRow>,
     pub transactions: Vec<(TelosEVMTransaction, ReceiptWithBloom)>,
     pub new_gas_price: Option<(u64, U256)>,
@@ -142,7 +142,7 @@ impl ProcessingEVMBlock {
             block_traces: None,
             contract_rows: None,
             cumulative_gas_used: 0,
-            gas_limit: None,
+            dyn_gas_limit: None,
             decoded_rows: vec![],
             transactions: vec![],
 
@@ -206,11 +206,11 @@ impl ProcessingEVMBlock {
         self.cumulative_gas_used = full_receipt.receipt.cumulative_gas_used;
         self.transactions.push((transaction, full_receipt));
 
-        if self.gas_limit.is_none() {
-            self.gas_limit = Some((self.transactions.len(), gas_limit));
+        if self.dyn_gas_limit.is_none() {
+            self.dyn_gas_limit = Some(gas_limit);
         } else {
-            if gas_limit > self.gas_limit.unwrap().1 {
-                self.gas_limit = Some((self.transactions.len(), gas_limit))
+            if gas_limit > self.dyn_gas_limit.unwrap() {
+                self.dyn_gas_limit = Some(gas_limit)
             }
         }
     }
@@ -409,8 +409,8 @@ impl ProcessingEVMBlock {
             logs_bloom.accrue_bloom(&receipt.bloom);
         }
 
-        let gas_limit = if let Some((tx_index, dyn_gas)) = self.gas_limit {
-            debug!("Dynamic gas limit: {}, {}", tx_index, dyn_gas);
+        let gas_limit = if let Some(dyn_gas) = self.dyn_gas_limit {
+            debug!("Dynamic gas limit: {}", dyn_gas);
             max(DEFAULT_GAS_LIMIT, dyn_gas)
         } else {
             DEFAULT_GAS_LIMIT
