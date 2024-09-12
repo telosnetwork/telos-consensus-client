@@ -14,14 +14,14 @@ chain_endpoint = "http://localhost:8888"
 batch_size = 5
 # Block delta between native block and EVM block
 block_delta = 0
-# The parent hash of the start_block
+# The parent hash of the evm_start_block
 prev_hash = "0000000000000000000000000000000000000000000000000000000000000000"
 # Start block to start with, should be at or before the first block of the execution node
-start_block = 0
-# (Optional) Expected block hash of the start block
+emv_start_block = 0
+# (Optional) Expected block hash of the EVM start block
 validate_hash = "00000000000000000000000000000000000000000000000000000000000000000"
-# (Optional) Block number to stop on, default is U32::MAX
-stop_block = 60
+# (Optional) EMV block number to stop on, default is U32::MAX
+evm_stop_block = 60
 # Path to the RocksDB folder
 data_path = "temp/db"
 # Interval at which block hashes are stored in the database

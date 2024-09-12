@@ -82,7 +82,7 @@ impl ConsensusClient {
     }
 
     fn is_in_start_stop_range(&self, num: u32) -> bool {
-        match (self.config.start_block, self.config.stop_block) {
+        match (self.config.evm_start_block, self.config.evm_stop_block) {
             (start_block, Some(stop_block)) => start_block <= num && num <= stop_block,
             (start_block, None) => start_block <= num,
         }
@@ -101,7 +101,7 @@ impl ConsensusClient {
 
     fn sync_range(&self) -> Option<u64> {
         self.latest_evm_number()?
-            .checked_sub(self.config.start_block.as_u64())
+            .checked_sub(self.config.evm_start_block.as_u64())
     }
 
     pub async fn run(&mut self, mut shutdown_rx: oneshot::Receiver<()>) -> Result<(), Error> {
@@ -119,7 +119,7 @@ impl ConsensusClient {
 
         if let Some(last_checked) = last_checked {
             if self.is_in_start_stop_range(last_checked.number + 1) {
-                self.config.start_block = last_checked.number + 1;
+                self.config.evm_start_block = last_checked.number + 1;
                 self.config.prev_hash = last_checked.hash
             }
         }
@@ -130,7 +130,7 @@ impl ConsensusClient {
             }
         }
 
-        debug!("Starting translator from block {}", self.config.start_block);
+        debug!("Starting translator from block {}", self.config.evm_start_block);
 
         let mut translator = Translator::new((&self.config).into());
         let sender_tx = sender.clone();

@@ -15,8 +15,8 @@ lazy_static! {
     pub static ref MAINNET_GENESIS_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 40,
 
-        start_block: 37,
-        stop_block: None,
+        evm_start_block: 37,
+        evm_stop_block: None,
         block_delta: 36,
 
         prev_hash: ZERO_HASH_HEX.to_string(),
@@ -34,8 +34,8 @@ lazy_static! {
     pub static ref MAINNET_DEPLOY_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 40,
 
-        start_block: 180698860,
-        stop_block: None,
+        evm_start_block: 180698860,
+        evm_stop_block: None,
         block_delta: 36,
 
         prev_hash: "757720a8e51c63ef1d4f907d6569dacaa965e91c2661345902de18af11f81063".to_string(),
@@ -53,8 +53,8 @@ lazy_static! {
     pub static ref TESTNET_GENESIS_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 41,
 
-        start_block: 58,
-        stop_block: None,
+        evm_start_block: 58,
+        evm_stop_block: None,
         block_delta: 57,
 
         prev_hash: ZERO_HASH_HEX.to_string(),
@@ -72,8 +72,8 @@ lazy_static! {
     pub static ref TESTNET_DEPLOY_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 41,
 
-        start_block: 136393814,
-        stop_block: None,
+        evm_start_block: 136393814,
+        evm_stop_block: None,
         block_delta: 57,
 
         prev_hash: "8e149fd918bad5a4adfe6f17478e46643f7db7292a2b7b9247f48dc85bdeec94".to_string(),

@@ -44,13 +44,13 @@ pub struct AppConfig {
     pub prev_hash: String,
 
     /// Start block to start with, should be at or before the first block of the execution node
-    pub start_block: u32,
+    pub evm_start_block: u32,
 
     /// (Optional) Expected block hash of the start block
     pub validate_hash: Option<String>,
 
     /// (Optional) Block number to stop on, default is U32::MAX
-    pub stop_block: Option<u32>,
+    pub evm_stop_block: Option<u32>,
 
     /// Path to the RocksDB folder
     pub data_path: String,
@@ -69,8 +69,8 @@ impl From<&AppConfig> for TranslatorConfig {
     fn from(config: &AppConfig) -> Self {
         Self {
             chain_id: config.chain_id,
-            start_block: config.start_block,
-            stop_block: config.stop_block,
+            evm_start_block: config.evm_start_block,
+            evm_stop_block: config.evm_stop_block,
             block_delta: config.block_delta.unwrap_or(0u32),
             prev_hash: config.prev_hash.clone(),
             validate_hash: config.validate_hash.clone(),
