@@ -6,13 +6,15 @@ use axum::{Json, Router};
 use reth_primitives::B256;
 use serde_json::Value;
 use std::sync::Arc;
-use telos_consensus_client::client::ConsensusClient;
+use telos_consensus_client::client::{ConsensusClient, Error};
 use telos_consensus_client::config::{AppConfig, CliArgs};
 use telos_consensus_client::json_rpc::JsonRequestBody;
+use telos_translator_rs::block::TelosEVMBlock;
+use telos_translator_rs::translator::Translator;
 use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::oneshot::Sender;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tracing::info;
 
 const MOCK_EXECUTION_API_PORT: u16 = 3000;
@@ -226,12 +228,31 @@ async fn evm_deploy() {
         block_checkpoint_interval: 1000,
         maximum_sync_range: 100000,
         latest_blocks_in_db_num: 100,
+        max_retry: None,
+        retry_interval: None,
     };
 
-    let mut client_under_test = ConsensusClient::new(&args, config).await.unwrap();
-    let (_sender, receiver) = oneshot::channel();
-    let _ = client_under_test.run(receiver).await;
+    let mut client_under_test = ConsensusClient::new(&args, config.clone()).await.unwrap();
+    let (stop_tx, stop_rx) = mpsc::channel::<()>(1);
 
-    // Shutdown mock execution API
+    let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
+    let mut translator = Translator::new((&config.clone()).into());
+    let tr_stop_tx = stop_tx.clone();
+    let launch_handle = tokio::spawn(async move {
+        translator
+            .launch(Some(tx), stop_tx, stop_rx)
+            .await
+            .map_err(|_| Error::SpawnTranslator)
+    });
+
+    let (sender, receiver) = oneshot::channel();
+    let _ = client_under_test.run(receiver, rx, None).await;
+
+    // Shutdown
     shutdown_tx.send(()).unwrap();
+    client_under_test
+        .shutdown(sender, tr_stop_tx)
+        .await
+        .unwrap();
+    launch_handle.await.unwrap().expect("Can't wait for launch");
 }

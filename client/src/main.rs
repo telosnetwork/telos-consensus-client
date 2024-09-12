@@ -1,17 +1,20 @@
 extern crate alloc;
 
-use crate::client::Error::CannotStartConsensusClient;
+use crate::client::Error::{CannotStartConsensusClient, TranslatorShutdown};
 use crate::client::{ConsensusClient, Error};
 use crate::config::{AppConfig, CliArgs};
+use crate::data::Block;
 use alloc::string::String;
 use clap::Parser;
 use eyre::Result;
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
+use telos_translator_rs::block::TelosEVMBlock;
+use telos_translator_rs::translator::Translator;
 use tokio::sync::{mpsc, oneshot};
 use tokio_retry::strategy::FixedInterval;
 use tokio_retry::Retry;
 use tracing::level_filters::LevelFilter;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -49,25 +52,38 @@ async fn main() {
     }
 }
 
-async fn run_client(args: CliArgs, config: AppConfig) -> Result<(), Error> {
-    info!("Starting Telos consensus client...");
-    let (_sender, receiver) = oneshot::channel();
-    let (tr_sender, tr_receiver) = mpsc::channel::<()>(1);
-    let mut client = ConsensusClient::new(&args, config.clone())
-        .await
-        .map_err(|e| {
-            warn!("Consensus client creation failed: {}", e);
-            warn!("Retrying...");
-            CannotStartConsensusClient(e.to_string())
-        })?;
+async fn run_client(args: CliArgs, mut config: AppConfig) -> Result<(), Error> {
+    let (mut client, lib) = build_consensus_client(&args, &mut config).await?;
 
-    info!("Started client, awaiting result...");
+    debug!("Starting translator from block {}", config.start_block);
+    let (tr_shutdown_sender, tr_shutdown_receiver) = mpsc::channel::<()>(1);
+    let tr_shutdown_sender_tx = tr_shutdown_sender.clone();
+    let (_c_shutdown_sender, c_shutdown_receiver) = oneshot::channel();
+
+    let mut translator = Translator::new((&config).into());
+    let (block_sender, block_receiver) = mpsc::channel::<TelosEVMBlock>(1000);
+
+    info!("Telos translator client launching, awaiting result...");
+    let launch_handle = tokio::spawn(async move {
+        translator
+            .launch(Some(block_sender), tr_shutdown_sender, tr_shutdown_receiver)
+            .await
+            .map_err(|_| Error::SpawnTranslator)
+    });
+
+    info!("Telos consensus client starting, awaiting result...");
     // Run the client and handle the result
-    if let Err(e) = client.run(receiver, tr_sender.clone(), tr_receiver).await {
+    if let Err(e) = client.run(c_shutdown_receiver, block_receiver, lib).await {
         warn!("Consensus client run failed! Error: {:?}", e);
         // Send a signal to indicate failure
-        if let Err(e) = tr_sender.send(()).await {
+        if let Err(e) = tr_shutdown_sender_tx.send(()).await {
             warn!("Cannot send shutdown signal! Error: {:?}", e);
+            return Err(TranslatorShutdown(e.to_string()));
+        }
+
+        if let Err(e) = launch_handle.await {
+            warn!("Cannot stop translator! Error: {:?}", e);
+            return Err(TranslatorShutdown(e.to_string()));
         }
         warn!("Retrying...");
         return Err(e);
@@ -75,6 +91,43 @@ async fn run_client(args: CliArgs, config: AppConfig) -> Result<(), Error> {
 
     info!("Reached stop block/signal, consensus client run finished!");
     Ok(())
+}
+
+async fn build_consensus_client(
+    args: &CliArgs,
+    config: &mut AppConfig,
+) -> Result<(ConsensusClient, Option<Block>), Error> {
+    let client = ConsensusClient::new(args, config.clone())
+        .await
+        .map_err(|e| {
+            warn!("Consensus client creation failed: {}", e);
+            warn!("Retrying...");
+            CannotStartConsensusClient(e.to_string())
+        })?;
+
+    // Translator
+    let lib = client.db.get_lib()?;
+
+    let latest_number = client.min_latest_or_lib(lib.as_ref());
+
+    let last_checked = match latest_number {
+        Some(latest_number) => client.db.get_block_or_prev(latest_number)?,
+        None => None,
+    };
+
+    if let Some(last_checked) = last_checked {
+        if client.is_in_start_stop_range(last_checked.number + 1) {
+            config.start_block = last_checked.number + 1;
+            config.prev_hash = last_checked.hash
+        }
+    }
+
+    if let Some(sync_range) = client.sync_range() {
+        if sync_range > config.maximum_sync_range.as_u64() {
+            return Err(Error::RangeAboveMaximum(sync_range));
+        }
+    }
+    Ok((client, lib))
 }
 
 fn parse_log_level(s: &str) -> Result<LevelFilter, String> {
