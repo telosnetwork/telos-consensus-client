@@ -11,7 +11,7 @@ use crate::types::ship_types::{
 use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
-use alloy_consensus::{Header, TxEnvelope};
+use alloy_consensus::{Header, Transaction, TxEnvelope};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_rlp::Encodable;
 use antelope::chain::checksum::Checksum256;
@@ -21,7 +21,7 @@ use reth_primitives::ReceiptWithBloom;
 use reth_rpc_types::ExecutionPayloadV1;
 use reth_telos_rpc_engine_api::structs::TelosEngineAPIExtraFields;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
-use std::cmp::Ordering;
+use std::cmp::{max, Ordering};
 use tracing::warn;
 
 const MINIMUM_FEE_PER_GAS: u128 = 7;
@@ -94,6 +94,7 @@ pub struct ProcessingEVMBlock {
     block_traces: Option<Vec<TransactionTrace>>,
     contract_rows: Option<Vec<(bool, ContractRow)>>,
     cumulative_gas_used: u64,
+    gas_limit: Option<(usize, u128)>,
     pub decoded_rows: Vec<DecodedRow>,
     pub transactions: Vec<(TelosEVMTransaction, ReceiptWithBloom)>,
     pub new_gas_price: Option<(u64, U256)>,
@@ -141,6 +142,7 @@ impl ProcessingEVMBlock {
             block_traces: None,
             contract_rows: None,
             cumulative_gas_used: 0,
+            gas_limit: None,
             decoded_rows: vec![],
             transactions: vec![],
 
@@ -198,6 +200,21 @@ impl ProcessingEVMBlock {
         });
     }
 
+    fn add_transaction(&mut self, transaction: TelosEVMTransaction) {
+        let full_receipt = transaction.receipt(self.cumulative_gas_used);
+        let gas_limit = transaction.envelope.gas_limit() + self.cumulative_gas_used as u128;
+        self.cumulative_gas_used = full_receipt.receipt.cumulative_gas_used;
+        self.transactions.push((transaction, full_receipt));
+
+        if self.gas_limit.is_none() {
+            self.gas_limit = Some((self.transactions.len(), gas_limit));
+        } else {
+            if gas_limit > self.gas_limit.unwrap().1 {
+                self.gas_limit = Some((self.transactions.len(), gas_limit))
+            }
+        }
+    }
+
     async fn handle_action(
         &mut self,
         action: Box<dyn BasicTrace + Send>,
@@ -235,11 +252,7 @@ impl ProcessingEVMBlock {
             .await;
 
             match transaction_result {
-                Ok(transaction) => {
-                    let full_receipt = transaction.receipt(self.cumulative_gas_used);
-                    self.cumulative_gas_used = full_receipt.receipt.cumulative_gas_used;
-                    self.transactions.push((transaction, full_receipt));
-                }
+                Ok(transaction) => self.add_transaction(transaction),
                 Err(e) => {
                     panic!("Error handling action. Error: {}", e);
                 }
@@ -255,9 +268,7 @@ impl ProcessingEVMBlock {
                 native_to_evm_cache,
             )
             .await;
-            let full_receipt = transaction.receipt(self.cumulative_gas_used);
-            self.cumulative_gas_used = full_receipt.receipt.cumulative_gas_used;
-            self.transactions.push((transaction, full_receipt));
+            self.add_transaction(transaction);
         } else if action_account == EOSIO_TOKEN
             && action_name == TRANSFER
             && action_receiver == EOSIO_EVM
@@ -278,9 +289,7 @@ impl ProcessingEVMBlock {
                 native_to_evm_cache,
             )
             .await;
-            let full_receipt = transaction.receipt(self.cumulative_gas_used);
-            self.cumulative_gas_used = full_receipt.receipt.cumulative_gas_used;
-            self.transactions.push((transaction, full_receipt));
+            self.add_transaction(transaction);
         } else if action_account == EOSIO_EVM && action_name == DORESOURCES {
             let config_delta_row = self
                 .find_config_row()
@@ -400,6 +409,8 @@ impl ProcessingEVMBlock {
             logs_bloom.accrue_bloom(&receipt.bloom);
         }
 
+        let gas_limit = max(0x7fffffff, self.gas_limit.unwrap_or((0, 0)).1);
+
         let header = Header {
             parent_hash,
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
@@ -411,7 +422,7 @@ impl ProcessingEVMBlock {
             logs_bloom,
             difficulty: Default::default(),
             number: (self.block_num - block_delta) as u64,
-            gas_limit: 0x7fffffff,
+            gas_limit,
             gas_used: self.cumulative_gas_used as u128,
             timestamp: (((self.signed_block.clone().unwrap().header.header.timestamp as u64)
                 * ANTELOPE_INTERVAL_MS)
