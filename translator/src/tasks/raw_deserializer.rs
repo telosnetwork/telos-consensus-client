@@ -53,12 +53,17 @@ pub async fn raw_deserializer(
 
         match ship_result {
             ShipResult::GetStatusResultV0(r) => {
+                let start_block_num = config.evm_start_block + config.block_delta;
+                let chain_begin_block = r.chain_state_begin_block;
+                if start_block_num <= chain_begin_block {
+                    return Err(eyre!("Start block {start_block_num} has to greater than first chain block ({chain_begin_block})"));
+                };
                 info!(
                     "GetStatusResultV0 head: {:?} last_irreversible: {:?}",
                     r.head.block_num, r.last_irreversible.block_num
                 );
                 let request = &ShipRequest::GetBlocks(GetBlocksRequestV0 {
-                    start_block_num: config.evm_start_block + config.block_delta,
+                    start_block_num,
                     // Increment stop block value by block delta + 1 as bound is exclusive
                     end_block_num: config
                         .evm_stop_block
