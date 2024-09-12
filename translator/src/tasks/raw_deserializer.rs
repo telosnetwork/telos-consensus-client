@@ -56,7 +56,7 @@ pub async fn raw_deserializer(
                 let start_block_num = config.evm_start_block + config.block_delta;
                 let chain_begin_block = r.chain_state_begin_block;
                 if start_block_num <= chain_begin_block {
-                    return Err(eyre!("Start block {start_block_num} has to greater than first chain block ({chain_begin_block})"));
+                    return Err(eyre!("Start block {start_block_num} has to be greater than first chain block ({chain_begin_block})"));
                 };
                 info!(
                     "GetStatusResultV0 head: {:?} last_irreversible: {:?}",
