@@ -217,7 +217,6 @@ async fn evm_deploy() {
         ship_endpoint: format!("ws://localhost:{port_18999}"),
         chain_endpoint: format!("http://localhost:{port_8888}"),
         batch_size: 5,
-        block_delta: None,
         prev_hash: B256::ZERO.to_string(),
         evm_start_block: 0,
         validate_hash: None,
