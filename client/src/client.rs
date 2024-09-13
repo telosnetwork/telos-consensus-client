@@ -1,6 +1,4 @@
-use std::cmp;
-
-use crate::client::Error::{ConsensusClientShutdown, ForkChoiceUpdated};
+use crate::client::Error::ForkChoiceUpdated;
 use crate::config::{AppConfig, CliArgs};
 use crate::data::{self, Database, Lib};
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
@@ -11,9 +9,9 @@ use reth_primitives::B256;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::Block;
 use serde_json::json;
+use std::cmp;
 use telos_translator_rs::block::TelosEVMBlock;
-use telos_translator_rs::translator::Translator;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tracing::{debug, error};
 
 #[derive(Debug, thiserror::Error)]
@@ -24,20 +22,31 @@ pub enum Error {
     // ExecutorBlockPastStopBlock,
     // #[error("Latest block not found.")]
     // LatestBlockNotFound,
-    #[error("Spawn translator error")]
-    SpawnTranslator,
+    #[error("Cannot start consensus client {0}")]
+    CannotStartConsensusClient(String),
+    // #[error("Spawn translator error")]
+    // SpawnTranslator,
     #[error("Executor hash mismatch.")]
     ExecutorHashMismatch,
     #[error("Fork choice updated error")]
     ForkChoiceUpdated(String),
     #[error("New payload error")]
     NewPayloadV1(String),
-    #[error("Consensus client shutdown error")]
-    ConsensusClientShutdown(String),
     #[error("Database error: {0}")]
     Database(eyre::Report),
-    #[error("Client is too many blocks ({0}) behind the executor, start from a more recent block or increase maximum range")]
+    #[error("Client is too many blocks ({0}) behind the executor, start from a more recent block or increase maximum range"
+    )]
     RangeAboveMaximum(u64),
+    #[error("Cannot shutdown translator: {0}")]
+    TranslatorShutdown(String),
+}
+
+pub struct Shutdown(mpsc::Sender<()>);
+impl Shutdown {
+    #[allow(dead_code)]
+    pub async fn shutdown(&self) -> Result<()> {
+        Ok(self.0.send(()).await?)
+    }
 }
 
 pub struct ConsensusClient {
@@ -46,11 +55,15 @@ pub struct ConsensusClient {
     //latest_consensus_block: ExecutionPayloadV1,
     pub latest_valid_executor_block: Option<Block>,
     //is_forked: bool,
-    db: Database,
+    pub db: Database,
+    shutdown_tx: mpsc::Sender<()>,
+    shutdown_rx: mpsc::Receiver<()>,
 }
 
 impl ConsensusClient {
     pub async fn new(args: &CliArgs, config: AppConfig) -> Result<Self> {
+        let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
+
         let execution_api = ExecutionApiClient::new(&config.execution_endpoint, &config.jwt_secret)
             .wrap_err("Failed to create Execution API client")?;
 
@@ -70,7 +83,14 @@ impl ConsensusClient {
             execution_api,
             latest_valid_executor_block,
             db,
+            shutdown_tx,
+            shutdown_rx,
         })
+    }
+
+    #[allow(dead_code)]
+    pub fn shutdown_handle(&self) -> Shutdown {
+        Shutdown(self.shutdown_tx.clone())
     }
 
     fn latest_evm_block(&self) -> Option<(u32, String)> {
@@ -81,7 +101,7 @@ impl ConsensusClient {
         }
     }
 
-    fn is_in_start_stop_range(&self, num: u32) -> bool {
+    pub fn is_in_start_stop_range(&self, num: u32) -> bool {
         match (self.config.evm_start_block, self.config.evm_stop_block) {
             (start_block, Some(stop_block)) => start_block <= num && num <= stop_block,
             (start_block, None) => start_block <= num,
@@ -92,65 +112,29 @@ impl ConsensusClient {
         self.latest_valid_executor_block.as_ref()?.header.number
     }
 
-    fn min_latest_or_lib(&self, lib: Option<&data::Block>) -> Option<u32> {
+    pub fn min_latest_or_lib(&self, lib: Option<&data::Block>) -> Option<u32> {
         match (lib, self.latest_evm_block().as_ref()) {
             (Some(lib), Some(latest)) => Some(cmp::min(lib.number, latest.0)),
             (_, _) => None,
         }
     }
 
-    fn sync_range(&self) -> Option<u64> {
+    pub fn sync_range(&self) -> Option<u64> {
         self.latest_evm_number()?
             .checked_sub(self.config.evm_start_block.as_u64())
     }
 
-    pub async fn run(&mut self, mut shutdown_rx: oneshot::Receiver<()>) -> Result<(), Error> {
-        let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
-        let (sender, receiver) = mpsc::channel::<()>(1);
-
-        let mut lib = self.db.get_lib()?;
-
-        let latest_number = self.min_latest_or_lib(lib.as_ref());
-
-        let last_checked = match latest_number {
-            Some(latest_number) => self.db.get_block_or_prev(latest_number)?,
-            None => None,
-        };
-
-        if let Some(last_checked) = last_checked {
-            if self.is_in_start_stop_range(last_checked.number + 1) {
-                self.config.evm_start_block = last_checked.number + 1;
-                self.config.prev_hash = last_checked.hash
-            }
-        }
-
-        if let Some(sync_range) = self.sync_range() {
-            if sync_range > self.config.maximum_sync_range.as_u64() {
-                return Err(Error::RangeAboveMaximum(sync_range));
-            }
-        }
-
-        debug!(
-            "Starting translator from block {}",
-            self.config.evm_start_block
-        );
-
-        let mut translator = Translator::new((&self.config).into());
-        let sender_tx = sender.clone();
-
-        let launch_handle = tokio::spawn(async move {
-            translator
-                .launch(Some(tx), sender, receiver)
-                .await
-                .map_err(|_| Error::SpawnTranslator)
-        });
+    pub async fn run(
+        mut self,
+        mut rx: mpsc::Receiver<TelosEVMBlock>,
+        mut lib: Option<data::Block>,
+    ) -> Result<(), Error> {
         let mut batch = vec![];
         loop {
             let message = tokio::select! {
                 message = rx.recv() => message,
-                _ = &mut shutdown_rx => {
+                _ = self.shutdown_rx.recv() => {
                     debug!("Shutdown signal received");
-                    sender_tx.send(()).await.map_err(|e | ConsensusClientShutdown(e.to_string()))?;
                     break;
                 }
             };
@@ -211,7 +195,8 @@ impl ConsensusClient {
             }
         }
 
-        launch_handle.await.map_err(|_| Error::SpawnTranslator)?
+        // launch_handle.await.map_err(|_| Error::SpawnTranslator)?
+        Ok(())
     }
 
     async fn send_batch(&self, batch: &[TelosEVMBlock]) -> Result<(), Error> {
@@ -307,15 +292,6 @@ impl ConsensusClient {
                 params: json![vec![fork_choice_state]],
             })
             .await
-    }
-
-    // shutdown the consensus client
-    #[allow(dead_code)]
-    pub fn shutdown(&self, sender: oneshot::Sender<()>) -> Result<(), Error> {
-        sender.send(()).map_err(|error| {
-            error!("Failed to send shutdown signal: {error:?}");
-            ConsensusClientShutdown(format!("Failed to send shutdown signal {error:?}"))
-        })
     }
 
     /*

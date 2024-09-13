@@ -20,7 +20,7 @@ pub async fn final_processor(
     api_client: APIClient<DefaultProvider>,
     mut rx: mpsc::Receiver<ProcessingEVMBlock>,
     tx: Option<mpsc::Sender<TelosEVMBlock>>,
-    stop_tx: mpsc::Sender<()>,
+    shutdown_tx: mpsc::Sender<()>,
 ) -> Result<()> {
     let mut last_log = Instant::now();
     let mut unlogged_blocks = 0;
@@ -187,7 +187,7 @@ pub async fn final_processor(
         parent_hash = block_hash;
         if block_num == stop_block {
             debug!("Processed stop block #{block_num}, exiting...");
-            stop_tx
+            shutdown_tx
                 .send(())
                 .await
                 .map_err(|_| eyre!("Can't send stop message"))?;

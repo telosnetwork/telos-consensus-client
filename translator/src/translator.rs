@@ -36,19 +36,33 @@ pub struct TranslatorConfig {
 
 pub struct Translator {
     config: TranslatorConfig,
+    shutdown_tx: mpsc::Sender<()>,
+    shutdown_rx: mpsc::Receiver<()>,
+}
+
+pub struct Shutdown(mpsc::Sender<()>);
+
+impl Shutdown {
+    pub async fn shutdown(&self) -> Result<()> {
+        Ok(self.0.send(()).await?)
+    }
 }
 
 impl Translator {
     pub fn new(config: TranslatorConfig) -> Self {
-        Self { config }
+        let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
+        Self {
+            config,
+            shutdown_tx,
+            shutdown_rx,
+        }
     }
 
-    pub async fn launch(
-        &mut self,
-        output_tx: Option<mpsc::Sender<TelosEVMBlock>>,
-        stop_tx: mpsc::Sender<()>,
-        stop_rx: mpsc::Receiver<()>,
-    ) -> Result<()> {
+    pub fn shutdown_handle(&self) -> Shutdown {
+        Shutdown(self.shutdown_tx.clone())
+    }
+
+    pub async fn launch(self, output_tx: Option<mpsc::Sender<TelosEVMBlock>>) -> Result<()> {
         let api_client =
             APIClient::<DefaultProvider>::default_provider(self.config.http_endpoint.clone())
                 .map_err(|error| eyre!(error))
@@ -81,7 +95,7 @@ impl Translator {
             api_client,
             finalize_rx,
             output_tx,
-            stop_tx,
+            self.shutdown_tx.clone(),
         ));
 
         let evm_block_processor_handle = tokio::spawn(evm_block_processor(process_rx, finalize_tx));
@@ -93,7 +107,7 @@ impl Translator {
             process_tx,
         ));
 
-        let ship_reader_handle = tokio::spawn(ship_reader(ws_rx, raw_ds_tx, stop_rx));
+        let ship_reader_handle = tokio::spawn(ship_reader(ws_rx, raw_ds_tx, self.shutdown_rx));
 
         info!("Translator launched successfully");
         let result = join_all(vec![

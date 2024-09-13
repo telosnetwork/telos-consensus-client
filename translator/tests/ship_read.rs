@@ -50,10 +50,9 @@ async fn evm_deploy() {
 
     let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 
-    let mut translator = Translator::new(config);
-    let (stop_tx, stop_rx) = mpsc::channel::<()>(1);
+    let translator = Translator::new(config);
 
-    match translator.launch(Some(tx), stop_tx, stop_rx).await {
+    match translator.launch(Some(tx)).await {
         Ok(_) => info!("Translator launched successfully"),
         Err(e) => panic!("Failed to launch translator: {:?}", e),
     }

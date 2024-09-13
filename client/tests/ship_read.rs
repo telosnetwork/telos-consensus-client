@@ -9,10 +9,12 @@ use std::sync::Arc;
 use telos_consensus_client::client::ConsensusClient;
 use telos_consensus_client::config::{AppConfig, CliArgs};
 use telos_consensus_client::json_rpc::JsonRequestBody;
+use telos_translator_rs::block::TelosEVMBlock;
+use telos_translator_rs::translator::Translator;
 use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::oneshot::Sender;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tracing::info;
 
 const MOCK_EXECUTION_API_PORT: u16 = 3000;
@@ -202,7 +204,7 @@ async fn evm_deploy() {
         request_count: 0,
     };
 
-    let shutdown_tx = mock_execution_api.start().await;
+    let _shutdown_tx = mock_execution_api.start().await;
 
     let args = CliArgs {
         config: "config.toml".to_string(),
@@ -225,12 +227,20 @@ async fn evm_deploy() {
         block_checkpoint_interval: 1000,
         maximum_sync_range: 100000,
         latest_blocks_in_db_num: 100,
+        max_retry: None,
+        retry_interval: None,
     };
 
-    let mut client_under_test = ConsensusClient::new(&args, config).await.unwrap();
-    let (_sender, receiver) = oneshot::channel();
-    let _ = client_under_test.run(receiver).await;
+    let client_under_test = ConsensusClient::new(&args, config.clone()).await.unwrap();
 
-    // Shutdown mock execution API
-    shutdown_tx.send(()).unwrap();
+    let (tx, rx) = mpsc::channel::<TelosEVMBlock>(1000);
+    let translator = Translator::new((&config.clone()).into());
+    let translator_shutdown = translator.shutdown_handle();
+
+    let client_handle = tokio::spawn(client_under_test.run(rx, None));
+    let translator_handle = tokio::spawn(translator.launch(Some(tx)));
+    client_handle.await.unwrap().unwrap();
+
+    translator_shutdown.shutdown().await.unwrap();
+    translator_handle.await.unwrap().unwrap();
 }

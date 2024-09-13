@@ -34,6 +34,7 @@ impl From<Lib<'_>> for Block {
     }
 }
 
+#[derive(Clone)]
 pub struct Database {
     db: Arc<DBWithThreadMode<SingleThreaded>>,
 }
