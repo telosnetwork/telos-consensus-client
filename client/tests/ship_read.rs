@@ -6,7 +6,7 @@ use axum::{Json, Router};
 use reth_primitives::B256;
 use serde_json::Value;
 use std::sync::Arc;
-use telos_consensus_client::client::{ConsensusClient, Error};
+use telos_consensus_client::client::ConsensusClient;
 use telos_consensus_client::config::{AppConfig, CliArgs};
 use telos_consensus_client::json_rpc::JsonRequestBody;
 use telos_translator_rs::block::TelosEVMBlock;
@@ -97,7 +97,7 @@ async fn handle_post(
                 "result": "0x0",
                 "id": 1
             }"#
-                    .to_string(),
+                .to_string(),
             )
         }
         1 => {
@@ -151,7 +151,7 @@ async fn handle_post(
                 "result": "0x0",
                 "id": 1
             }"#
-                .to_string(),
+            .to_string(),
         ),
         // TODO: handle more requests
         _ => {
@@ -173,11 +173,11 @@ async fn evm_deploy() {
         "ghcr.io/telosnetwork/testcontainer-nodeos-evm",
         "v0.1.4@sha256:a8dc857e46404d74b286f8c8d8646354ca6674daaaf9eb6f972966052c95eb4a",
     )
-        .with_exposed_port(Tcp(8888))
-        .with_exposed_port(Tcp(18999))
-        .start()
-        .await
-        .unwrap();
+    .with_exposed_port(Tcp(8888))
+    .with_exposed_port(Tcp(18999))
+    .start()
+    .await
+    .unwrap();
 
     let port_8888 = container.get_host_port_ipv4(8888).await.unwrap();
     let port_18999 = container.get_host_port_ipv4(18999).await.unwrap();
@@ -204,7 +204,7 @@ async fn evm_deploy() {
         request_count: 0,
     };
 
-    let shutdown_tx = mock_execution_api.start().await;
+    let _shutdown_tx = mock_execution_api.start().await;
 
     let args = CliArgs {
         config: "config.toml".to_string(),
@@ -232,27 +232,16 @@ async fn evm_deploy() {
         retry_interval: None,
     };
 
-    let mut client_under_test = ConsensusClient::new(&args, config.clone()).await.unwrap();
+    let client_under_test = ConsensusClient::new(&args, config.clone()).await.unwrap();
 
     let (tx, rx) = mpsc::channel::<TelosEVMBlock>(1000);
     let translator = Translator::new((&config.clone()).into());
-    let tr_shutdown_tx = translator.shutdown_tx();
+    let translator_shutdown = translator.shutdown_handle();
 
-    let launch_handle = tokio::spawn(async move {
-        translator
-            .launch(Some(tx))
-            .await
-            .map_err(|_| Error::SpawnTranslator)
-    });
+    let client_handle = tokio::spawn(client_under_test.run(rx, None));
+    let translator_handle = tokio::spawn(translator.launch(Some(tx)));
+    client_handle.await.unwrap().unwrap();
 
-    let (sender, receiver) = oneshot::channel();
-    let _ = client_under_test.run(receiver, rx, None).await;
-
-    // Shutdown
-    shutdown_tx.send(()).unwrap();
-    client_under_test
-        .shutdown(sender, tr_shutdown_tx)
-        .await
-        .unwrap();
-    launch_handle.await.unwrap().expect("Can't wait for launch");
+    translator_shutdown.shutdown().await.unwrap();
+    translator_handle.await.unwrap().unwrap();
 }

@@ -40,6 +40,14 @@ pub struct Translator {
     shutdown_rx: mpsc::Receiver<()>,
 }
 
+pub struct Shutdown(mpsc::Sender<()>);
+
+impl Shutdown {
+    pub async fn shutdown(&self) -> Result<()> {
+        Ok(self.0.send(()).await?)
+    }
+}
+
 impl Translator {
     pub fn new(config: TranslatorConfig) -> Self {
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
@@ -50,12 +58,8 @@ impl Translator {
         }
     }
 
-    pub async fn shutdown(&self) -> Result<()> {
-        Ok(self.shutdown_tx.send(()).await?)
-    }
-
-    pub fn shutdown_tx(&self) -> mpsc::Sender<()> {
-        self.shutdown_tx.clone()
+    pub fn shutdown_handle(&self) -> Shutdown {
+        Shutdown(self.shutdown_tx.clone())
     }
 
     pub async fn launch(self, output_tx: Option<mpsc::Sender<TelosEVMBlock>>) -> Result<()> {

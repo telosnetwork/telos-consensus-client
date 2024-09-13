@@ -1,4 +1,4 @@
-use crate::client::Error::{ConsensusClientShutdown, ForkChoiceUpdated, TranslatorShutdown};
+use crate::client::Error::ForkChoiceUpdated;
 use crate::config::{AppConfig, CliArgs};
 use crate::data::{self, Database, Lib};
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
@@ -11,7 +11,7 @@ use reth_rpc_types::Block;
 use serde_json::json;
 use std::cmp;
 use telos_translator_rs::block::TelosEVMBlock;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tracing::{debug, error};
 
 #[derive(Debug, thiserror::Error)]
@@ -24,16 +24,14 @@ pub enum Error {
     // LatestBlockNotFound,
     #[error("Cannot start consensus client {0}")]
     CannotStartConsensusClient(String),
-    #[error("Spawn translator error")]
-    SpawnTranslator,
+    // #[error("Spawn translator error")]
+    // SpawnTranslator,
     #[error("Executor hash mismatch.")]
     ExecutorHashMismatch,
     #[error("Fork choice updated error")]
     ForkChoiceUpdated(String),
     #[error("New payload error")]
     NewPayloadV1(String),
-    #[error("Consensus client shutdown error")]
-    ConsensusClientShutdown(String),
     #[error("Database error: {0}")]
     Database(eyre::Report),
     #[error("Client is too many blocks ({0}) behind the executor, start from a more recent block or increase maximum range"
@@ -43,7 +41,15 @@ pub enum Error {
     TranslatorShutdown(String),
 }
 
-#[derive(Clone)]
+
+pub struct Shutdown(mpsc::Sender<()>);
+impl Shutdown {
+    #[allow(dead_code)]
+    pub async fn shutdown(&self) -> Result<()> {
+        Ok(self.0.send(()).await?)
+    }
+}
+
 pub struct ConsensusClient {
     pub config: AppConfig,
     execution_api: ExecutionApiClient,
@@ -51,10 +57,14 @@ pub struct ConsensusClient {
     pub latest_valid_executor_block: Option<Block>,
     //is_forked: bool,
     pub db: Database,
+    shutdown_tx: mpsc::Sender<()>,
+    shutdown_rx: mpsc::Receiver<()>,
 }
 
 impl ConsensusClient {
     pub async fn new(args: &CliArgs, config: AppConfig) -> Result<Self> {
+        let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
+
         let execution_api = ExecutionApiClient::new(&config.execution_endpoint, &config.jwt_secret)
             .wrap_err("Failed to create Execution API client")?;
 
@@ -74,7 +84,17 @@ impl ConsensusClient {
             execution_api,
             latest_valid_executor_block,
             db,
+            shutdown_tx,
+            shutdown_rx,
         })
+    }
+
+
+
+
+    #[allow(dead_code)]
+    pub fn shutdown_handle(&self) -> Shutdown {
+        Shutdown(self.shutdown_tx.clone())
     }
 
     fn latest_evm_block(&self) -> Option<(u32, String)> {
@@ -109,8 +129,7 @@ impl ConsensusClient {
     }
 
     pub async fn run(
-        &mut self,
-        mut shutdown_rx: oneshot::Receiver<()>,
+        mut self,
         mut rx: mpsc::Receiver<TelosEVMBlock>,
         mut lib: Option<data::Block>,
     ) -> Result<(), Error> {
@@ -118,7 +137,7 @@ impl ConsensusClient {
         loop {
             let message = tokio::select! {
                 message = rx.recv() => message,
-                _ = &mut shutdown_rx => {
+                _ = self.shutdown_rx.recv() => {
                     debug!("Shutdown signal received");
                     break;
                 }
@@ -277,28 +296,6 @@ impl ConsensusClient {
                 params: json![vec![fork_choice_state]],
             })
             .await
-    }
-
-    // shutdown the consensus client
-    #[allow(dead_code)]
-    pub async fn shutdown(
-        &self,
-        sender: oneshot::Sender<()>,
-        tr_sender: mpsc::Sender<()>,
-    ) -> Result<(), Error> {
-        sender.send(()).map_err(|error| {
-            error!("Failed to send shutdown signal: {error:?}");
-            ConsensusClientShutdown(format!(
-                "Failed to send shutdown signal to consensus {error:?}"
-            ))
-        })?;
-        tr_sender.send(()).await.map_err(|error| {
-            TranslatorShutdown(format!(
-                "Failed to send shutdown signal to translator {error:?}"
-            ))
-        })?;
-
-        Ok(())
     }
 
     /*

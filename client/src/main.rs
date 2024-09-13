@@ -10,11 +10,11 @@ use eyre::Result;
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tokio_retry::strategy::FixedInterval;
 use tokio_retry::Retry;
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -53,39 +53,35 @@ async fn main() {
 }
 
 async fn run_client(args: CliArgs, mut config: AppConfig) -> Result<(), Error> {
-    let (mut client, lib) = build_consensus_client(&args, &mut config).await?;
-
-    debug!("Starting translator from block {}", config.start_block);
-    let (_c_shutdown_sender, c_shutdown_receiver) = oneshot::channel();
+    let (client, lib) = build_consensus_client(&args, &mut config).await?;
 
     let translator = Translator::new((&config).into());
-    let (block_sender, block_receiver) = mpsc::channel::<TelosEVMBlock>(1000);
-    let tr_shutdown_sender = translator.shutdown_tx();
 
-    info!("Telos translator client launching, awaiting result...");
-    let launch_handle = tokio::spawn(async move {
-        translator
-            .launch(Some(block_sender))
-            .await
-            .map_err(|_| Error::SpawnTranslator)
-    });
+    let (block_sender, block_receiver) = mpsc::channel::<TelosEVMBlock>(1000);
 
     info!("Telos consensus client starting, awaiting result...");
+    let client_handle = tokio::spawn(client.run(block_receiver, lib));
+
+    let translator_shutdown = translator.shutdown_handle();
+
+    info!("Telos translator client launching, awaiting result...");
+    let translator_handle = tokio::spawn(translator.launch(Some(block_sender)));
+
     // Run the client and handle the result
-    if let Err(e) = client.run(c_shutdown_receiver, block_receiver, lib).await {
-        warn!("Consensus client run failed! Error: {:?}", e);
-        // Send a signal to indicate failure
-        if let Err(e) = tr_shutdown_sender.send(()).await {
-            warn!("Cannot send shutdown signal! Error: {:?}", e);
-            return Err(TranslatorShutdown(e.to_string()));
+    if let Ok(Err(error)) = client_handle.await {
+        warn!("Consensus client run failed! Error: {error:?}");
+
+        if let Err(error) = translator_shutdown.shutdown().await {
+            warn!("Cannot send shutdown signal! Error: {error:?}");
+            return Err(TranslatorShutdown(error.to_string()));
         }
 
-        if let Err(e) = launch_handle.await {
-            warn!("Cannot stop translator! Error: {:?}", e);
-            return Err(TranslatorShutdown(e.to_string()));
+        if let Err(error) = translator_handle.await {
+            warn!("Cannot stop translator! Error: {error:?}");
+            return Err(TranslatorShutdown(error.to_string()));
         }
         warn!("Retrying...");
-        return Err(e);
+        return Err(error);
     }
 
     info!("Reached stop block/signal, consensus client run finished!");
