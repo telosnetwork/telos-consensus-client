@@ -36,7 +36,7 @@ async fn main() {
 
     let result = Retry::spawn(retry_strategy, || run_client(args.clone(), config.clone())).await;
     match result {
-        Ok(()) => {
+        Ok(_) => {
             info!("Consensus client Finished!");
         }
         Err(e) => {
