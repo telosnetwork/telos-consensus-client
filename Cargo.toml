@@ -12,9 +12,10 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 reth-primitives = { git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }
 reth-rpc-types  = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
-alloy = "0.2.1"
+alloy = "0.3.5"
 alloy-rlp = "0.3"
-alloy-consensus = "0.2.1"
+alloy-eips = "0.3"
+alloy-consensus = "0.3.5"
 antelope-client = { git = "https://github.com/telosnetwork/antelope-rs.git", branch = "development" }
 bytes = "1.7.1"
 clap = { version = "4.5.6", features = ["derive"] }
