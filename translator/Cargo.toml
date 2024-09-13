@@ -23,8 +23,8 @@ toml = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 hex = { workspace = true }
-reth-trie-common = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
-reth-telos-rpc-engine-api = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
+reth-trie-common = { workspace = true }
+reth-telos-rpc-engine-api = { workspace = true }
 num-bigint = "0.4.5"
 dashmap = "5.5.3"
 k256 = { version = "0.13.3", features = ["ecdsa"] }

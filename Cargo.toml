@@ -10,12 +10,19 @@ resolver = "2"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
+telos-translator-rs = { path = "./translator" }
 reth-primitives = { git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }
 reth-rpc-types  = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
-alloy = "0.3.5"
-alloy-rlp = "0.3"
-alloy-eips = "0.3"
-alloy-consensus = "0.3.5"
+reth-trie-common = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
+reth-telos-rpc-engine-api = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
+#reth-trie-common = { path = "../telos-reth/crates/trie/common" }
+#reth-telos-rpc-engine-api = { path = "../telos-reth/crates/telos/rpc-engine-api" }
+#reth-primitives = { path = "../telos-reth/crates/primitives" }
+#reth-rpc-types  = { path = "../telos-reth/crates/rpc/rpc-types" }
+alloy = "0.3.0"
+alloy-rlp = "0.3.0"
+alloy-eips = "0.3.0"
+alloy-consensus = "0.3.0"
 antelope-client = { git = "https://github.com/telosnetwork/antelope-rs.git", branch = "development" }
 bytes = "1.7.1"
 clap = { version = "4.5.6", features = ["derive"] }
