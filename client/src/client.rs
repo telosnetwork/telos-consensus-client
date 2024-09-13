@@ -41,7 +41,6 @@ pub enum Error {
     TranslatorShutdown(String),
 }
 
-
 pub struct Shutdown(mpsc::Sender<()>);
 impl Shutdown {
     #[allow(dead_code)]
@@ -88,9 +87,6 @@ impl ConsensusClient {
             shutdown_rx,
         })
     }
-
-
-
 
     #[allow(dead_code)]
     pub fn shutdown_handle(&self) -> Shutdown {
