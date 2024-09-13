@@ -95,10 +95,8 @@ impl ConsensusClient {
 
     fn latest_evm_block(&self) -> Option<(u32, String)> {
         let latest = self.latest_valid_executor_block.as_ref()?;
-        match (latest.header.number, latest.header.hash) {
-            (Some(number), Some(hash)) => Some((number.as_u32(), hash.to_string())),
-            _ => None,
-        }
+        let (number, hash) = (latest.header.number, latest.header.hash);
+        Some((number.as_u32(), hash.to_string()))
     }
 
     pub fn is_in_start_stop_range(&self, num: u32) -> bool {
@@ -109,7 +107,7 @@ impl ConsensusClient {
     }
 
     fn latest_evm_number(&self) -> Option<u64> {
-        self.latest_valid_executor_block.as_ref()?.header.number
+        Some(self.latest_valid_executor_block.as_ref()?.header.number)
     }
 
     pub fn min_latest_or_lib(&self, lib: Option<&data::Block>) -> Option<u32> {
