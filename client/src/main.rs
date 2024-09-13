@@ -56,17 +56,16 @@ async fn run_client(args: CliArgs, mut config: AppConfig) -> Result<(), Error> {
     let (mut client, lib) = build_consensus_client(&args, &mut config).await?;
 
     debug!("Starting translator from block {}", config.start_block);
-    let (tr_shutdown_sender, tr_shutdown_receiver) = mpsc::channel::<()>(1);
-    let tr_shutdown_sender_tx = tr_shutdown_sender.clone();
     let (_c_shutdown_sender, c_shutdown_receiver) = oneshot::channel();
 
-    let mut translator = Translator::new((&config).into());
+    let translator = Translator::new((&config).into());
     let (block_sender, block_receiver) = mpsc::channel::<TelosEVMBlock>(1000);
+    let tr_shutdown_sender = translator.shutdown_tx();
 
     info!("Telos translator client launching, awaiting result...");
     let launch_handle = tokio::spawn(async move {
         translator
-            .launch(Some(block_sender), tr_shutdown_sender, tr_shutdown_receiver)
+            .launch(Some(block_sender))
             .await
             .map_err(|_| Error::SpawnTranslator)
     });
@@ -76,7 +75,7 @@ async fn run_client(args: CliArgs, mut config: AppConfig) -> Result<(), Error> {
     if let Err(e) = client.run(c_shutdown_receiver, block_receiver, lib).await {
         warn!("Consensus client run failed! Error: {:?}", e);
         // Send a signal to indicate failure
-        if let Err(e) = tr_shutdown_sender_tx.send(()).await {
+        if let Err(e) = tr_shutdown_sender.send(()).await {
             warn!("Cannot send shutdown signal! Error: {:?}", e);
             return Err(TranslatorShutdown(e.to_string()));
         }

@@ -97,7 +97,7 @@ async fn handle_post(
                 "result": "0x0",
                 "id": 1
             }"#
-                .to_string(),
+                    .to_string(),
             )
         }
         1 => {
@@ -151,7 +151,7 @@ async fn handle_post(
                 "result": "0x0",
                 "id": 1
             }"#
-            .to_string(),
+                .to_string(),
         ),
         // TODO: handle more requests
         _ => {
@@ -173,11 +173,11 @@ async fn evm_deploy() {
         "ghcr.io/telosnetwork/testcontainer-nodeos-evm",
         "v0.1.4@sha256:a8dc857e46404d74b286f8c8d8646354ca6674daaaf9eb6f972966052c95eb4a",
     )
-    .with_exposed_port(Tcp(8888))
-    .with_exposed_port(Tcp(18999))
-    .start()
-    .await
-    .unwrap();
+        .with_exposed_port(Tcp(8888))
+        .with_exposed_port(Tcp(18999))
+        .start()
+        .await
+        .unwrap();
 
     let port_8888 = container.get_host_port_ipv4(8888).await.unwrap();
     let port_18999 = container.get_host_port_ipv4(18999).await.unwrap();
@@ -233,14 +233,14 @@ async fn evm_deploy() {
     };
 
     let mut client_under_test = ConsensusClient::new(&args, config.clone()).await.unwrap();
-    let (stop_tx, stop_rx) = mpsc::channel::<()>(1);
 
-    let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
-    let mut translator = Translator::new((&config.clone()).into());
-    let tr_stop_tx = stop_tx.clone();
+    let (tx, rx) = mpsc::channel::<TelosEVMBlock>(1000);
+    let translator = Translator::new((&config.clone()).into());
+    let tr_shutdown_tx = translator.shutdown_tx();
+
     let launch_handle = tokio::spawn(async move {
         translator
-            .launch(Some(tx), stop_tx, stop_rx)
+            .launch(Some(tx))
             .await
             .map_err(|_| Error::SpawnTranslator)
     });
@@ -251,7 +251,7 @@ async fn evm_deploy() {
     // Shutdown
     shutdown_tx.send(()).unwrap();
     client_under_test
-        .shutdown(sender, tr_stop_tx)
+        .shutdown(sender, tr_shutdown_tx)
         .await
         .unwrap();
     launch_handle.await.unwrap().expect("Can't wait for launch");
