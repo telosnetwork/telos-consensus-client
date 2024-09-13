@@ -112,7 +112,7 @@ async fn build_consensus_client(
 
     if let Some(last_checked) = last_checked {
         if client.is_in_start_stop_range(last_checked.number + 1) {
-            config.start_block = last_checked.number + 1;
+            config.evm_start_block = last_checked.number + 1;
             config.prev_hash = last_checked.hash
         }
     }
