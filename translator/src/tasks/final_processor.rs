@@ -41,7 +41,7 @@ pub async fn final_processor(
 
     let native_to_evm_cache = NameToAddressCache::new(api_client);
     let stop_block = config
-        .stop_block
+        .evm_stop_block
         .map(|n| n + config.block_delta)
         .unwrap_or(u32::MAX);
 

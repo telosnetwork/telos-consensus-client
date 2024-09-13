@@ -37,20 +37,17 @@ pub struct AppConfig {
     /// Block count in between finalize block calls while syncing
     pub batch_size: usize,
 
-    /// Block delta between native block and EVM block
-    pub block_delta: Option<u32>,
-
     /// The parent hash of the start_block
     pub prev_hash: String,
 
     /// Start block to start with, should be at or before the first block of the execution node
-    pub start_block: u32,
+    pub evm_start_block: u32,
 
     /// (Optional) Expected block hash of the start block
     pub validate_hash: Option<String>,
 
     /// (Optional) Block number to stop on, default is U32::MAX
-    pub stop_block: Option<u32>,
+    pub evm_stop_block: Option<u32>,
 
     /// Path to the RocksDB folder
     pub data_path: String,
@@ -73,11 +70,16 @@ pub struct AppConfig {
 
 impl From<&AppConfig> for TranslatorConfig {
     fn from(config: &AppConfig) -> Self {
+        let block_delta = match config.chain_id {
+            40 => 36,
+            41 => 57,
+            _ => 0,
+        };
         Self {
             chain_id: config.chain_id,
-            start_block: config.start_block,
-            stop_block: config.stop_block,
-            block_delta: config.block_delta.unwrap_or(0u32),
+            evm_start_block: config.evm_start_block,
+            evm_stop_block: config.evm_stop_block,
+            block_delta,
             prev_hash: config.prev_hash.clone(),
             validate_hash: config.validate_hash.clone(),
             http_endpoint: config.chain_endpoint.clone(),

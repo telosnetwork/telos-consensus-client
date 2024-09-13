@@ -1,3 +1,5 @@
+use antelope::chain::name::Name;
+
 pub const EOSIO: u64 = 6138663577826885632u64;
 pub const EOSIO_STAKE: u64 = 6138663591134630912u64;
 pub const EOSIO_RAM: u64 = 6138663590285017088u64;
@@ -13,3 +15,8 @@ pub const OPENWALLET: u64 = 11913496671496323072u64;
 pub const CREATE: u64 = 5031766152489992192u64;
 pub const SETREVISION: u64 = 14029686378832668160u64;
 pub const SYSTEM_ACCOUNTS: [u64; 3] = [EOSIO, EOSIO_STAKE, EOSIO_RAM];
+
+// ACCOUNT corresponds to Name::new_from_str("account");
+pub const ACCOUNT: Name = Name {
+    n: 3607749778735104000,
+};

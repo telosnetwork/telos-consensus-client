@@ -1,21 +1,29 @@
 use crate::block::ProcessingEVMBlock;
 use crate::types::evm_types::AccountRow;
-use crate::types::names::EOSIO_EVM;
+use crate::types::names::{ACCOUNT, EOSIO_EVM};
 use alloy::primitives::Address;
 use antelope::api::client::{APIClient, DefaultProvider};
-use antelope::api::v1::structs::{GetTableRowsParams, IndexPosition, TableIndexType};
+use antelope::api::v1::structs::{
+    GetTableRowsParams, GetTableRowsResponse, IndexPosition, TableIndexType,
+};
 use antelope::chain::name::Name;
 use futures_util::stream::{SplitSink, SplitStream};
 use moka::sync::Cache;
+use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use std::collections::BinaryHeap;
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::time::sleep;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use tracing::info;
+use tracing::{error, info, warn};
 
 pub type WebsocketTransmitter = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 pub type WebsocketReceiver = SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
+
+const MAX_RETRY: u8 = 10;
+const BASE_DELAY: Duration = Duration::from_millis(20);
 
 pub struct NameToAddressCache {
     cache: Cache<u64, Address>,
@@ -33,85 +41,95 @@ impl NameToAddressCache {
     }
 
     pub async fn get(&self, name: u64) -> Option<Address> {
+        let evm_contract = Name::from_u64(EOSIO_EVM);
+        let address = Name::from_u64(name).as_string();
         let cached = self.cache.get(&name);
-        info!(
-            "getting {} cache hit = {:?}",
-            Name::from_u64(name).as_string(),
-            cached.is_some()
-        );
-        if let Some(cached) = cached {
-            Some(cached)
-        } else {
-            let evm_contract = Name::from_u64(EOSIO_EVM);
-            // TODO: hardcode this in names.rs for performance
-            let account = Name::new_from_str("account");
-            let account_result = self
-                .api_client
-                .v1_chain
-                .get_table_rows::<AccountRow>(GetTableRowsParams {
-                    code: evm_contract,
-                    table: account,
-                    scope: Some(evm_contract),
-                    lower_bound: Some(TableIndexType::UINT64(name)),
-                    upper_bound: Some(TableIndexType::UINT64(name)),
-                    limit: Some(1),
-                    reverse: None,
-                    index_position: Some(IndexPosition::TERTIARY),
-                    show_payer: None,
-                })
-                .await
-                .unwrap();
-            if account_result.rows.is_empty() {
-                info!("Got empty rows for {}", Name::from_u64(name).as_string());
-                return None;
-            }
 
-            let row_index = account_result.rows[0].index;
-            let address_checksum = account_result.rows[0].address;
-            let address = Address::from(address_checksum.data);
-            self.cache.insert(name, address);
-            self.index_cache.insert(row_index, address);
-            Some(address)
+        info!("getting {address} cache hit = {:?}", cached.is_some());
+
+        if cached.is_some() {
+            return cached;
         }
+
+        let mut i = 0u8;
+        while i <= MAX_RETRY {
+            info!("Fetching address {address} try {i}",);
+            let account_result = self
+                .get_account_address(name, evm_contract, ACCOUNT, IndexPosition::TERTIARY)
+                .await;
+
+            let Some(account_row) = account_result.rows.first() else {
+                warn!("Got empty rows for {address}, retry attempt {i}");
+                sleep(BASE_DELAY * 2u32.pow(i.as_u32())).await;
+                i += 1;
+                continue;
+            };
+
+            let address = Address::from(account_row.address.data);
+            self.cache.insert(name, address);
+            self.index_cache.insert(account_row.index, address);
+            return Some(address);
+        }
+
+        error!("Could not get account after {i} attempts for {address}");
+        None
     }
 
     pub async fn get_index(&self, index: u64) -> Option<Address> {
+        let evm_contract = Name::from_u64(EOSIO_EVM);
+        let address = Name::from_u64(index).as_string();
         let cached = self.index_cache.get(&index);
-        info!("getting index {} cache hit = {:?}", index, cached.is_some());
-        if let Some(cached) = cached {
-            Some(cached)
-        } else {
-            let evm_contract = Name::from_u64(EOSIO_EVM);
-            // TODO: hardcode this in names.rs for performance
-            let account = Name::new_from_str("account");
-            let account_result = self
-                .api_client
-                .v1_chain
-                .get_table_rows::<AccountRow>(GetTableRowsParams {
-                    code: evm_contract,
-                    table: account,
-                    scope: Some(evm_contract),
-                    lower_bound: Some(TableIndexType::UINT64(index)),
-                    upper_bound: Some(TableIndexType::UINT64(index)),
-                    limit: Some(1),
-                    reverse: None,
-                    index_position: Some(IndexPosition::PRIMARY),
-                    show_payer: None,
-                })
-                .await
-                .unwrap();
-            if account_result.rows.is_empty() {
-                info!("Got empty rows for {}", index);
-                return None;
-            }
+        info!("getting index {index} cache hit = {:?}", cached.is_some());
 
-            let row_name = account_result.rows[0].account;
-            let address_checksum = account_result.rows[0].address;
-            let address = Address::from(address_checksum.data);
-            self.cache.insert(row_name.value(), address);
-            self.index_cache.insert(index, address);
-            Some(address)
+        if cached.is_some() {
+            return cached;
         }
+
+        let mut i = 0u8;
+        while i <= MAX_RETRY {
+            info!("Fetching address {address} try attempt {i}");
+            let account_result = self
+                .get_account_address(index, evm_contract, ACCOUNT, IndexPosition::PRIMARY)
+                .await;
+
+            let Some(account_row) = account_result.rows.first() else {
+                warn!("Got empty rows for {address}, retry attempt {i}");
+                sleep(BASE_DELAY * 2u32.pow(i.as_u32())).await;
+                i += 1;
+                continue;
+            };
+
+            let address = Address::from(account_row.address.data);
+            self.cache.insert(account_row.account.value(), address);
+            self.index_cache.insert(index, address);
+            return Some(address);
+        }
+        error!("Could not get account after {i} attempts for {address}");
+        None
+    }
+
+    pub async fn get_account_address(
+        &self,
+        index: u64,
+        evm_contract: Name,
+        account: Name,
+        index_position: IndexPosition,
+    ) -> GetTableRowsResponse<AccountRow> {
+        self.api_client
+            .v1_chain
+            .get_table_rows::<AccountRow>(GetTableRowsParams {
+                code: evm_contract,
+                table: account,
+                scope: Some(evm_contract),
+                lower_bound: Some(TableIndexType::UINT64(index)),
+                upper_bound: Some(TableIndexType::UINT64(index)),
+                limit: Some(1),
+                reverse: None,
+                index_position: Some(index_position),
+                show_payer: None,
+            })
+            .await
+            .unwrap()
     }
 }
 

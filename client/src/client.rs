@@ -105,8 +105,8 @@ impl ConsensusClient {
         }
     }
 
-    pub fn is_in_start_stop_range(&self, num: u32) -> bool {
-        match (self.config.start_block, self.config.stop_block) {
+    fn is_in_start_stop_range(&self, num: u32) -> bool {
+        match (self.config.evm_start_block, self.config.evm_stop_block) {
             (start_block, Some(stop_block)) => start_block <= num && num <= stop_block,
             (start_block, None) => start_block <= num,
         }
@@ -125,7 +125,7 @@ impl ConsensusClient {
 
     pub fn sync_range(&self) -> Option<u64> {
         self.latest_evm_number()?
-            .checked_sub(self.config.start_block.as_u64())
+            .checked_sub(self.config.evm_start_block.as_u64())
     }
 
     pub async fn run(

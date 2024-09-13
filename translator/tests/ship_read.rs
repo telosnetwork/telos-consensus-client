@@ -40,8 +40,8 @@ async fn evm_deploy() {
         http_endpoint: format!("http://localhost:{port_8888}",),
         ship_endpoint: format!("ws://localhost:{port_18999}",),
         validate_hash: None,
-        start_block: 1,
-        stop_block: Some(30),
+        evm_start_block: 1,
+        evm_stop_block: Some(30),
         block_delta: 57,
         ..TESTNET_GENESIS_CONFIG.clone()
     };

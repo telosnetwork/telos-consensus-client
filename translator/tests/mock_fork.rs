@@ -64,8 +64,8 @@ async fn mock_fork() {
         http_endpoint: format!("http://localhost:{cntr_http_port}",),
         ship_endpoint: format!("ws://localhost:{cntr_ship_port}",),
         validate_hash: None,
-        start_block: 2,
-        stop_block: Some(99),
+        evm_start_block: 2,
+        evm_stop_block: Some(99),
         block_delta: 0,
         ..TESTNET_GENESIS_CONFIG.clone()
     };
