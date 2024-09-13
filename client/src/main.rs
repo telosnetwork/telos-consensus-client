@@ -1,12 +1,12 @@
 extern crate alloc;
 
 use crate::config::{AppConfig, CliArgs};
-use crate::main_utils::{run_client, parse_log_level};
+use crate::main_utils::{parse_log_level, run_client};
 use clap::Parser;
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use tokio_retry::strategy::FixedInterval;
 use tokio_retry::Retry;
-use tracing::{info};
+use tracing::info;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -44,4 +44,3 @@ async fn main() {
         }
     }
 }
-
