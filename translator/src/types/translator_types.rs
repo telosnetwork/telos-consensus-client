@@ -41,99 +41,73 @@ impl NameToAddressCache {
     }
 
     pub async fn get(&self, name: u64) -> Option<Address> {
+        let evm_contract = Name::from_u64(EOSIO_EVM);
+        let address = Name::from_u64(name).as_string();
         let cached = self.cache.get(&name);
 
-        let mut fetched_address: Option<Address> = None;
+        info!("getting {address} cache hit = {:?}", cached.is_some());
 
-        info!(
-            "getting {} cache hit = {:?}",
-            Name::from_u64(name).as_string(),
-            cached.is_some()
-        );
-        if let Some(cached) = cached {
-            Some(cached)
-        } else {
-            let evm_contract = Name::from_u64(EOSIO_EVM);
-            let mut i = 0u8;
-            while i <= MAX_RETRY {
-                let address = Name::from_u64(name).as_string();
-                info!("Fetching address {address} try {i}",);
-                let account_result = self
-                    .get_account_address(name, evm_contract, ACCOUNT, IndexPosition::TERTIARY)
-                    .await;
-
-                if account_result.rows.is_empty() {
-                    warn!("Got empty rows for {address}, retry attempt {i}",);
-                    if i == MAX_RETRY {
-                        error!("Could not get account after {i} attempts for {address}",);
-                        break;
-                    }
-                    sleep(BASE_DELAY * 2u32.pow(i.as_u32())).await;
-                    i += 1;
-                    continue;
-                }
-                let row_index = account_result.rows[0].index;
-                let address_checksum = account_result.rows[0].address;
-                let address = Address::from(address_checksum.data);
-                self.cache.insert(name, address);
-                self.index_cache.insert(row_index, address);
-                fetched_address = Some(address);
-                break;
-            }
-
-            fetched_address
+        if cached.is_some() {
+            return cached;
         }
+
+        let mut i = 0u8;
+        while i <= MAX_RETRY {
+            info!("Fetching address {address} try {i}",);
+            let account_result = self
+                .get_account_address(name, evm_contract, ACCOUNT, IndexPosition::TERTIARY)
+                .await;
+
+            let Some(account_row) = account_result.rows.first() else {
+                warn!("Got empty rows for {address}, retry attempt {i}");
+                sleep(BASE_DELAY * 2u32.pow(i.as_u32())).await;
+                i += 1;
+                continue;
+            };
+
+            let address = Address::from(account_row.address.data);
+            self.cache.insert(name, address);
+            self.index_cache.insert(account_row.index, address);
+            return Some(address);
+        }
+
+        error!("Could not get account after {i} attempts for {address}");
+        None
     }
 
     pub async fn get_index(&self, index: u64) -> Option<Address> {
+        let evm_contract = Name::from_u64(EOSIO_EVM);
+        let address = Name::from_u64(index).as_string();
         let cached = self.index_cache.get(&index);
-        info!("getting index {} cache hit = {:?}", index, cached.is_some());
-        let mut fetched_address: Option<Address> = None;
+        info!("getting index {index} cache hit = {:?}", cached.is_some());
 
-        if let Some(cached) = cached {
-            Some(cached)
-        } else {
-            let evm_contract = Name::from_u64(EOSIO_EVM);
-            let mut i = 0u8;
-            while i <= MAX_RETRY {
-                info!(
-                    "Fetching address {} try attempt {}",
-                    Name::from_u64(index).as_string(),
-                    i
-                );
-                let account_result = self
-                    .get_account_address(index, evm_contract, ACCOUNT, IndexPosition::PRIMARY)
-                    .await;
-                if account_result.rows.is_empty() {
-                    warn!(
-                        "Got empty rows for {}, retry attempt {}",
-                        Name::from_u64(index).as_string(),
-                        i
-                    );
-                    if i == MAX_RETRY {
-                        error!(
-                            "Could not get account after {} attempts for {}",
-                            i,
-                            Name::from_u64(index).as_string()
-                        );
-                        break;
-                    }
-                    sleep(BASE_DELAY * 2u32.pow(i.as_u32())).await;
-                    i += 1;
-                    continue;
-                }
-
-                let row_name = account_result.rows[0].account;
-                let address_checksum = account_result.rows[0].address;
-                let address = Address::from(address_checksum.data);
-                self.cache.insert(row_name.value(), address);
-                self.index_cache.insert(index, address);
-                fetched_address = Some(address);
-                break;
-            }
-            fetched_address
+        if cached.is_some() {
+            return cached;
         }
+
+        let mut i = 0u8;
+        while i <= MAX_RETRY {
+            info!("Fetching address {address} try attempt {i}");
+            let account_result = self
+                .get_account_address(index, evm_contract, ACCOUNT, IndexPosition::PRIMARY)
+                .await;
+
+            let Some(account_row) = account_result.rows.first() else {
+                warn!("Got empty rows for {address}, retry attempt {i}");
+                sleep(BASE_DELAY * 2u32.pow(i.as_u32())).await;
+                i += 1;
+                continue;
+            };
+
+            let address = Address::from(account_row.address.data);
+            self.cache.insert(account_row.account.value(), address);
+            self.index_cache.insert(index, address);
+            return Some(address);
+        }
+        error!("Could not get account after {i} attempts for {address}");
+        None
     }
+
     pub async fn get_account_address(
         &self,
         index: u64,
