@@ -291,5 +291,4 @@ impl ConsensusClient {
             })
             .await
     }
-
 }

@@ -1,13 +1,13 @@
+use crate::client::Error::{CannotStartConsensusClient, TranslatorShutdown};
+use crate::client::{ConsensusClient, Error, Shutdown};
+use crate::config::{AppConfig, CliArgs};
+use crate::data::Block;
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
-use tokio::sync::mpsc;
-use tracing::level_filters::LevelFilter;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
-use crate::config::{AppConfig, CliArgs};
-use crate::client::{ConsensusClient, Error, Shutdown};
+use tokio::sync::mpsc;
+use tracing::level_filters::LevelFilter;
 use tracing::{info, warn};
-use crate::client::Error::{CannotStartConsensusClient, TranslatorShutdown};
-use crate::data::Block;
 
 pub async fn run_client(args: CliArgs, mut config: AppConfig) -> Result<Shutdown, Error> {
     let (client, lib) = build_consensus_client(&args, &mut config).await?;
