@@ -1,6 +1,6 @@
 use clap::Parser;
 use serde::Deserialize;
-use telos_translator_rs::translator::TranslatorConfig;
+use telos_translator_rs::{translator::TranslatorConfig, types::translator_types::ChainId};
 
 /// Telos Consensus Client CLI Arguments
 #[derive(Parser, Debug, Clone)]
@@ -20,7 +20,7 @@ pub struct AppConfig {
     pub log_level: String,
 
     /// EVM Chain id, Telos mainnet is 40 and testnet is 41
-    pub chain_id: u64,
+    pub chain_id: ChainId,
 
     /// Execution API http endpoint (JWT protected endpoint on reth)
     pub execution_endpoint: String,
@@ -70,16 +70,10 @@ pub struct AppConfig {
 
 impl From<&AppConfig> for TranslatorConfig {
     fn from(config: &AppConfig) -> Self {
-        let block_delta = match config.chain_id {
-            40 => 36,
-            41 => 57,
-            _ => 0,
-        };
         Self {
-            chain_id: config.chain_id,
+            chain_id: config.chain_id.clone(),
             evm_start_block: config.evm_start_block,
             evm_stop_block: config.evm_stop_block,
-            block_delta,
             prev_hash: config.prev_hash.clone(),
             validate_hash: config.validate_hash.clone(),
             http_endpoint: config.chain_endpoint.clone(),

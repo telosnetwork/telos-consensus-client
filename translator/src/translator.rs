@@ -1,5 +1,6 @@
 use crate::block::{ProcessingEVMBlock, TelosEVMBlock};
 use crate::tasks::{evm_block_processor, final_processor, raw_deserializer, ship_reader};
+use crate::types::translator_types::ChainId;
 use antelope::api::client::APIClient;
 use antelope::api::default_provider::DefaultProvider;
 use eyre::{eyre, Context, Result};
@@ -16,10 +17,9 @@ pub fn default_channel_size() -> usize {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranslatorConfig {
-    pub chain_id: u64,
+    pub chain_id: ChainId,
     pub evm_start_block: u32,
     pub evm_stop_block: Option<u32>,
-    pub block_delta: u32,
     pub prev_hash: String,
     pub validate_hash: Option<String>,
 

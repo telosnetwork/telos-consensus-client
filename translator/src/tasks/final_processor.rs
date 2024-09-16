@@ -25,6 +25,7 @@ pub async fn final_processor(
     let mut last_log = Instant::now();
     let mut unlogged_blocks = 0;
     let mut unlogged_transactions = 0;
+    let block_delta = config.chain_id.block_delta();
 
     let mut parent_hash = FixedBytes::from_str(&config.prev_hash)
         .wrap_err("Prev hash config is not a valid 32 byte hex string")?;
@@ -40,19 +41,19 @@ pub async fn final_processor(
     let mut validated = validate_hash.is_none();
 
     let native_to_evm_cache = NameToAddressCache::new(api_client);
-    let stop_block = config
+    let stop_block = &config
         .evm_stop_block
-        .map(|n| n + config.block_delta)
+        .map(|n| n + block_delta)
         .unwrap_or(u32::MAX);
 
     while let Some(mut block) = rx.recv().await {
-        if block.block_num > stop_block {
+        if &block.block_num > stop_block {
             break;
         }
         debug!("Finalizing block #{}", block.block_num);
 
         let (header, exec_payload) = block
-            .generate_evm_data(parent_hash, config.block_delta, &native_to_evm_cache)
+            .generate_evm_data(parent_hash, block_delta, &native_to_evm_cache)
             .await;
 
         let block_hash = exec_payload.block_hash;
@@ -185,7 +186,7 @@ pub async fn final_processor(
             }
         }
         parent_hash = block_hash;
-        if block_num == stop_block {
+        if &block_num == stop_block {
             debug!("Processed stop block #{block_num}, exiting...");
             shutdown_tx
                 .send(())

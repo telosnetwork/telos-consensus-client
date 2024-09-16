@@ -1,8 +1,9 @@
+use std::cmp;
+
 use crate::client::Error::{CannotStartConsensusClient, TranslatorShutdown};
 use crate::client::{ConsensusClient, Error, Shutdown};
 use crate::config::{AppConfig, CliArgs};
 use crate::data::Block;
-use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
 use tokio::sync::mpsc;
@@ -60,7 +61,11 @@ pub async fn build_consensus_client(
     // Translator
     let lib = client.db.get_lib()?;
 
-    let latest_number = client.min_latest_or_lib(lib.as_ref());
+    let latest_number = lib
+        .as_ref()
+        .map(|lib| lib.number + config.chain_id.block_delta())
+        .zip(client.latest_evm_number())
+        .map(|(lib, latest)| cmp::min(lib, latest));
 
     let last_checked = match latest_number {
         Some(latest_number) => client.db.get_block_or_prev(latest_number)?,
@@ -75,7 +80,7 @@ pub async fn build_consensus_client(
     }
 
     if let Some(sync_range) = client.sync_range() {
-        if sync_range > config.maximum_sync_range.as_u64() {
+        if sync_range > config.maximum_sync_range {
             return Err(Error::RangeAboveMaximum(sync_range));
         }
     }

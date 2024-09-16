@@ -24,6 +24,7 @@ pub async fn raw_deserializer(
     let mut unackd_blocks = 0;
     let mut last_log = Instant::now();
     let mut unlogged_blocks = 0;
+    let block_delta = config.chain_id.block_delta();
 
     // TODO: maybe get this working as an ABI again?
     //   the problem is that the ABI from ship has invalid table names like `account_metadata`
@@ -53,7 +54,7 @@ pub async fn raw_deserializer(
 
         match ship_result {
             ShipResult::GetStatusResultV0(r) => {
-                let start_block_num = config.evm_start_block + config.block_delta;
+                let start_block_num = config.evm_start_block + block_delta;
                 let chain_begin_block = r.chain_state_begin_block;
                 if start_block_num <= chain_begin_block {
                     return Err(eyre!("Start block {start_block_num} has to be greater than first chain block ({chain_begin_block})"));
@@ -67,7 +68,7 @@ pub async fn raw_deserializer(
                     // Increment stop block value by block delta + 1 as bound is exclusive
                     end_block_num: config
                         .evm_stop_block
-                        .map(|n| n + config.block_delta + 1)
+                        .map(|n| n + block_delta + 1)
                         .unwrap_or(u32::MAX),
                     max_messages_in_flight: 10000,
                     have_positions: vec![],
@@ -83,7 +84,7 @@ pub async fn raw_deserializer(
                 unackd_blocks += 1;
                 if let Some(b) = &r.this_block {
                     let block = ProcessingEVMBlock::new(
-                        config.chain_id,
+                        config.chain_id.0,
                         b.block_num,
                         b.block_id,
                         r.last_irreversible.block_num,

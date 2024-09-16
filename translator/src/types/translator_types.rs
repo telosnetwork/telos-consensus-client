@@ -10,6 +10,7 @@ use antelope::chain::name::Name;
 use futures_util::stream::{SplitSink, SplitStream};
 use moka::sync::Cache;
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
+use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
@@ -180,6 +181,25 @@ impl Clone for PriorityQueue {
     fn clone(&self) -> Self {
         PriorityQueue {
             heap: Arc::clone(&self.heap),
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct ChainId(pub u64);
+
+impl From<u64> for ChainId {
+    fn from(value: u64) -> Self {
+        ChainId(value)
+    }
+}
+
+impl ChainId {
+    pub fn block_delta(&self) -> u32 {
+        match self.0 {
+            40 => 36,
+            41 => 57,
+            _ => 0,
         }
     }
 }
