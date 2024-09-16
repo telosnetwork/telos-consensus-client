@@ -41,6 +41,17 @@ async fn mock_fork() {
     // configure a fork from block 30 to 25
     let mock_client = LeapMockClient::new(&format!("http://localhost:{cntr_control_port}"));
 
+    let config = TranslatorConfig {
+        http_endpoint: format!("http://localhost:{cntr_http_port}",),
+        ship_endpoint: format!("ws://localhost:{cntr_ship_port}",),
+        validate_hash: None,
+        evm_start_block: 2,
+        evm_stop_block: Some(99),
+        ..TESTNET_GENESIS_CONFIG.clone()
+    };
+
+    let block_delta = config.chain_id.block_delta();
+
     let _chain_info = mock_client
         .set_chain(ChainDescriptor {
             chain_id: None,
@@ -50,25 +61,15 @@ async fn mock_fork() {
                 JumpInfo { from: 35, to: 20 }, // normal fork
                 JumpInfo { from: 80, to: 3 },  // long fork
             ],
-            chain_start_block: 1,
-            chain_end_block: 100,
-            session_start_block: 2,
-            session_stop_block: 100,
+            chain_start_block: block_delta,
+            chain_end_block: 100 + block_delta,
+            session_start_block: 2 + block_delta,
+            session_stop_block: 100 + block_delta,
             http_port: Some(chain_http_port),
             ship_port: Some(chain_ship_port),
         })
         .await
         .unwrap();
-
-    let config = TranslatorConfig {
-        http_endpoint: format!("http://localhost:{cntr_http_port}",),
-        ship_endpoint: format!("ws://localhost:{cntr_ship_port}",),
-        validate_hash: None,
-        evm_start_block: 2,
-        evm_stop_block: Some(99),
-        block_delta: 0,
-        ..TESTNET_GENESIS_CONFIG.clone()
-    };
 
     let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 

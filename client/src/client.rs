@@ -9,7 +9,6 @@ use reth_primitives::B256;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::Block;
 use serde_json::json;
-use std::cmp;
 use telos_translator_rs::block::TelosEVMBlock;
 use tokio::sync::mpsc;
 use tracing::{debug, error};
@@ -36,7 +35,7 @@ pub enum Error {
     Database(eyre::Report),
     #[error("Client is too many blocks ({0}) behind the executor, start from a more recent block or increase maximum range"
     )]
-    RangeAboveMaximum(u64),
+    RangeAboveMaximum(u32),
     #[error("Cannot shutdown translator: {0}")]
     TranslatorShutdown(String),
 }
@@ -106,20 +105,15 @@ impl ConsensusClient {
         }
     }
 
-    fn latest_evm_number(&self) -> Option<u64> {
-        Some(self.latest_valid_executor_block.as_ref()?.header.number)
+    pub fn latest_evm_number(&self) -> Option<u32> {
+        self.latest_valid_executor_block
+            .as_ref()
+            .map(|block| block.header.number.as_u32())
     }
 
-    pub fn min_latest_or_lib(&self, lib: Option<&data::Block>) -> Option<u32> {
-        match (lib, self.latest_evm_block().as_ref()) {
-            (Some(lib), Some(latest)) => Some(cmp::min(lib.number, latest.0)),
-            (_, _) => None,
-        }
-    }
-
-    pub fn sync_range(&self) -> Option<u64> {
+    pub fn sync_range(&self) -> Option<u32> {
         self.latest_evm_number()?
-            .checked_sub(self.config.evm_start_block.as_u64())
+            .checked_sub(self.config.evm_start_block)
     }
 
     pub async fn run(

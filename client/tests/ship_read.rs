@@ -11,6 +11,7 @@ use telos_consensus_client::config::{AppConfig, CliArgs};
 use telos_consensus_client::json_rpc::JsonRequestBody;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
+use telos_translator_rs::types::translator_types::ChainId;
 use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::sync::oneshot::Sender;
@@ -213,7 +214,7 @@ async fn evm_deploy() {
 
     let config = AppConfig {
         log_level: "debug".to_string(),
-        chain_id: 41,
+        chain_id: ChainId(41),
         execution_endpoint: format!("http://localhost:{MOCK_EXECUTION_API_PORT}"),
         jwt_secret: "57ea261c64b8a871e4df3f0c790efd0d02f9846e5085483e3098f30118fd1520".to_string(),
         ship_endpoint: format!("ws://localhost:{port_18999}"),

@@ -10,7 +10,7 @@ use telos_translator_rs::{
         ship_types::{
             BlockHeader, BlockPosition, GetBlocksResultV0, SignedBlock, SignedBlockHeader,
         },
-        translator_types::NameToAddressCache,
+        translator_types::{ChainId, NameToAddressCache},
     },
 };
 
@@ -78,8 +78,7 @@ async fn generate_block(
 
 #[tokio::test]
 async fn genesis_mainnet() {
-    let evm_chain_id_mainnet = 40;
-    let evm_delta = 36;
+    let evm_chain_id_mainnet = ChainId(40);
     let http_endpoint = "https://mainnet.telos.net".to_string();
 
     let native_to_evm_cache = NameToAddressCache::new(
@@ -91,12 +90,16 @@ async fn genesis_mainnet() {
         0, 0,
     ]);
 
-    let mut block = generate_block(evm_chain_id_mainnet, http_endpoint, 36).await;
+    let mut block = generate_block(evm_chain_id_mainnet.0, http_endpoint, 36).await;
 
     block.deserialize();
 
     let (header, payload) = block
-        .generate_evm_data(zero_bytes, evm_delta, &native_to_evm_cache)
+        .generate_evm_data(
+            zero_bytes,
+            evm_chain_id_mainnet.block_delta(),
+            &native_to_evm_cache,
+        )
         .await;
 
     println!("genesis: {:#?}", header);
@@ -111,8 +114,7 @@ async fn genesis_mainnet() {
 
 #[tokio::test]
 async fn deploy_mainnet() {
-    let evm_chain_id_mainnet = 40;
-    let evm_delta = 36;
+    let evm_chain_id_mainnet = ChainId(40);
     let http_endpoint = "https://mainnet.telos.net".to_string();
 
     let native_to_evm_cache = NameToAddressCache::new(
@@ -122,7 +124,7 @@ async fn deploy_mainnet() {
     let parent_hash = FixedBytes::from_hex(&MAINNET_DEPLOY_CONFIG.prev_hash).unwrap();
 
     let mut block = generate_block(
-        evm_chain_id_mainnet,
+        evm_chain_id_mainnet.0,
         http_endpoint,
         MAINNET_DEPLOY_CONFIG.evm_start_block,
     )
@@ -131,7 +133,11 @@ async fn deploy_mainnet() {
     block.deserialize();
 
     let (header, payload) = block
-        .generate_evm_data(parent_hash, evm_delta, &native_to_evm_cache)
+        .generate_evm_data(
+            parent_hash,
+            evm_chain_id_mainnet.block_delta(),
+            &native_to_evm_cache,
+        )
         .await;
 
     println!("genesis: {:#?}", header);
