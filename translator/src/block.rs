@@ -81,7 +81,7 @@ impl BasicTrace for ActionTrace {
 pub enum DecodedRow {
     Config(EvmContractConfigRow),
     Account(AccountRow),
-    AccountState(AccountStateRow),
+    AccountState(AccountStateRow, Name),
 }
 
 #[derive(Clone)]
@@ -332,7 +332,7 @@ impl ProcessingEVMBlock {
                                 .push(DecodedRow::Account(decode(&r.value)));
                         } else if r.table == Name::new_from_str("accountstate") {
                             self.decoded_rows
-                                .push(DecodedRow::AccountState(decode(&r.value)));
+                                .push(DecodedRow::AccountState(decode(&r.value), r.scope));
                         }
                     }
                 }

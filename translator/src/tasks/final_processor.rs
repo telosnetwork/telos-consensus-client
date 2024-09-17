@@ -112,10 +112,10 @@ pub async fn final_processor(
                     code: Bytes::from(acc_diff.code.clone()),
                     balance: U256::from_be_slice(&acc_diff.balance.data),
                 }),
-                DecodedRow::AccountState(acc_state_diff) => {
+                DecodedRow::AccountState(acc_state_diff, scope) => {
                     statediffs_accountstate.push(TelosAccountStateTableRow {
                         address: native_to_evm_cache
-                            .get_index(acc_state_diff.index)
+                            .get_index(scope.n)
                             .await
                             .unwrap(),
                         key: U256::from_be_slice(&acc_state_diff.key.data),
