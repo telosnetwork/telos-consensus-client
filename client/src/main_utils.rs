@@ -11,8 +11,8 @@ use tokio::sync::mpsc;
 use tracing::level_filters::LevelFilter;
 use tracing::{info, warn};
 
-pub async fn run_client(args: CliArgs, mut config: AppConfig) -> Result<Shutdown, Error> {
-    let (client, lib) = build_consensus_client(&args, &mut config).await?;
+pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Error> {
+    let (client, lib) = build_consensus_client(&args, config.clone()).await?;
     let client_shutdown = client.shutdown_handle();
     let translator = Translator::new((&config).into());
 
@@ -49,15 +49,13 @@ pub async fn run_client(args: CliArgs, mut config: AppConfig) -> Result<Shutdown
 
 pub async fn build_consensus_client(
     args: &CliArgs,
-    config: &mut AppConfig,
+    config: AppConfig,
 ) -> Result<(ConsensusClient, Option<Block>), Error> {
-    let client = ConsensusClient::new(args, config.clone())
-        .await
-        .map_err(|e| {
-            warn!("Consensus client creation failed: {}", e);
-            warn!("Retrying...");
-            CannotStartConsensusClient(e.to_string())
-        })?;
+    let mut client = ConsensusClient::new(args, config).await.map_err(|e| {
+        warn!("Consensus client creation failed: {}", e);
+        warn!("Retrying...");
+        CannotStartConsensusClient(e.to_string())
+    })?;
 
     info!(
         "Created client with latest EVM block: {:?}",
@@ -72,7 +70,7 @@ pub async fn build_consensus_client(
 
     let latest_number = lib
         .as_ref()
-        .map(|lib| lib.number + config.chain_id.block_delta())
+        .map(|lib| lib.number + client.config.chain_id.block_delta())
         .zip(client.latest_evm_number())
         .map(|(lib, latest)| cmp::min(lib, latest));
 
@@ -90,13 +88,13 @@ pub async fn build_consensus_client(
 
     if let Some(last_checked) = last_checked {
         if client.is_in_start_stop_range(last_checked.number + 1) {
-            config.evm_start_block = last_checked.number + 1;
-            config.prev_hash = last_checked.hash
+            client.config.evm_start_block = last_checked.number + 1;
+            client.config.prev_hash = last_checked.hash
         }
     }
 
     if let Some(sync_range) = client.sync_range() {
-        if sync_range > config.maximum_sync_range {
+        if sync_range > client.config.maximum_sync_range {
             return Err(Error::RangeAboveMaximum(sync_range));
         }
     }
