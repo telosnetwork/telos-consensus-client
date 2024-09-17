@@ -59,8 +59,16 @@ pub async fn build_consensus_client(
             CannotStartConsensusClient(e.to_string())
         })?;
 
-    // Translator
+    info!(
+        "Created client with latest EVM block: {:?}",
+        client.latest_evm_number()
+    );
+
     let lib = client.db.get_lib()?;
+
+    if let Some(lib_number) = lib.as_ref().map(|lib| lib.number) {
+        info!("Last stored LIB: {lib_number}");
+    }
 
     let latest_number = lib
         .as_ref()
@@ -72,6 +80,13 @@ pub async fn build_consensus_client(
         Some(latest_number) => client.db.get_block_or_prev(latest_number)?,
         None => None,
     };
+
+    if let Some(last_checked) = last_checked.as_ref() {
+        info!(
+            "Last stored final block: {}, {}",
+            last_checked.number, last_checked.hash
+        );
+    }
 
     if let Some(last_checked) = last_checked {
         if client.is_in_start_stop_range(last_checked.number + 1) {
