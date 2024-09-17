@@ -331,8 +331,10 @@ impl ProcessingEVMBlock {
                             self.decoded_rows
                                 .push(DecodedRow::Account(decode(&r.value)));
                         } else if r.table == Name::new_from_str("accountstate") {
+                            let mut accountstate_row: AccountStateRow = decode(&r.value);
+                            accountstate_row.index = r.scope.n;
                             self.decoded_rows
-                                .push(DecodedRow::AccountState(decode(&r.value)));
+                                .push(DecodedRow::AccountState(accountstate_row));
                         }
                     }
                 }
