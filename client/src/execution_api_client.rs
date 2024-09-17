@@ -172,7 +172,7 @@ impl ExecutionApiClient {
             debug!("Errors calling executor batch. Errors: {:?}", errors);
             return Err(ExecutionApiError::ExecutionApi(errors.into()));
         } else {
-            debug!("Successfully executor batch. {:?}", json_response);
+            debug!("Successfully sent executor batch. {:?}", json_response);
         }
 
         Ok(json_response)
