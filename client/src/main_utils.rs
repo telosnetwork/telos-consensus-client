@@ -4,6 +4,7 @@ use crate::client::Error::{CannotStartConsensusClient, TranslatorShutdown};
 use crate::client::{ConsensusClient, Error, Shutdown};
 use crate::config::{AppConfig, CliArgs};
 use crate::data::Block;
+use eyre::eyre;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
 use tokio::sync::mpsc;
@@ -87,7 +88,7 @@ pub async fn build_consensus_client(
     Ok((client, lib))
 }
 
-pub fn parse_log_level(s: &str) -> Result<LevelFilter, String> {
+pub fn parse_log_level(s: &str) -> eyre::Result<LevelFilter> {
     match s.to_lowercase().as_str() {
         "off" => Ok(LevelFilter::OFF),
         "error" => Ok(LevelFilter::ERROR),
@@ -95,6 +96,6 @@ pub fn parse_log_level(s: &str) -> Result<LevelFilter, String> {
         "info" => Ok(LevelFilter::INFO),
         "debug" => Ok(LevelFilter::DEBUG),
         "trace" => Ok(LevelFilter::TRACE),
-        _ => Err(format!("Unknown log level: {}", s)),
+        _ => Err(eyre!("Unknown log level: {s}")),
     }
 }
