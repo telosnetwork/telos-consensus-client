@@ -2,22 +2,16 @@ extern crate alloc;
 
 use std::fs;
 
-use crate::config::{AppConfig, CliArgs};
-use crate::main_utils::{parse_log_level, run_client};
 use clap::Parser;
 use eyre::{Context, Result};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
+use telos_consensus_client::{
+    config::{AppConfig, CliArgs},
+    main_utils::{parse_log_level, run_client},
+};
 use tokio_retry::{strategy::FixedInterval, Retry};
 use tracing::info;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
-
-mod auth;
-mod client;
-mod config;
-mod data;
-mod execution_api_client;
-mod json_rpc;
-mod main_utils;
 
 #[tokio::main]
 async fn main() -> Result<()> {
