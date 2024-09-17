@@ -75,8 +75,6 @@ impl ConsensusClient {
             .await
             .wrap_err("Failed to get latest valid executor block")?;
 
-        debug!("Latest valid executor block is: {latest_valid_executor_block:?}");
-
         Ok(Self {
             config,
             execution_api,
