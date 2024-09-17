@@ -20,7 +20,7 @@ async fn generate_block(
     block_num: u32,
 ) -> ProcessingEVMBlock {
     let api_client: APIClient<DefaultProvider> =
-        APIClient::<DefaultProvider>::default_provider(http_endpoint.clone())
+        APIClient::<DefaultProvider>::default_provider(http_endpoint.clone(), Some(10))
             .expect("Failed to create API client");
 
     let block = api_client
@@ -82,7 +82,7 @@ async fn genesis_mainnet() {
     let http_endpoint = "https://mainnet.telos.net".to_string();
 
     let native_to_evm_cache = NameToAddressCache::new(
-        APIClient::<DefaultProvider>::default_provider(http_endpoint.clone())
+        APIClient::<DefaultProvider>::default_provider(http_endpoint.clone(), Some(10))
             .expect("Failed to create API client"),
     );
     let zero_bytes = FixedBytes::from_slice(&[
@@ -118,7 +118,7 @@ async fn deploy_mainnet() {
     let http_endpoint = "https://mainnet.telos.net".to_string();
 
     let native_to_evm_cache = NameToAddressCache::new(
-        APIClient::<DefaultProvider>::default_provider(http_endpoint.clone())
+        APIClient::<DefaultProvider>::default_provider(http_endpoint.clone(), Some(10))
             .expect("Failed to create API client"),
     );
     let parent_hash = FixedBytes::from_hex(&MAINNET_DEPLOY_CONFIG.prev_hash).unwrap();
