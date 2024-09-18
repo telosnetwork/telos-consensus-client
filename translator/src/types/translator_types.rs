@@ -7,9 +7,9 @@ use antelope::api::v1::structs::{
     GetTableRowsParams, GetTableRowsResponse, IndexPosition, TableIndexType,
 };
 use antelope::chain::name::Name;
+use eyre::eyre;
 use futures_util::stream::{SplitSink, SplitStream};
 use moka::sync::Cache;
-use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
 use std::net::TcpStream;
@@ -54,22 +54,29 @@ impl NameToAddressCache {
 
         let mut i = 0u8;
         while i <= MAX_RETRY {
-            info!("Fetching address {address} try {i}",);
-            let account_result = self
-                .get_account_address(name, evm_contract, ACCOUNT, IndexPosition::TERTIARY)
+            info!("Fetching address {address} try {i}");
+            let account_result: eyre::Result<GetTableRowsResponse<AccountRow>> = self
+                .get_account_address(name, evm_contract, IndexPosition::TERTIARY)
                 .await;
 
-            let Some(account_row) = account_result.rows.first() else {
-                warn!("Got empty rows for {address}, retry attempt {i}");
-                sleep(BASE_DELAY * 2u32.pow(i.as_u32())).await;
-                i += 1;
-                continue;
-            };
+            match account_result {
+                Ok(account_result) => {
+                    if let Some(account_row) = account_result.rows.first() {
+                        let address = Address::from(account_row.address.data);
+                        self.cache.insert(name, address);
+                        self.index_cache.insert(account_row.index, address);
+                        return Some(address);
+                    } else {
+                        warn!("Got empty rows for {address}, retry attempt {i}");
+                    }
+                }
+                Err(e) => {
+                    warn!("Error {e} fetching {address}, retry attempt {i}");
+                }
+            }
 
-            let address = Address::from(account_row.address.data);
-            self.cache.insert(name, address);
-            self.index_cache.insert(account_row.index, address);
-            return Some(address);
+            sleep(BASE_DELAY * 2u32.pow(i as u32)).await;
+            i += 1;
         }
 
         error!("Could not get account after {i} attempts for {address}");
@@ -88,22 +95,29 @@ impl NameToAddressCache {
 
         let mut i = 0u8;
         while i <= MAX_RETRY {
-            info!("Fetching address {address} try attempt {i}");
-            let account_result = self
-                .get_account_address(index, evm_contract, ACCOUNT, IndexPosition::PRIMARY)
+            info!("Fetching address {address} try {i}");
+            let account_result: eyre::Result<GetTableRowsResponse<AccountRow>> = self
+                .get_account_address(index, evm_contract, IndexPosition::PRIMARY)
                 .await;
 
-            let Some(account_row) = account_result.rows.first() else {
-                warn!("Got empty rows for {address}, retry attempt {i}");
-                sleep(BASE_DELAY * 2u32.pow(i.as_u32())).await;
-                i += 1;
-                continue;
-            };
+            match account_result {
+                Ok(account_result) => {
+                    if let Some(account_row) = account_result.rows.first() {
+                        let address = Address::from(account_row.address.data);
+                        self.cache.insert(index, address);
+                        self.index_cache.insert(account_row.index, address);
+                        return Some(address);
+                    } else {
+                        warn!("Got empty rows for {address}, retry attempt {i}");
+                    }
+                }
+                Err(e) => {
+                    warn!("Error {e} fetching {address}, retry attempt {i}");
+                }
+            }
 
-            let address = Address::from(account_row.address.data);
-            self.cache.insert(account_row.account.value(), address);
-            self.index_cache.insert(index, address);
-            return Some(address);
+            sleep(BASE_DELAY * 2u32.pow(i as u32)).await;
+            i += 1;
         }
         error!("Could not get account after {i} attempts for {address}");
         None
@@ -113,14 +127,13 @@ impl NameToAddressCache {
         &self,
         index: u64,
         evm_contract: Name,
-        account: Name,
         index_position: IndexPosition,
-    ) -> GetTableRowsResponse<AccountRow> {
+    ) -> eyre::Result<GetTableRowsResponse<AccountRow>> {
         self.api_client
             .v1_chain
             .get_table_rows::<AccountRow>(GetTableRowsParams {
                 code: evm_contract,
-                table: account,
+                table: ACCOUNT,
                 scope: Some(evm_contract),
                 lower_bound: Some(TableIndexType::UINT64(index)),
                 upper_bound: Some(TableIndexType::UINT64(index)),
@@ -130,7 +143,7 @@ impl NameToAddressCache {
                 show_payer: None,
             })
             .await
-            .unwrap()
+            .map_err(|e| eyre!("Cannot fetch table rows, client error: {:?}", e))
     }
 }
 
