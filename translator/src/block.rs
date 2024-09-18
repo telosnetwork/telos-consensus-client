@@ -80,8 +80,8 @@ impl BasicTrace for ActionTrace {
 #[derive(Clone)]
 pub enum DecodedRow {
     Config(EvmContractConfigRow),
-    Account(AccountRow),
-    AccountState(AccountStateRow, Name),
+    Account(bool, AccountRow),
+    AccountState(bool, AccountStateRow, Name),
 }
 
 #[derive(Clone)]
@@ -92,7 +92,7 @@ pub struct ProcessingEVMBlock {
     result: GetBlocksResultV0,
     signed_block: Option<SignedBlock>,
     block_traces: Option<Vec<TransactionTrace>>,
-    contract_rows: Option<Vec<ContractRow>>,
+    contract_rows: Option<Vec<(bool, ContractRow)>>,
     cumulative_gas_used: u64,
     pub decoded_rows: Vec<DecodedRow>,
     pub transactions: Vec<(TelosEVMTransaction, ReceiptWithBloom)>,
@@ -167,10 +167,24 @@ impl ProcessingEVMBlock {
         self.contract_rows = self.result.deltas.as_deref().map(|deltas| {
             decode::<Vec<TableDelta>>(deltas)
                 .iter()
-                .filter(|TableDelta::V0(delta)| delta.name == "contract_row")
-                .map(|TableDelta::V0(delta)| delta.rows.as_slice())
-                .flat_map(|rows| rows.iter().map(|row| row.data.as_slice()).map(decode))
-                .collect::<Vec<ContractRow>>()
+                .filter_map(|TableDelta::V0(delta)| {
+                    if delta.name == "contract_row" {
+                        Some(
+                            delta
+                                .rows
+                                .iter()
+                                .map(|row| {
+                                    let contract_row = decode::<ContractRow>(row.data.as_slice());
+                                    (row.present, contract_row) // row.present becomes the first item in the tuple
+                                })
+                                .collect::<Vec<(bool, ContractRow)>>(),
+                        )
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+                .collect::<Vec<(bool, ContractRow)>>()
         });
     }
 
@@ -313,8 +327,8 @@ impl ProcessingEVMBlock {
 
         let row_deltas = self.contract_rows.clone().unwrap_or_default();
 
-        for r in row_deltas {
-            match r {
+        for delta in row_deltas {
+            match delta.1 {
                 ContractRow::V0(r) => {
                     // Global eosio.system table, since block_delta is static
                     // no need to decode
@@ -325,14 +339,25 @@ impl ProcessingEVMBlock {
                     //     info!("Global table: {:?}", decoded_row);
                     // }
                     if r.code == Name::new_from_str("eosio.evm") {
+                        // delta.0 is "present" and if false, the row was removed
+                        let removed = !delta.0;
                         if r.table == Name::new_from_str("config") {
+                            if removed {
+                                panic!(
+                                    "Config row removed, this should never happen: {}",
+                                    self.block_num
+                                );
+                            }
                             self.decoded_rows.push(DecodedRow::Config(decode(&r.value)));
                         } else if r.table == Name::new_from_str("account") {
                             self.decoded_rows
-                                .push(DecodedRow::Account(decode(&r.value)));
+                                .push(DecodedRow::Account(removed, decode(&r.value)));
                         } else if r.table == Name::new_from_str("accountstate") {
-                            self.decoded_rows
-                                .push(DecodedRow::AccountState(decode(&r.value), r.scope));
+                            self.decoded_rows.push(DecodedRow::AccountState(
+                                removed,
+                                decode(&r.value),
+                                r.scope,
+                            ));
                         }
                     }
                 }
