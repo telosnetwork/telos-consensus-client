@@ -35,7 +35,7 @@ pub struct TranslatorConfig {
 }
 
 pub struct Translator {
-    config: TranslatorConfig,
+    pub config: TranslatorConfig,
     shutdown_tx: mpsc::Sender<()>,
     shutdown_rx: mpsc::Receiver<()>,
 }

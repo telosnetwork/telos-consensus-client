@@ -114,12 +114,9 @@ impl ConsensusClient {
             .checked_sub(self.config.evm_start_block)
     }
 
-    pub async fn run(
-        mut self,
-        mut rx: mpsc::Receiver<TelosEVMBlock>,
-        mut lib: Option<data::Block>,
-    ) -> Result<(), Error> {
+    pub async fn run(mut self, mut rx: mpsc::Receiver<TelosEVMBlock>) -> Result<(), Error> {
         let mut batch = vec![];
+        let mut lib: Option<data::Block> = self.db.get_lib()?;
         loop {
             let message = tokio::select! {
                 message = rx.recv() => message,
