@@ -184,7 +184,7 @@ async fn evm_deploy() {
     let port_18999 = container.get_host_port_ipv4(18999).await.unwrap();
 
     let api_base_url = format!("http://localhost:{port_8888}");
-    let api_client = APIClient::<DefaultProvider>::default_provider(api_base_url).unwrap();
+    let api_client = APIClient::<DefaultProvider>::default_provider(api_base_url, Some(10)).unwrap();
 
     let mut last_block = 0;
 
