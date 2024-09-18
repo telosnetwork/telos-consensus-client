@@ -239,7 +239,7 @@ async fn evm_deploy() {
     let translator = Translator::new((&config.clone()).into());
     let translator_shutdown = translator.shutdown_handle();
 
-    let client_handle = tokio::spawn(client_under_test.run(rx, None));
+    let client_handle = tokio::spawn(client_under_test.run(rx));
     let translator_handle = tokio::spawn(translator.launch(Some(tx)));
     client_handle.await.unwrap().unwrap();
 
