@@ -105,15 +105,19 @@ pub async fn final_processor(
 
         for row in block.decoded_rows {
             match row {
-                DecodedRow::Account(acc_diff) => statediffs_account.push(TelosAccountTableRow {
-                    address: Address::from_slice(&acc_diff.address.data),
-                    account: acc_diff.account.to_string(),
-                    nonce: acc_diff.nonce,
-                    code: Bytes::from(acc_diff.code.clone()),
-                    balance: U256::from_be_slice(&acc_diff.balance.data),
-                }),
-                DecodedRow::AccountState(acc_state_diff, scope) => {
+                DecodedRow::Account(removed, acc_diff) => {
+                    statediffs_account.push(TelosAccountTableRow {
+                        removed,
+                        address: Address::from_slice(&acc_diff.address.data),
+                        account: acc_diff.account.to_string(),
+                        nonce: acc_diff.nonce,
+                        code: Bytes::from(acc_diff.code.clone()),
+                        balance: U256::from_be_slice(&acc_diff.balance.data),
+                    })
+                }
+                DecodedRow::AccountState(removed, acc_state_diff, scope) => {
                     statediffs_accountstate.push(TelosAccountStateTableRow {
+                        removed,
                         address: native_to_evm_cache.get_index(scope.n).await.unwrap(),
                         key: U256::from_be_slice(&acc_state_diff.key.data),
                         value: U256::from_be_slice(&acc_state_diff.value.data),
