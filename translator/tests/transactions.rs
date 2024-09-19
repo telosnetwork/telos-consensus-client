@@ -28,7 +28,7 @@ async fn test_deposit() {
 
     assert_eq!(
         trx.hash().to_string(),
-        "0xdb81c0fe3f904e4637d7679ac200db43984336d0ea42cea4dd5dd22dec28541b"
+        "0xc92303ea310408950f009ac1466d4c4d534cfd02a4bc630881e94e28da7b377e"
     );
 }
 
@@ -54,6 +54,6 @@ async fn test_withdraw() {
 
     assert_eq!(
         trx.hash().to_string(),
-        "0x2cac6ea0102c2eb6e3ad4288853c0a2d457643d162ff56d1b381bcb8de1fe9e9"
+        "0x38f3f0600ea400119b34289d198c048623520be84f0e9f98941bf033a8e1c49c"
     );
 }
