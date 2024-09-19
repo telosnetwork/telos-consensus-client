@@ -33,7 +33,7 @@ fn test_unsigned_trx() {
     }
     assert_eq!(
         tx.unwrap().hash(),
-        &B256::from_hex("8d8c62a8bc0762f66ec0be70db1a2e8b9adb6504f4c9bdd2cf794611ebeab87b")
+        &B256::from_hex("ede91f8a618cd49907d9a90fe2bf0443848f5ff549369eac42d1978b4fb8eccc")
             .unwrap()
     );
 }
@@ -65,7 +65,7 @@ fn test_unsigned_trx2() {
     }
     assert_eq!(
         tx.unwrap().hash(),
-        &B256::from_hex("02db60dd9868cd1ef3e9889f537cc1314e50cd7db59b48445baf35fbb35e5025")
+        &B256::from_hex("3f5cba81e5f45971c4743f86644103328479a6d1640e78b0bc1aa286f0da91a2")
             .unwrap()
     );
 }
