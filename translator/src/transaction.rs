@@ -54,8 +54,10 @@ impl TelosEVMTransaction {
                         .data,
                 );
                 let sig = make_unique_vrs(block_hash, address, trx_index);
-                let unsigned_legacy =
-                    TxLegacy::decode_telos_signed_fields(&mut raw.tx.clone().as_slice(), Some(sig))?;
+                let unsigned_legacy = TxLegacy::decode_telos_signed_fields(
+                    &mut raw.tx.clone().as_slice(),
+                    Some(sig),
+                )?;
                 let envelope = TxEnvelope::Legacy(unsigned_legacy);
                 return Ok(TelosEVMTransaction { envelope, receipt });
             }

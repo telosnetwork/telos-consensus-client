@@ -76,8 +76,7 @@ fn test_signed_trx() {
         "f8aa11857a307efa8083023fa09479f5a8bd0d6a00a41ea62cda426cef0115117a6180b844e2bbb1580000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000073a0b40ec08b01a351dcbf5e86eeb15262bf7033dc7b99a054dfb198487636a79c5fa000b64d6775ba737738ccff7f1c0a29c287cbb91f2eb17e1d0b74ffb73d9daa85",
     ).unwrap();
 
-    let signed_legacy =
-        TxLegacy::decode_telos_signed_fields(&mut raw.as_slice(), None);
-    
+    let signed_legacy = TxLegacy::decode_telos_signed_fields(&mut raw.as_slice(), None);
+
     assert!(signed_legacy.is_ok());
 }
