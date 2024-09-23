@@ -54,6 +54,12 @@ pub async fn build_consensus_client(
     args: &CliArgs,
     config: AppConfig,
 ) -> Result<ConsensusClient, Error> {
+    if config.evm_start_block > config.evm_stop_block.unwrap_or(u32::MAX) {
+        return Err(Error::CannotStartConsensusClient(
+            "Start block is after stop block".to_string(),
+        ));
+    }
+
     let mut client = ConsensusClient::new(args, config).await.map_err(|e| {
         warn!("Consensus client creation failed: {}", e);
         warn!("Retrying...");
