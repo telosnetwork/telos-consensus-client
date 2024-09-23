@@ -25,13 +25,19 @@ fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy, Error> {
 }
 
 pub trait TelosTxDecodable {
-    fn decode_telos_signed_fields(buf: &mut &[u8], sig: Option<Signature>) -> Result<Signed<Self>, Error>
+    fn decode_telos_signed_fields(
+        buf: &mut &[u8],
+        sig: Option<Signature>,
+    ) -> Result<Signed<Self>, Error>
     where
         Self: Sized;
 }
 
 impl TelosTxDecodable for TxLegacy {
-    fn decode_telos_signed_fields(buf: &mut &[u8], provided_sig: Option<Signature>) -> Result<Signed<Self>, Error> {
+    fn decode_telos_signed_fields(
+        buf: &mut &[u8],
+        provided_sig: Option<Signature>,
+    ) -> Result<Signed<Self>, Error> {
         let header = Header::decode(buf)?;
         if !header.list {
             return Err(Error::Custom("Not a list."));
@@ -54,8 +60,9 @@ impl TelosTxDecodable for TxLegacy {
             let r = decode_telos_u256(buf)?;
             let s = decode_telos_u256(buf)?;
 
-            Signature::from_rs_and_parity(r, s, parity)
-                .map_err(|_| alloy_rlp::Error::Custom("attempted to decode invalid field element"))?
+            Signature::from_rs_and_parity(r, s, parity).map_err(|_| {
+                alloy_rlp::Error::Custom("attempted to decode invalid field element")
+            })?
         } else {
             if !buf.is_empty() {
                 // There are some native signed transactions which were RLP encoded with 0 values for signature
