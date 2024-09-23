@@ -46,11 +46,19 @@ impl TelosEVMTransaction {
         let tx_raw = &mut raw.tx.as_slice();
 
         if tx_raw[0] >= 0xc0 && tx_raw[0] <= 0xfe {
-            let signed_legacy_result = TxLegacy::decode_signed_fields(tx_raw);
+            let mut signed_legacy_result = TxLegacy::decode_signed_fields(tx_raw);
+            // If we fail to decode with the strict RLP from reth,
+            // and we don't have a raw.sender which suggests a native signed trx
+            // then try the telos legacy decode without passing a signature
+            if signed_legacy_result.is_err() && raw.sender.is_none() {
+                signed_legacy_result =
+                    TxLegacy::decode_telos_signed_fields(&mut raw.tx.clone().as_slice(), None);
+            }
+
             if signed_legacy_result.is_err() {
                 let address = Address::from(
                     raw.sender
-                        .expect("Failed to get address from sender in unsigned transaction")
+                        .expect("Failed to get address from sender in unsigned transaction, signed_legacy_result is Err")
                         .data,
                 );
                 let sig = make_unique_vrs(block_hash, address, trx_index);
@@ -68,7 +76,7 @@ impl TelosEVMTransaction {
             if signed_legacy.signature().r().is_zero() && signed_legacy.signature().s().is_zero() {
                 let address = Address::from(
                     raw.sender
-                        .expect("Failed to get address from sender in unsigned transaction")
+                        .expect("Failed to get address from sender in unsigned transaction, signed_legacy signature is zero")
                         .data,
                 );
                 let sig = make_unique_vrs(block_hash, address, trx_index);
