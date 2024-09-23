@@ -25,13 +25,13 @@ fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy, Error> {
 }
 
 pub trait TelosTxDecodable {
-    fn decode_telos_signed_fields(buf: &mut &[u8], sig: Signature) -> Result<Signed<Self>, Error>
+    fn decode_telos_signed_fields(buf: &mut &[u8], sig: Option<Signature>) -> Result<Signed<Self>, Error>
     where
         Self: Sized;
 }
 
 impl TelosTxDecodable for TxLegacy {
-    fn decode_telos_signed_fields(buf: &mut &[u8], sig: Signature) -> Result<Signed<Self>, Error> {
+    fn decode_telos_signed_fields(buf: &mut &[u8], provided_sig: Option<Signature>) -> Result<Signed<Self>, Error> {
         let header = Header::decode(buf)?;
         if !header.list {
             return Err(Error::Custom("Not a list."));
@@ -45,21 +45,35 @@ impl TelosTxDecodable for TxLegacy {
         let mut r = U256::ZERO;
         let mut s = U256::ZERO;
 
-        if !buf.is_empty() {
-            // There are some native signed transactions which were RLP encoded with 0 values for signature
-            //   in RLP encoding these 0 values are encoded as [128, 128, 128], so we need purge them
-            //   from the buffer but leave signature value as zeros
-            if buf == &[128, 128, 128] {
-                buf.advance(3);
-            } else {
-                let signature = Signature::decode_rlp_vrs(buf)?;
-                v = signature.v();
-                r = signature.r();
-                s = signature.s();
+        let sig = if provided_sig.is_none() {
+            if buf.is_empty() {
+                return Err(Error::Custom("Trx without signature"));
             }
-        }
 
-        if v.to_u64() != 0 || r != U256::ZERO || s != U256::ZERO {
+            let parity: Parity = Decodable::decode(buf)?;
+            let r = decode_telos_u256(buf)?;
+            let s = decode_telos_u256(buf)?;
+
+            Signature::from_rs_and_parity(r, s, parity)
+                .map_err(|_| alloy_rlp::Error::Custom("attempted to decode invalid field element"))?
+        } else {
+            if !buf.is_empty() {
+                // There are some native signed transactions which were RLP encoded with 0 values for signature
+                //   in RLP encoding these 0 values are encoded as [128, 128, 128], so we need purge them
+                //   from the buffer but leave signature value as zeros
+                if buf == &[128, 128, 128] {
+                    buf.advance(3);
+                } else {
+                    let decoded_signature = Signature::decode_rlp_vrs(buf)?;
+                    v = decoded_signature.v();
+                    r = decoded_signature.r();
+                    s = decoded_signature.s();
+                }
+            }
+            provided_sig.unwrap()
+        };
+
+        if provided_sig.is_some() && (v.to_u64() != 0 || r != U256::ZERO || s != U256::ZERO) {
             return Err(Error::Custom(
                 "Unsigned Telos Native trx with signature data",
             ));
