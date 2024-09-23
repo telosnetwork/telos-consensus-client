@@ -27,7 +27,7 @@ pub fn make_unique_vrs(
     Signature::from_rs_and_parity(r, s, v).expect("Failed to create signature")
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TelosEVMTransaction {
     pub envelope: TxEnvelope,
     pub receipt: PrintedReceipt,
@@ -55,7 +55,7 @@ impl TelosEVMTransaction {
                 );
                 let sig = make_unique_vrs(block_hash, address, trx_index);
                 let unsigned_legacy =
-                    TxLegacy::decode_telos_signed_fields(&mut raw.tx.clone().as_slice(), sig)?;
+                    TxLegacy::decode_telos_signed_fields(&mut raw.tx.clone().as_slice(), Some(sig))?;
                 let envelope = TxEnvelope::Legacy(unsigned_legacy);
                 return Ok(TelosEVMTransaction { envelope, receipt });
             }
