@@ -18,7 +18,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub type WebsocketTransmitter = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 pub type WebsocketReceiver = SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
@@ -46,7 +46,7 @@ impl NameToAddressCache {
         let address = Name::from_u64(name).as_string();
         let cached = self.cache.get(&name);
 
-        info!("getting {address} cache hit = {:?}", cached.is_some());
+        debug!("getting {address} cache hit = {:?}", cached.is_some());
 
         if cached.is_some() {
             return cached;
@@ -87,7 +87,7 @@ impl NameToAddressCache {
         let evm_contract = Name::from_u64(EOSIO_EVM);
         let address = Name::from_u64(index).as_string();
         let cached = self.index_cache.get(&index);
-        info!("getting index {index} cache hit = {:?}", cached.is_some());
+        debug!("getting index {index} cache hit = {:?}", cached.is_some());
 
         if cached.is_some() {
             return cached;
