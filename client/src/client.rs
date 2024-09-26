@@ -5,15 +5,13 @@ use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequ
 use crate::json_rpc::JsonResponseBody;
 use eyre::{Context, Result};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
-use reth_primitives::revm_primitives::db::{BlockHash, BlockHashRef};
 use reth_primitives::B256;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::Block;
 use serde_json::json;
-use std::hash::Hash;
 use telos_translator_rs::block::TelosEVMBlock;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
