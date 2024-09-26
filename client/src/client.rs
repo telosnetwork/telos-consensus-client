@@ -178,8 +178,7 @@ impl ConsensusClient {
 
             // check if we caught up to head
             // if lib is greater than current block send in batches
-            // if lib is less than current block batch size is 1
-            // if lib is equal to the current block flush the batch
+            // if lib is less than current block batch size is 1 or more blocks
             let flush = match lib.as_ref() {
                 Some(lib) if lib.number <= block_num.as_u32() => true,
                 _ => batch.len() == self.config.batch_size,
