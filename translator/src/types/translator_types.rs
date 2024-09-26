@@ -85,7 +85,6 @@ impl NameToAddressCache {
 
     pub async fn get_index(&self, index: u64) -> Option<Address> {
         let evm_contract = Name::from_u64(EOSIO_EVM);
-        let address = Name::from_u64(index).as_string();
         let cached = self.index_cache.get(&index);
         debug!("getting index {index} cache hit = {:?}", cached.is_some());
 
@@ -95,7 +94,7 @@ impl NameToAddressCache {
 
         let mut i = 0u8;
         while i <= MAX_RETRY {
-            info!("Fetching address {address} try {i}");
+            info!("Fetching index {index} try {i}");
             let account_result: eyre::Result<GetTableRowsResponse<AccountRow>> = self
                 .get_account_address(index, evm_contract, IndexPosition::PRIMARY)
                 .await;
@@ -108,18 +107,18 @@ impl NameToAddressCache {
                         self.index_cache.insert(account_row.index, address);
                         return Some(address);
                     } else {
-                        warn!("Got empty rows for {address}, retry attempt {i}");
+                        warn!("Got empty rows for index {index}, retry attempt {i}");
                     }
                 }
                 Err(e) => {
-                    warn!("Error {e} fetching {address}, retry attempt {i}");
+                    warn!("Error {e} fetching index {index}, retry attempt {i}");
                 }
             }
 
             sleep(BASE_DELAY * 2u32.pow(i as u32)).await;
             i += 1;
         }
-        error!("Could not get account after {i} attempts for {address}");
+        error!("Could not get account after {i} attempts for index {index}");
         None
     }
 
