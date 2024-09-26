@@ -5,13 +5,15 @@ use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequ
 use crate::json_rpc::JsonResponseBody;
 use eyre::{Context, Result};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
+use reth_primitives::revm_primitives::db::{BlockHash, BlockHashRef};
 use reth_primitives::B256;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::Block;
 use serde_json::json;
+use std::hash::Hash;
 use telos_translator_rs::block::TelosEVMBlock;
 use tokio::sync::mpsc;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -133,7 +135,7 @@ impl ConsensusClient {
             let block_num = block.block_num.as_u64();
             let block_hash = block.block_hash;
             let lib_num = block.lib_num;
-
+            let prev_lib_hash = block.lib_hash;
             if block_num % self.config.block_checkpoint_interval.as_u64() != 0 {
                 self.db.put_block(From::from(&block))?;
                 debug!("Block {} put in the database", block.block_num);
@@ -173,12 +175,38 @@ impl ConsensusClient {
                 }
             }
 
-            // TODO: Check if we are caught up, if so do not batch anything
-
             batch.push(block);
-            if batch.len() >= self.config.batch_size {
-                self.send_batch(&batch).await?;
-                batch = vec![];
+
+            // check if we caught up to head
+            // if lib is greater than current block send in batches
+            // if lib is less than current block batch size is 1
+            // if lib is equal to the current block flush the batch
+            let batch_size_number = match lib.as_ref() {
+                Some(lib) if lib.number < block_num.as_u32() => 1,
+                Some(lib) if lib.number == block_num.as_u32() => batch.len(),
+                _ => self.config.batch_size,
+            };
+
+            // we got to the max size of the batch that we should send
+            if batch.len() >= batch_size_number {
+                // default finalized hash is the last one in the batch
+                let last_block_sent = batch.last().unwrap();
+                let mut finalized_hash = Some(last_block_sent.block_hash);
+                // if lib is less that current block, we caught to the head
+                if lib_num < last_block_sent.block_num {
+                    let lib_hash = lib.as_ref().unwrap().hash.parse::<B256>().unwrap();
+                    // if lib hash has been changed we should send finalized hash for fc update
+                    if prev_lib_hash != lib_hash {
+                        finalized_hash = Some(lib_hash);
+                    } else {
+                        // head caught but no changes to the lib
+                        finalized_hash = None;
+                    }
+                }
+
+                debug!("Send batch fc {:?}", finalized_hash);
+                self.send_batch(&batch, finalized_hash).await?;
+                batch.clear();
             }
         }
 
@@ -186,7 +214,11 @@ impl ConsensusClient {
         Ok(())
     }
 
-    async fn send_batch(&self, batch: &[TelosEVMBlock]) -> Result<(), Error> {
+    async fn send_batch(
+        &self,
+        batch: &[TelosEVMBlock],
+        finalized_hash: Option<B256>,
+    ) -> Result<(), Error> {
         let rpc_batch = batch
             .iter()
             .map(|block| {
@@ -211,52 +243,58 @@ impl ConsensusClient {
         debug!("NewPayloadV1 result: {:?}", new_payloadv1_result);
 
         let last_block_sent = batch.last().unwrap();
-        let fork_choice_updated_result = self
-            .fork_choice_updated(
-                last_block_sent.block_hash,
-                last_block_sent.block_hash,
-                last_block_sent.block_hash,
-            )
-            .await;
 
-        let fork_choice_updated = fork_choice_updated_result.map_err(|e| {
-            debug!("Fork choice update error: {}", e);
-            ForkChoiceUpdated(e.to_string())
-        })?;
+        if let Some(finalized_hash_value) = finalized_hash {
+            let fork_choice_updated_result = self
+                .fork_choice_updated(
+                    last_block_sent.block_hash,
+                    last_block_sent.block_hash,
+                    finalized_hash_value,
+                )
+                .await;
 
-        if let Some(error) = fork_choice_updated.error {
-            debug!("Fork choice error: {:?}", error);
-            return Err(ForkChoiceUpdated(error.message));
-        }
+            let fork_choice_updated = fork_choice_updated_result.map_err(|e| {
+                debug!("Fork choice update error: {}", e);
+                ForkChoiceUpdated(e.to_string())
+            })?;
 
-        let fork_choice_updated: ForkchoiceUpdated =
-            serde_json::from_value(fork_choice_updated.result).unwrap();
-        debug!("fork_choice_updated_result {:?}", fork_choice_updated);
+            if let Some(error) = fork_choice_updated.error {
+                debug!("Fork choice error: {:?}", error);
+                return Err(ForkChoiceUpdated(error.message));
+            }
 
-        // TODO check for all invalid statuses, possible values are:
-        // Valid, Invalid, Accepted, Syncing
-        if fork_choice_updated.is_invalid() || fork_choice_updated.is_syncing() {
+            let fork_choice_updated: ForkchoiceUpdated =
+                serde_json::from_value(fork_choice_updated.result).unwrap();
+            debug!("fork_choice_updated_result {:?}", fork_choice_updated);
+
+            // Valid, Invalid, Accepted, Syncing
+            if fork_choice_updated.is_invalid() || fork_choice_updated.is_syncing() {
+                debug!(
+                    "Fork choice update status is {} ",
+                    fork_choice_updated.payload_status.status
+                );
+                return Err(ForkChoiceUpdated(format!(
+                    "Invalid status {}",
+                    fork_choice_updated.payload_status.status
+                )));
+            }
+
             debug!(
-                "Fork choice update status is {} ",
-                fork_choice_updated.payload_status.status
+                "Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}",
+                last_block_sent.block_hash,
+                last_block_sent.header.parent_hash,
+                last_block_sent.block_num
             );
-            return Err(ForkChoiceUpdated(format!(
-                "Invalid status {}",
-                fork_choice_updated.payload_status.status
-            )));
+            debug!(
+                "fork_choice_updated_result for block number {}: {:?}",
+                last_block_sent.block_num, fork_choice_updated
+            );
+        } else {
+            debug!(
+                "Fork choice updated call skipped for block {}",
+                last_block_sent.block_num
+            );
         }
-
-        // TODO: Check status of fork_choice_updated_result and handle the failure case
-        debug!(
-            "Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}",
-            last_block_sent.block_hash,
-            last_block_sent.header.parent_hash,
-            last_block_sent.block_num
-        );
-        debug!(
-            "fork_choice_updated_result for block number {}: {:?}",
-            last_block_sent.block_num, fork_choice_updated
-        );
 
         Ok(())
     }
