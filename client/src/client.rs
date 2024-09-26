@@ -118,6 +118,7 @@ impl ConsensusClient {
 
     pub async fn run(mut self, mut rx: mpsc::Receiver<TelosEVMBlock>) -> Result<(), Error> {
         let mut batch = vec![];
+        let mut lib: Option<data::Block> = self.db.get_lib()?;
         loop {
             let message = tokio::select! {
                 message = rx.recv() => message,
@@ -134,16 +135,6 @@ impl ConsensusClient {
             let block_num = block.block_num.as_u64();
             let block_hash = block.block_hash;
             let lib_num = block.lib_num;
-            let mut lib: Option<data::Block> = self.db.get_lib()?;
-
-            let mut prev_lib_hash = B256::ZERO;
-            match lib {
-                Some(ref lib_block) => {
-                    prev_lib_hash = lib_block.hash.parse().unwrap();
-                }
-                _ => {}
-            }
-
             if block_num % self.config.block_checkpoint_interval.as_u64() != 0 {
                 self.db.put_block(From::from(&block))?;
                 debug!("Block {} put in the database", block.block_num);
@@ -163,7 +154,9 @@ impl ConsensusClient {
                 debug!("Block {} delete from the database", latest_start);
             }
 
+            let mut is_new_lib = false;
             if lib.as_ref().map(|lib| lib.number < lib_num).unwrap_or(true) {
+                is_new_lib = true;
                 lib = Some(From::from(Lib(&block)));
                 self.db.put_lib(From::from(Lib(&block)))?;
                 debug!("LIB {} put in the database", block.lib_num);
@@ -187,7 +180,8 @@ impl ConsensusClient {
 
             // check if we caught up to head
             // if lib is greater than current block send in batches
-            // if lib is less than current block flush the batch, it can contain 1 or more blocks
+            // if lib is less than current block batch size is 1
+            // if lib is equal to the current block flush the batch
             let flush = match lib.as_ref() {
                 Some(lib) if lib.number <= block_num.as_u32() => true,
                 _ => batch.len() == self.config.batch_size,
@@ -205,12 +199,12 @@ impl ConsensusClient {
                 // if lib is less that current block, we caught to the head
                 Some(_) if lib_num.as_u64() >= block_num => Some(block_hash),
                 // if lib hash has been changed we should send finalized hash for fc update
-                Some(lib_hash) if prev_lib_hash != lib_hash => Some(lib_hash),
+                Some(lib_hash) if is_new_lib => Some(lib_hash),
                 // head caught but no changes to the lib
                 Some(_) => None,
             };
 
-            debug!("Send batch with finalized hash {:?}", finalized_hash);
+            debug!("Send batch fc {:?}", finalized_hash);
             self.send_batch(&batch, finalized_hash).await?;
             batch.clear();
         }
