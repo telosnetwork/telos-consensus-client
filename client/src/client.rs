@@ -5,15 +5,13 @@ use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequ
 use crate::json_rpc::JsonResponseBody;
 use eyre::{Context, Result};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
-use reth_primitives::revm_primitives::db::{BlockHash, BlockHashRef};
 use reth_primitives::B256;
 use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
 use reth_rpc_types::Block;
 use serde_json::json;
-use std::hash::Hash;
 use telos_translator_rs::block::TelosEVMBlock;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -135,7 +133,6 @@ impl ConsensusClient {
             let block_num = block.block_num.as_u64();
             let block_hash = block.block_hash;
             let lib_num = block.lib_num;
-            let prev_lib_hash = block.lib_hash;
             if block_num % self.config.block_checkpoint_interval.as_u64() != 0 {
                 self.db.put_block(From::from(&block))?;
                 debug!("Block {} put in the database", block.block_num);
@@ -155,7 +152,9 @@ impl ConsensusClient {
                 debug!("Block {} delete from the database", latest_start);
             }
 
+	    let mut is_new_lib = false;
             if lib.as_ref().map(|lib| lib.number < lib_num).unwrap_or(true) {
+		is_new_lib = true;
                 lib = Some(From::from(Lib(&block)));
                 self.db.put_lib(From::from(Lib(&block)))?;
                 debug!("LIB {} put in the database", block.lib_num);
@@ -181,33 +180,31 @@ impl ConsensusClient {
             // if lib is greater than current block send in batches
             // if lib is less than current block batch size is 1
             // if lib is equal to the current block flush the batch
-            let batch_size_number = match lib.as_ref() {
-                Some(lib) if lib.number < block_num.as_u32() => 1,
-                Some(lib) if lib.number == block_num.as_u32() => batch.len(),
-                _ => self.config.batch_size,
+            let flush = match lib.as_ref() {
+                Some(lib) if lib.number <= block_num.as_u32() => true,
+                _ => batch.len() == self.config.batch_size,
             };
 
-            // we got to the max size of the batch that we should send
-            if batch.len() >= batch_size_number {
-                // default finalized hash is the last one in the batch
-                let last_block_sent = batch.last().unwrap();
-                let mut finalized_hash = Some(last_block_sent.block_hash);
-                // if lib is less that current block, we caught to the head
-                if lib_num < last_block_sent.block_num {
-                    let lib_hash = lib.as_ref().unwrap().hash.parse::<B256>().unwrap();
-                    // if lib hash has been changed we should send finalized hash for fc update
-                    if prev_lib_hash != lib_hash {
-                        finalized_hash = Some(lib_hash);
-                    } else {
-                        // head caught but no changes to the lib
-                        finalized_hash = None;
-                    }
-                }
-
-                debug!("Send batch fc {:?}", finalized_hash);
-                self.send_batch(&batch, finalized_hash).await?;
-                batch.clear();
+            if !flush {
+                continue;
             }
+
+            let lib_hash = lib.as_ref().map(|lib| lib.hash.parse::<B256>().unwrap());
+
+            let finalized_hash = match lib_hash {
+                // default finalized hash is the last one in the batch
+                None => Some(block_hash),
+                // if lib is less that current block, we caught to the head
+                Some(_) if lib_num.as_u64() >= block_num => Some(block_hash),
+                // if lib hash has been changed we should send finalized hash for fc update
+                Some(lib_hash) if is_new_lib => Some(lib_hash),
+                // head caught but no changes to the lib
+                Some(_) => None,
+            };
+
+            debug!("Send batch fc {:?}", finalized_hash);
+            self.send_batch(&batch, finalized_hash).await?;
+            batch.clear();
         }
 
         // launch_handle.await.map_err(|_| Error::SpawnTranslator)?
