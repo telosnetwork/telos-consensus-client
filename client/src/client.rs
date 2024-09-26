@@ -118,7 +118,6 @@ impl ConsensusClient {
 
     pub async fn run(mut self, mut rx: mpsc::Receiver<TelosEVMBlock>) -> Result<(), Error> {
         let mut batch = vec![];
-        let mut lib: Option<data::Block> = self.db.get_lib()?;
         loop {
             let message = tokio::select! {
                 message = rx.recv() => message,
@@ -135,7 +134,16 @@ impl ConsensusClient {
             let block_num = block.block_num.as_u64();
             let block_hash = block.block_hash;
             let lib_num = block.lib_num;
-            let prev_lib_hash = block.lib_hash;
+            let mut lib: Option<data::Block> = self.db.get_lib()?;
+
+            let mut prev_lib_hash = B256::ZERO;
+            match lib {
+                Some(ref lib_block) => {
+                    prev_lib_hash = lib_block.hash.parse().unwrap();
+                }
+                _ => {}
+            }
+
             if block_num % self.config.block_checkpoint_interval.as_u64() != 0 {
                 self.db.put_block(From::from(&block))?;
                 debug!("Block {} put in the database", block.block_num);
@@ -179,35 +187,32 @@ impl ConsensusClient {
 
             // check if we caught up to head
             // if lib is greater than current block send in batches
-            // if lib is less than current block batch size is 1
-            // if lib is equal to the current block flush the batch
-            let batch_size_number = match lib.as_ref() {
-                Some(lib) if lib.number < block_num.as_u32() => 1,
-                Some(lib) if lib.number == block_num.as_u32() => batch.len(),
-                _ => self.config.batch_size,
+            // if lib is less than current block flush the batch, it can contain 1 or more blocks
+            let flush = match lib.as_ref() {
+                Some(lib) if lib.number <= block_num.as_u32() => true,
+                _ => batch.len() == self.config.batch_size,
             };
 
-            // we got to the max size of the batch that we should send
-            if batch.len() >= batch_size_number {
-                // default finalized hash is the last one in the batch
-                let last_block_sent = batch.last().unwrap();
-                let mut finalized_hash = Some(last_block_sent.block_hash);
-                // if lib is less that current block, we caught to the head
-                if lib_num < last_block_sent.block_num {
-                    let lib_hash = lib.as_ref().unwrap().hash.parse::<B256>().unwrap();
-                    // if lib hash has been changed we should send finalized hash for fc update
-                    if prev_lib_hash != lib_hash {
-                        finalized_hash = Some(lib_hash);
-                    } else {
-                        // head caught but no changes to the lib
-                        finalized_hash = None;
-                    }
-                }
-
-                debug!("Send batch fc {:?}", finalized_hash);
-                self.send_batch(&batch, finalized_hash).await?;
-                batch.clear();
+            if !flush {
+                continue;
             }
+
+            let lib_hash = lib.as_ref().map(|lib| lib.hash.parse::<B256>().unwrap());
+
+            let finalized_hash = match lib_hash {
+                // default finalized hash is the last one in the batch
+                None => Some(block_hash),
+                // if lib is less that current block, we caught to the head
+                Some(_) if lib_num.as_u64() >= block_num => Some(block_hash),
+                // if lib hash has been changed we should send finalized hash for fc update
+                Some(lib_hash) if prev_lib_hash != lib_hash => Some(lib_hash),
+                // head caught but no changes to the lib
+                Some(_) => None,
+            };
+
+            debug!("Send batch with finalized hash {:?}", finalized_hash);
+            self.send_batch(&batch, finalized_hash).await?;
+            batch.clear();
         }
 
         // launch_handle.await.map_err(|_| Error::SpawnTranslator)?
