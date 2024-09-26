@@ -103,7 +103,7 @@ pub struct ProcessingEVMBlock {
     pub lib_hash: Checksum256,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TelosEVMBlock {
     pub block_num: u32,
     pub block_hash: B256,
