@@ -117,6 +117,8 @@ impl ConsensusClient {
     pub async fn run(mut self, mut rx: mpsc::Receiver<TelosEVMBlock>) -> Result<(), Error> {
         let mut batch = vec![];
         let mut lib: Option<data::Block> = self.db.get_lib()?;
+        let block_delta = self.config.chain_id.block_delta();
+
         loop {
             let message = tokio::select! {
                 message = rx.recv() => message,
@@ -152,9 +154,9 @@ impl ConsensusClient {
                 debug!("Block {} delete from the database", latest_start);
             }
 
-	    let mut is_new_lib = false;
+            let mut is_new_lib = false;
             if lib.as_ref().map(|lib| lib.number < lib_num).unwrap_or(true) {
-		is_new_lib = true;
+                is_new_lib = true;
                 lib = Some(From::from(Lib(&block)));
                 self.db.put_lib(From::from(Lib(&block)))?;
                 debug!("LIB {} put in the database", block.lib_num);
@@ -181,7 +183,7 @@ impl ConsensusClient {
             // if lib is less than current block batch size is 1
             // if lib is equal to the current block flush the batch
             let flush = match lib.as_ref() {
-                Some(lib) if lib.number <= block_num.as_u32() => true,
+                Some(lib) if lib.number <= block_num.as_u32() + block_delta => true,
                 _ => batch.len() == self.config.batch_size,
             };
 
@@ -195,7 +197,7 @@ impl ConsensusClient {
                 // default finalized hash is the last one in the batch
                 None => Some(block_hash),
                 // if lib is less that current block, we caught to the head
-                Some(_) if lib_num.as_u64() >= block_num => Some(block_hash),
+                Some(_) if lib_num.as_u64() >= block_num + block_delta.as_u64() => Some(block_hash),
                 // if lib hash has been changed we should send finalized hash for fc update
                 Some(lib_hash) if is_new_lib => Some(lib_hash),
                 // head caught but no changes to the lib
