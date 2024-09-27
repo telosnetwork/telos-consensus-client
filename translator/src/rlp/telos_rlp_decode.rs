@@ -60,9 +60,8 @@ impl TelosTxDecodable for TxLegacy {
             let r = decode_telos_u256(buf)?;
             let s = decode_telos_u256(buf)?;
 
-            Signature::from_rs_and_parity(r, s, parity).map_err(|_| {
-                alloy_rlp::Error::Custom("attempted to decode invalid field element")
-            })?
+            Signature::from_rs_and_parity(r, s, parity)
+                .map_err(|_| Error::Custom("attempted to decode invalid field element"))?
         } else {
             if !buf.is_empty() {
                 // There are some native signed transactions which were RLP encoded with 0 values for signature
@@ -75,16 +74,15 @@ impl TelosTxDecodable for TxLegacy {
                     v = decoded_signature.v();
                     r = decoded_signature.r();
                     s = decoded_signature.s();
+                    if v.to_u64() != 0 || r != U256::ZERO || s != U256::ZERO {
+                        return Err(Error::Custom(
+                            "Unsigned Telos Native trx with signature data",
+                        ));
+                    }
                 }
             }
             provided_sig.unwrap()
         };
-
-        if provided_sig.is_some() && (v.to_u64() != 0 || r != U256::ZERO || s != U256::ZERO) {
-            return Err(Error::Custom(
-                "Unsigned Telos Native trx with signature data",
-            ));
-        }
 
         tx.chain_id = sig.v().chain_id();
 
