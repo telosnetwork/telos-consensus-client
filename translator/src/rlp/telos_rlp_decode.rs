@@ -47,9 +47,6 @@ impl TelosTxDecodable for TxLegacy {
         let original_len = buf.len();
 
         let mut tx = decode_fields(buf).expect("Failed to decode fields");
-        let mut v = Parity::Parity(false);
-        let mut r = U256::ZERO;
-        let mut s = U256::ZERO;
 
         let sig = match provided_sig.is_some() {
             true => {
@@ -61,9 +58,9 @@ impl TelosTxDecodable for TxLegacy {
                         buf.advance(3);
                     } else {
                         let decoded_signature = Signature::decode_rlp_vrs(buf)?;
-                        v = decoded_signature.v();
-                        r = decoded_signature.r();
-                        s = decoded_signature.s();
+                        let v = decoded_signature.v();
+                        let r = decoded_signature.r();
+                        let s = decoded_signature.s();
                         if v.to_u64() != 0 || r != U256::ZERO || s != U256::ZERO {
                             return Err(Error::Custom(
                                 "Unsigned Telos Native trx with signature data",
