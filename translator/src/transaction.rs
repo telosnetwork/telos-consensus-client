@@ -10,6 +10,8 @@ use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
 use reth_primitives::{Receipt, ReceiptWithBloom};
 
+const ADDRESS_HEX_SIZE: usize = 42;
+
 pub fn make_unique_vrs(
     block_hash_native: Checksum256,
     sender_address: Address,
@@ -106,14 +108,15 @@ impl TelosEVMTransaction {
         action: TransferAction,
         native_to_evm_cache: &NameToAddressCache,
     ) -> Self {
-        let address: Address = if action.memo.len() == 42 && action.memo.starts_with("0x") {
-            action.memo.parse().unwrap()
-        } else {
-            native_to_evm_cache
-                .get(action.from.n)
-                .await
-                .expect("Failed to get address")
-        };
+        let address: Address =
+            if action.memo.len() == ADDRESS_HEX_SIZE && action.memo.starts_with("0x") {
+                action.memo.parse().unwrap()
+            } else {
+                native_to_evm_cache
+                    .get(action.from.n)
+                    .await
+                    .expect("Failed to get address")
+            };
 
         let value = U256::from(action.quantity.amount()) * U256::from(100_000_000_000_000i64);
 
