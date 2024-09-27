@@ -51,37 +51,40 @@ impl TelosTxDecodable for TxLegacy {
         let mut r = U256::ZERO;
         let mut s = U256::ZERO;
 
-        let sig = if provided_sig.is_none() {
-            if buf.is_empty() {
-                return Err(Error::Custom("Trx without signature"));
-            }
-
-            let parity: Parity = Decodable::decode(buf)?;
-            let r = decode_telos_u256(buf)?;
-            let s = decode_telos_u256(buf)?;
-
-            Signature::from_rs_and_parity(r, s, parity)
-                .map_err(|_| Error::Custom("attempted to decode invalid field element"))?
-        } else {
-            if !buf.is_empty() {
-                // There are some native signed transactions which were RLP encoded with 0 values for signature
-                //   in RLP encoding these 0 values are encoded as [128, 128, 128], so we need purge them
-                //   from the buffer but leave signature value as zeros
-                if buf == &[128, 128, 128] {
-                    buf.advance(3);
-                } else {
-                    let decoded_signature = Signature::decode_rlp_vrs(buf)?;
-                    v = decoded_signature.v();
-                    r = decoded_signature.r();
-                    s = decoded_signature.s();
-                    if v.to_u64() != 0 || r != U256::ZERO || s != U256::ZERO {
-                        return Err(Error::Custom(
-                            "Unsigned Telos Native trx with signature data",
-                        ));
+        let sig = match provided_sig.is_some() {
+            true => {
+                if !buf.is_empty() {
+                    // There are some native signed transactions which were RLP encoded with 0 values for signature
+                    //   in RLP encoding these 0 values are encoded as [128, 128, 128], so we need purge them
+                    //   from the buffer but leave signature value as zeros
+                    if buf == &[128, 128, 128] {
+                        buf.advance(3);
+                    } else {
+                        let decoded_signature = Signature::decode_rlp_vrs(buf)?;
+                        v = decoded_signature.v();
+                        r = decoded_signature.r();
+                        s = decoded_signature.s();
+                        if v.to_u64() != 0 || r != U256::ZERO || s != U256::ZERO {
+                            return Err(Error::Custom(
+                                "Unsigned Telos Native trx with signature data",
+                            ));
+                        }
                     }
                 }
+                provided_sig.unwrap()
             }
-            provided_sig.unwrap()
+            false => {
+                if buf.is_empty() {
+                    return Err(Error::Custom("Trx without signature"));
+                }
+
+                let parity: Parity = Decodable::decode(buf)?;
+                let r = decode_telos_u256(buf)?;
+                let s = decode_telos_u256(buf)?;
+
+                Signature::from_rs_and_parity(r, s, parity)
+                    .map_err(|_| Error::Custom("attempted to decode invalid field element"))?
+            }
         };
 
         tx.chain_id = sig.v().chain_id();
