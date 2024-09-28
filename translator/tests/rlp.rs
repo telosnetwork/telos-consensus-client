@@ -1,10 +1,12 @@
 use alloy::hex;
 use alloy::hex::FromHex;
-use alloy::primitives::{Address, B256};
+use alloy::primitives::{Address, Signature, B256, U256};
 use alloy_consensus::TxLegacy;
 use antelope::chain::checksum::Checksum256;
+use std::str::FromStr;
 use telos_translator_rs::rlp::telos_rlp_decode::TelosTxDecodable;
 use telos_translator_rs::transaction::make_unique_vrs;
+use tracing::info;
 
 #[test]
 fn test_unsigned_trx() {
@@ -79,4 +81,29 @@ fn test_signed_trx() {
     let signed_legacy = TxLegacy::decode_telos_signed_fields(&mut raw.as_slice(), None);
 
     assert!(signed_legacy.is_ok());
+}
+
+#[tokio::test]
+async fn test_trailing_empty_values() {
+    // this buffer has trailing empty RLP values, which have been accepted on chain
+    //   and so we need to handle them
+    let byte_array: [u8; 43] = [
+        234, 21, 133, 117, 98, 209, 251, 63, 131, 30, 132, 128, 148, 221, 124, 155, 23, 110, 221,
+        57, 225, 22, 88, 115, 0, 111, 245, 56, 10, 44, 0, 51, 174, 130, 39, 16, 130, 0, 0, 128,
+        128, 128, 128,
+    ];
+    let mut slice: &[u8] = &byte_array;
+    let buf = &mut slice;
+    let r = U256::from_str(
+        "7478307613393818857995123362551696556625819847066981460737539381080402549198",
+    )
+    .unwrap();
+    let s = U256::from_str(
+        "93208746529385687702128536437164864077231874732405909428462768306792425324544",
+    )
+    .unwrap();
+    let v = 42u64;
+    let sig = Signature::from_rs_and_parity(r, s, v);
+    TxLegacy::decode_telos_signed_fields(buf, Some(sig.unwrap())).unwrap();
+    info!("Passed!");
 }
