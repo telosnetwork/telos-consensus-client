@@ -4,6 +4,7 @@ use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
 
 use alloy_rlp::Result;
 use bytes::Buf;
+use tracing::error;
 
 fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy, Error> {
     let nonce = u64::decode(data).map_err(|_| Error::Custom("Failed to decode nonce"))?;
@@ -88,10 +89,15 @@ impl TelosTxDecodable for TxLegacy {
 
         let signed = tx.into_signed(sig);
         if buf.len() + header.payload_length != original_len {
-            return Err(Error::ListLengthMismatch {
-                expected: header.payload_length,
-                got: original_len - buf.len(),
-            });
+            for b in buf.iter() {
+                if *b != 128 {
+                    error!("Transaction has trailing non-zero RLP values: {:?}", signed);
+                    return Err(Error::ListLengthMismatch {
+                        expected: header.payload_length,
+                        got: original_len - buf.len(),
+                    });
+                }
+            }
         }
 
         Ok(signed)
