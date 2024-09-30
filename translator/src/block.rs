@@ -208,10 +208,8 @@ impl ProcessingEVMBlock {
 
         if self.dyn_gas_limit.is_none() {
             self.dyn_gas_limit = Some(gas_limit);
-        } else {
-            if gas_limit > self.dyn_gas_limit.unwrap() {
-                self.dyn_gas_limit = Some(gas_limit)
-            }
+        } else if gas_limit > self.dyn_gas_limit.unwrap() {
+            self.dyn_gas_limit = Some(gas_limit)
         }
     }
 
