@@ -72,7 +72,7 @@ pub async fn raw_deserializer(
                         .unwrap_or(u32::MAX),
                     max_messages_in_flight: 10000,
                     have_positions: vec![],
-                    irreversible_only: true, // TODO: Fork handling
+                    irreversible_only: false, // TODO: Fork handling
                     fetch_block: true,
                     fetch_traces: true,
                     fetch_deltas: true,

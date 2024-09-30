@@ -13,6 +13,7 @@ use telos_translator_rs::{
         translator_types::{ChainId, NameToAddressCache},
     },
 };
+use tracing::info;
 
 async fn generate_block(
     chain_id: u64,
@@ -56,6 +57,8 @@ async fn generate_block(
     };
 
     let block_bytes = Encoder::pack(&signed_block);
+
+    info!("block_pos.block_id {}", block_pos.block_id);
 
     ProcessingEVMBlock::new(
         chain_id,

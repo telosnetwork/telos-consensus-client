@@ -1,12 +1,15 @@
-use std::{fs, path::Path, sync::Arc};
-
+use alloy::primitives::B256;
 use eyre::{eyre, Context};
 use rocksdb::{DBWithThreadMode, SingleThreaded, DB};
 use serde::{Deserialize, Serialize};
+use std::io::Read;
+use std::str::FromStr;
+use std::{fs, path::Path, sync::Arc};
 use telos_translator_rs::block::TelosEVMBlock;
 use tracing::info;
 
 use crate::client::Error;
+use crate::data;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Block {
@@ -122,4 +125,14 @@ impl Database {
             .map_err(|error| eyre!("Cannot parse lib JSON: {error}"))
             .map_err(Error::Database)
     }
+}
+
+#[test]
+fn test() {
+    let binding = "0xcbf9f3499433f5088b67053deae360a32d623f6b9e7fca31dd6a5a923795da96".to_string();
+    let s = binding.as_bytes();
+    let hash = B256::from_str(binding.as_str()).unwrap();
+
+    println!("{}", hash);
+    println!("{}", hash.to_string())
 }
