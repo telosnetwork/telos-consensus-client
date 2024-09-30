@@ -2,6 +2,7 @@ use alloy::primitives::B256;
 use eyre::{eyre, Context};
 use rocksdb::{DBWithThreadMode, SingleThreaded, DB};
 use serde::{Deserialize, Serialize};
+use std::fmt::{self, Debug, Display};
 use std::io::Read;
 use std::str::FromStr;
 use std::{fs, path::Path, sync::Arc};
@@ -17,7 +18,22 @@ pub struct Block {
     pub hash: String,
 }
 
+impl Default for Block {
+    fn default() -> Self {
+        Self {
+            number: 0,
+            hash: Default::default(),
+        }
+    }
+}
+
 pub struct Lib<'a>(pub &'a TelosEVMBlock);
+
+impl Debug for Lib<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "number: {}, hash: {}", self.0.lib_num, self.0.lib_hash)
+    }
+}
 
 impl From<&TelosEVMBlock> for Block {
     fn from(value: &TelosEVMBlock) -> Self {
