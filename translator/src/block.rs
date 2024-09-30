@@ -8,7 +8,7 @@ use crate::types::names::*;
 use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
-use crate::types::translator_types::NameToAddressCache;
+use crate::types::translator_types::{ChainId, NameToAddressCache};
 use alloy::primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Header, Transaction, TxEnvelope};
@@ -114,6 +114,24 @@ pub struct TelosEVMBlock {
     pub transactions: Vec<(TelosEVMTransaction, ReceiptWithBloom)>,
     pub execution_payload: ExecutionPayloadV1,
     pub extra_fields: TelosEngineAPIExtraFields,
+}
+
+impl TelosEVMBlock {
+    pub fn lib_evm_num(&self, chain_id: &ChainId) -> u32 {
+        self.lib_num.saturating_sub(chain_id.block_delta())
+    }
+
+    pub fn block_num_with_delta(&self, chain_id: &ChainId) -> u32 {
+        self.block_num + chain_id.block_delta()
+    }
+
+    pub fn is_final(&self, chain_id: &ChainId) -> bool {
+        self.block_num_with_delta(chain_id) <= self.lib_num
+    }
+
+    pub fn is_lib(&self, chain_id: &ChainId) -> bool {
+        self.block_num_with_delta(chain_id) == self.lib_num
+    }
 }
 
 pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
