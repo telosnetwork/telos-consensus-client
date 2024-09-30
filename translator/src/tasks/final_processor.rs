@@ -8,6 +8,7 @@ use alloy_rlp::Encodable;
 use antelope::api::client::{APIClient, DefaultProvider};
 use eyre::{eyre, Context, Result};
 use hex::encode;
+use reth_primitives::B256;
 use reth_telos_rpc_engine_api::structs::{
     TelosAccountStateTableRow, TelosAccountTableRow, TelosEngineAPIExtraFields,
 };
@@ -96,7 +97,6 @@ pub async fn final_processor(
             unlogged_transactions = 0;
             last_log = Instant::now();
         }
-        // TODO: Fork handling, hashing, all the things...
 
         let evm_block_num = header.number as u32;
 
@@ -160,11 +160,13 @@ pub async fn final_processor(
                 .collect(),
         );
 
+        info!("===================================== {}", block.lib_hash);
+
         let completed_block = TelosEVMBlock {
             block_num: evm_block_num,
             block_hash,
             lib_num: block.lib_num,
-            lib_hash: FixedBytes::from_slice(&block.lib_hash.data),
+            lib_hash: block.lib_hash.as_string(),
             transactions: block.transactions,
             header,
             execution_payload: exec_payload,

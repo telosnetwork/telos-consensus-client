@@ -11,7 +11,7 @@ use reth_rpc_types::Block;
 use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
 use tokio::sync::mpsc;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -117,6 +117,7 @@ impl ConsensusClient {
     pub async fn run(mut self, mut rx: mpsc::Receiver<TelosEVMBlock>) -> Result<(), Error> {
         let mut batch = vec![];
         let mut lib: Option<data::Block> = self.db.get_lib()?;
+        let block_delta = self.config.chain_id.block_delta();
         loop {
             let message = tokio::select! {
                 message = rx.recv() => message,
@@ -157,7 +158,10 @@ impl ConsensusClient {
                 is_new_lib = true;
                 lib = Some(From::from(Lib(&block)));
                 self.db.put_lib(From::from(Lib(&block)))?;
-                debug!("LIB {} put in the database", block.lib_num);
+                info!(
+                    "LIB {} put in the database hash {}",
+                    block.lib_num, block.lib_hash
+                );
             }
 
             if let Some((latest_num, latest_hash)) = &self.latest_evm_block() {
@@ -175,28 +179,57 @@ impl ConsensusClient {
             }
 
             batch.push(block);
-
             // check if we caught up to head
             // if lib is greater than current block send in batches
             // if lib is less than current block batch size is 1 or more blocks
+            let block_num_with_delta = block_num.as_u32() + block_delta;
             let flush = match lib.as_ref() {
-                Some(lib) if lib.number <= block_num.as_u32() => true,
+                Some(lib) if lib.number <= block_num_with_delta => true,
+                // Some(lib) if lib.number > block_num_with_delta && (lib.number - block_num_with_delta  < self.config.batch_size.as_u32()) => true,
                 _ => batch.len() == self.config.batch_size,
             };
 
             if !flush {
+                info!(
+                    "Added block {} lib {}",
+                    block_num + block_delta.as_u64(),
+                    lib.clone().unwrap().number
+                );
                 continue;
             }
+            info!(
+                "Batch size {} latest lib {}, block num {} lib hash {}",
+                batch.len(),
+                lib.clone().unwrap().number,
+                block_num + block_delta.as_u64(),
+                lib.clone().unwrap().hash
+            );
+            batch.iter().enumerate().for_each(|(i, block)| {
+                info!(
+                    "number {:?} {:?}",
+                    block.block_num + block_delta,
+                    block.block_hash
+                );
+            });
 
-            let lib_hash = lib.as_ref().map(|lib| lib.hash.parse::<B256>().unwrap());
+            let lib_number = lib.as_ref().map(|lib| lib.number);
 
-            let finalized_hash = match lib_hash {
+            let finalized_hash = match lib_number {
                 // default finalized hash is the last one in the batch
                 None => Some(block_hash),
                 // if lib is less that current block, we caught to the head
-                Some(_) if lib_num.as_u64() >= block_num => Some(block_hash),
+                Some(_) if lib_num.as_u64() >= block_num_with_delta.as_u64() => {
+                    info!("Lib > current block");
+                    Some(block_hash)
+                }
                 // if lib hash has been changed we should send finalized hash for fc update
-                Some(lib_hash) if is_new_lib => Some(lib_hash),
+                Some(lib_hash) if is_new_lib => {
+                    info!("New Lib detected");
+                    // get lib or first available block
+                    // TODO is delta needed?
+                    let block = self.db.get_block_or_prev(lib_num)?.unwrap();
+                    Some(block.hash.parse().unwrap())
+                }
                 // head caught but no changes to the lib
                 Some(_) => None,
             };
@@ -261,11 +294,11 @@ impl ConsensusClient {
 
             let fork_choice_updated: ForkchoiceUpdated =
                 serde_json::from_value(fork_choice_updated.result).unwrap();
-            debug!("fork_choice_updated_result {:?}", fork_choice_updated);
+            info!("fork_choice_updated_result {:?}", fork_choice_updated);
 
             // Valid, Invalid, Accepted, Syncing
             if fork_choice_updated.is_invalid() || fork_choice_updated.is_syncing() {
-                debug!(
+                info!(
                     "Fork choice update status is {} ",
                     fork_choice_updated.payload_status.status
                 );
@@ -281,12 +314,12 @@ impl ConsensusClient {
                 last_block_sent.header.parent_hash,
                 last_block_sent.block_num
             );
-            debug!(
+            info!(
                 "fork_choice_updated_result for block number {}: {:?}",
                 last_block_sent.block_num, fork_choice_updated
             );
         } else {
-            debug!(
+            info!(
                 "Fork choice updated call skipped for block {}",
                 last_block_sent.block_num
             );

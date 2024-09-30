@@ -22,7 +22,7 @@ use reth_rpc_types::ExecutionPayloadV1;
 use reth_telos_rpc_engine_api::structs::TelosEngineAPIExtraFields;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
 use std::cmp::{max, Ordering};
-use tracing::{debug, warn};
+use tracing::{info, debug, warn};
 
 const MINIMUM_FEE_PER_GAS: u128 = 7;
 
@@ -109,7 +109,7 @@ pub struct TelosEVMBlock {
     pub block_num: u32,
     pub block_hash: B256,
     pub lib_num: u32,
-    pub lib_hash: B256,
+    pub lib_hash: String,
     pub header: Header,
     pub transactions: Vec<(TelosEVMTransaction, ReceiptWithBloom)>,
     pub execution_payload: ExecutionPayloadV1,
@@ -131,6 +131,8 @@ impl ProcessingEVMBlock {
         lib_hash: Checksum256,
         result: GetBlocksResultV0,
     ) -> Self {
+        info!("ProcessingEVMBlock {}", lib_hash);
+
         Self {
             block_num,
             block_hash,
