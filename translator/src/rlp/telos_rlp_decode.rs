@@ -88,19 +88,15 @@ impl TelosTxDecodable for TxLegacy {
         tx.chain_id = sig.v().chain_id();
 
         let signed = tx.into_signed(sig);
-        if buf.len() + header.payload_length != original_len {
-            for b in buf.iter() {
-                if *b != 128 {
-                    error!("Transaction has trailing non-zero RLP values: {:?}", signed);
-                    return Err(Error::ListLengthMismatch {
-                        expected: header.payload_length,
-                        got: original_len - buf.len(),
-                    });
-                }
-            }
+        if buf.len() + header.payload_length == original_len || buf.iter().all(|&b| b == 128) {
+            return Ok(signed);
         }
 
-        Ok(signed)
+        error!("Transaction has trailing non-zero RLP values: {:?}", signed);
+        Err(Error::ListLengthMismatch {
+            expected: header.payload_length,
+            got: original_len - buf.len(),
+        })
     }
 }
 
