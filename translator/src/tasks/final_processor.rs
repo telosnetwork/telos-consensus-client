@@ -8,7 +8,6 @@ use alloy_rlp::Encodable;
 use antelope::api::client::{APIClient, DefaultProvider};
 use eyre::{eyre, Context, Result};
 use hex::encode;
-use reth_primitives::B256;
 use reth_telos_rpc_engine_api::structs::{
     TelosAccountStateTableRow, TelosAccountTableRow, TelosEngineAPIExtraFields,
 };
