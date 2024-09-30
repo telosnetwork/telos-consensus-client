@@ -227,7 +227,7 @@ impl ConsensusClient {
                     info!("New Lib detected");
                     // get lib or first available block
                     // TODO is delta needed?
-                    let block = self.db.get_block_or_prev(lib_num)?.unwrap();
+                    let block = self.db.get_block_or_prev(lib_num - block_delta)?.unwrap();
                     Some(block.hash.parse().unwrap())
                 }
                 // head caught but no changes to the lib
