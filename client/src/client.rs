@@ -133,7 +133,7 @@ impl ConsensusClient {
 
             let block_num = block.block_num.as_u64();
             let block_hash = block.block_hash;
-            let lib_num = block.lib_num;
+            let block_lib_num = block.lib_num;
             if block_num % self.config.block_checkpoint_interval.as_u64() != 0 {
                 self.db.put_block(From::from(&block))?;
                 debug!("Block {} put in the database", block.block_num);
@@ -154,7 +154,11 @@ impl ConsensusClient {
             }
 
             let mut is_new_lib = false;
-            if lib.as_ref().map(|lib| lib.number < lib_num).unwrap_or(true) {
+            if lib
+                .as_ref()
+                .map(|lib| lib.number < block_lib_num)
+                .unwrap_or(true)
+            {
                 is_new_lib = true;
                 lib = Some(From::from(Lib(&block)));
                 self.db.put_lib(From::from(Lib(&block)))?;
@@ -204,7 +208,7 @@ impl ConsensusClient {
                 block_num + block_delta.as_u64(),
                 lib.clone().unwrap().hash
             );
-            batch.iter().enumerate().for_each(|(i, block)| {
+            batch.iter().for_each(|block| {
                 info!(
                     "number {:?} {:?}",
                     block.block_num + block_delta,
@@ -212,25 +216,24 @@ impl ConsensusClient {
                 );
             });
 
-            let lib_number = lib.as_ref().map(|lib| lib.number);
+            let lib_num = lib.as_ref().map(|lib| lib.number);
+            let is_block_final = block_lib_num >= block_num_with_delta;
 
-            let finalized_hash = match lib_number {
-                // default finalized hash is the last one in the batch
+            match lib_num.as_ref() {
+                None => debug!("Default finalized hash is the last one in the batch"),
+                Some(_) if is_block_final => debug!("Synced to head, LIB < current block"),
+                Some(_) if is_new_lib => debug!("New LIB is detected"),
+                Some(_) => debug!("Synced to head, LIB is unchanged"),
+            };
+
+            let finalized_hash = match lib_num {
                 None => Some(block_hash),
-                // if lib is less that current block, we caught to the head
-                Some(_) if lib_num.as_u64() >= block_num_with_delta.as_u64() => {
-                    info!("Lib > current block");
-                    Some(block_hash)
-                }
+                Some(_) if is_block_final => Some(block_hash),
                 // if lib hash has been changed we should send finalized hash for fc update
-                Some(lib_hash) if is_new_lib => {
-                    info!("New Lib detected");
-                    // get lib or first available block
-                    // TODO is delta needed?
-                    let block = self.db.get_block_or_prev(lib_num - block_delta)?.unwrap();
-                    Some(block.hash.parse().unwrap())
-                }
-                // head caught but no changes to the lib
+                Some(_) if is_new_lib => self
+                    .db
+                    .get_block_or_prev(block_lib_num - block_delta)?
+                    .map(|block| block.hash.parse().unwrap()),
                 Some(_) => None,
             };
 
