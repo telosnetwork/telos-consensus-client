@@ -1,30 +1,17 @@
-use alloy::primitives::B256;
 use eyre::{eyre, Context};
 use rocksdb::{DBWithThreadMode, SingleThreaded, DB};
 use serde::{Deserialize, Serialize};
-use std::fmt::{self, Debug, Display};
-use std::io::Read;
-use std::str::FromStr;
+use std::fmt::{self, Debug};
 use std::{fs, path::Path, sync::Arc};
 use telos_translator_rs::block::TelosEVMBlock;
 use tracing::info;
 
 use crate::client::Error;
-use crate::data;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 pub struct Block {
     pub number: u32,
     pub hash: String,
-}
-
-impl Default for Block {
-    fn default() -> Self {
-        Self {
-            number: 0,
-            hash: Default::default(),
-        }
-    }
 }
 
 pub struct Lib<'a>(pub &'a TelosEVMBlock);
