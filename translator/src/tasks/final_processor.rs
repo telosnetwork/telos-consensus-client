@@ -160,8 +160,6 @@ pub async fn final_processor(
                 .collect(),
         );
 
-        info!("===================================== {}", block.lib_hash);
-
         let completed_block = TelosEVMBlock {
             block_num: evm_block_num,
             block_hash,

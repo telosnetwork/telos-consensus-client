@@ -40,6 +40,8 @@ pub enum Error {
     TranslatorShutdown(String),
 }
 
+const SAFE_HASH_LOOKUP: u32 = 50;
+
 pub struct Shutdown(mpsc::Sender<()>);
 impl Shutdown {
     #[allow(dead_code)]
@@ -172,6 +174,7 @@ impl ConsensusClient {
             let block_is_final = block.is_final(chain_id);
             let block_is_lib = block.is_lib(chain_id);
             let lib_evm_num = block.lib_evm_num(chain_id);
+            let block_evm_num = block.block_evm_num(chain_id);
 
             batch.push(block);
 
@@ -182,6 +185,12 @@ impl ConsensusClient {
             if !flush {
                 continue;
             };
+
+            let safe_hash = self
+                .db
+                .get_block_or_prev(block_evm_num.saturating_sub(SAFE_HASH_LOOKUP))?
+                .map(|block| block.hash.parse().unwrap())
+                .unwrap_or(block_hash);
 
             let finalized_hash = if block_is_final {
                 debug!("Synced to head, LIB < current block");
@@ -198,11 +207,10 @@ impl ConsensusClient {
             };
 
             debug!("Send batch finalized hash: {finalized_hash:?}",);
-            self.send_batch(&batch, finalized_hash).await?;
+            self.send_batch(&batch, finalized_hash, safe_hash).await?;
             batch.clear();
         }
 
-        // launch_handle.await.map_err(|_| Error::SpawnTranslator)?
         Ok(())
     }
 
@@ -210,6 +218,7 @@ impl ConsensusClient {
         &self,
         batch: &[TelosEVMBlock],
         finalized_hash: Option<B256>,
+        safe_hash: B256,
     ) -> Result<(), Error> {
         let rpc_batch = batch
             .iter()
@@ -238,11 +247,7 @@ impl ConsensusClient {
 
         if let Some(finalized_hash_value) = finalized_hash {
             let fork_choice_updated_result = self
-                .fork_choice_updated(
-                    last_block_sent.block_hash,
-                    last_block_sent.block_hash,
-                    finalized_hash_value,
-                )
+                .fork_choice_updated(last_block_sent.block_hash, safe_hash, finalized_hash_value)
                 .await;
 
             let fork_choice_updated = fork_choice_updated_result.map_err(|e| {
