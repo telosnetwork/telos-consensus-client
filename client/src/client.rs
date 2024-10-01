@@ -174,7 +174,6 @@ impl ConsensusClient {
             let block_is_final = block.is_final(chain_id);
             let block_is_lib = block.is_lib(chain_id);
             let lib_evm_num = block.lib_evm_num(chain_id);
-            let block_evm_num = block.block_evm_num(chain_id);
 
             batch.push(block);
 
@@ -188,7 +187,7 @@ impl ConsensusClient {
 
             let safe_hash = self
                 .db
-                .get_block_or_prev(block_evm_num.saturating_sub(SAFE_HASH_LOOKUP))?
+                .get_block_or_prev(block_num.saturating_sub(SAFE_HASH_LOOKUP))?
                 .map(|block| block.hash.parse().unwrap())
                 .unwrap_or(block_hash);
 

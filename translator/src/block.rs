@@ -125,10 +125,6 @@ impl TelosEVMBlock {
         self.block_num + chain_id.block_delta()
     }
 
-    pub fn block_evm_num(&self, chain_id: &ChainId) -> u32 {
-        self.block_num.saturating_sub(chain_id.block_delta())
-    }
-
     pub fn is_final(&self, chain_id: &ChainId) -> bool {
         self.block_num_with_delta(chain_id) <= self.lib_num
     }
