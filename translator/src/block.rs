@@ -87,7 +87,8 @@ pub enum DecodedRow {
 #[derive(Clone)]
 pub struct ProcessingEVMBlock {
     pub block_num: u32,
-    block_hash: Checksum256,
+    pub block_hash: Checksum256,
+    pub prev_block_hash: Option<Checksum256>,
     chain_id: u64,
     result: GetBlocksResultV0,
     signed_block: Option<SignedBlock>,
@@ -108,6 +109,8 @@ pub struct ProcessingEVMBlock {
 pub struct TelosEVMBlock {
     pub block_num: u32,
     pub block_hash: B256,
+    pub ship_hash: String,
+    pub prev_ship_hash: Option<String>,
     pub lib_num: u32,
     pub lib_hash: String,
     pub header: Header,
@@ -145,6 +148,7 @@ impl ProcessingEVMBlock {
         chain_id: u64,
         block_num: u32,
         block_hash: Checksum256,
+        prev_block_hash: Option<Checksum256>,
         lib_num: u32,
         lib_hash: Checksum256,
         result: GetBlocksResultV0,
@@ -152,6 +156,7 @@ impl ProcessingEVMBlock {
         Self {
             block_num,
             block_hash,
+            prev_block_hash,
             lib_num,
             lib_hash,
             chain_id,

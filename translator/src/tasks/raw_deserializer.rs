@@ -87,6 +87,7 @@ pub async fn raw_deserializer(
                         config.chain_id.0,
                         b.block_num,
                         b.block_id,
+                        r.prev_block.as_ref().map(|b| b.block_id),
                         r.last_irreversible.block_num,
                         r.last_irreversible.block_id,
                         r.clone(),
