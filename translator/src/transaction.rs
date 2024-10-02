@@ -1,3 +1,4 @@
+use crate::block::RawActionValues;
 use crate::rlp::telos_rlp_decode::TelosTxDecodable;
 use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::translator_types::NameToAddressCache;
@@ -40,7 +41,7 @@ impl TelosEVMTransaction {
         _chain_id: u64,
         trx_index: usize,
         block_hash: Checksum256,
-        raw: RawAction,
+        raw: RawActionValues,
         receipt: PrintedReceipt,
     ) -> Result<Self, Error> {
         // TODO: Check for unsigned transactions and handle correctly
