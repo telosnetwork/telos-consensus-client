@@ -40,6 +40,9 @@ pub struct AppConfig {
     /// The parent hash of the start_block
     pub prev_hash: String,
 
+    /// (Optional) For testnet, the block with the last legacy raw transaction (missing estimate_gas and ram_payer fields)
+    pub last_legacy_raw_tx: Option<u32>,
+
     /// Start block to start with, should be at or before the first block of the execution node
     pub evm_start_block: u32,
 
@@ -75,6 +78,7 @@ impl From<&AppConfig> for TranslatorConfig {
             evm_start_block: config.evm_start_block,
             evm_stop_block: config.evm_stop_block,
             prev_hash: config.prev_hash.clone(),
+            last_legacy_raw_tx: config.last_legacy_raw_tx,
             validate_hash: config.validate_hash.clone(),
             http_endpoint: config.chain_endpoint.clone(),
             ship_endpoint: config.ship_endpoint.clone(),
