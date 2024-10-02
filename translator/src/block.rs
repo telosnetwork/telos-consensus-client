@@ -163,7 +163,7 @@ impl TelosEVMBlock {
     }
 }
 
-pub fn decodeRawActionValues(encoded: &[u8], use_legacy_raw_action: bool) -> RawActionValues {
+pub fn decode_raw_action_values(encoded: &[u8], use_legacy_raw_action: bool) -> RawActionValues {
     match use_legacy_raw_action {
         true => decode::<LegacyRawAction>(encoded).into(),
         false => decode::<RawAction>(encoded).into(),
@@ -291,7 +291,7 @@ impl ProcessingEVMBlock {
         } else if action_account == EOSIO_EVM && action_name == RAW {
             // Normally signed EVM transaction
             let raw: RawActionValues =
-                decodeRawActionValues(&action.data(), self.use_legacy_raw_action);
+                decode_raw_action_values(&action.data(), self.use_legacy_raw_action);
             let printed_receipt =
                 PrintedReceipt::from_console(action.console()).ok_or_else(|| {
                     eyre::eyre!(
