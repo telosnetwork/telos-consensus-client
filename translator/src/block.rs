@@ -8,7 +8,7 @@ use crate::types::names::*;
 use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
-use crate::types::translator_types::NameToAddressCache;
+use crate::types::translator_types::{ChainId, NameToAddressCache};
 use alloy::primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Header, Transaction, TxEnvelope};
@@ -117,8 +117,6 @@ pub struct TelosEVMBlock {
     pub extra_fields: TelosEngineAPIExtraFields,
 }
 
-<<<<<<< Updated upstream
-=======
 #[derive(Clone, Debug)]
 pub struct RawActionValues {
     pub tx: Vec<u8>,
@@ -161,14 +159,13 @@ impl TelosEVMBlock {
     }
 }
 
-pub fn decodeRawActionValues(encoded: &[u8], use_legacy_raw_action: bool) -> RawActionValues {
+pub fn decode_raw_action_values(encoded: &[u8], use_legacy_raw_action: bool) -> RawActionValues {
     match use_legacy_raw_action {
         true => decode::<LegacyRawAction>(encoded).into(),
         false => decode::<RawAction>(encoded).into(),
     }
 }
 
->>>>>>> Stashed changes
 pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
     let mut result = T::default();
     result.unpack(raw);
@@ -288,7 +285,7 @@ impl ProcessingEVMBlock {
         } else if action_account == EOSIO_EVM && action_name == RAW {
             // Normally signed EVM transaction
             let raw: RawActionValues =
-                decodeRawActionValues(&action.data(), self.use_legacy_raw_action);
+                decode_raw_action_values(&action.data(), self.use_legacy_raw_action);
             let mut printed_receipt = PrintedReceipt::from_console(action.console());
             if printed_receipt.is_none() {
                 if !self.use_legacy_raw_action {

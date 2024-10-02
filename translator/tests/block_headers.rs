@@ -61,10 +61,6 @@ async fn generate_block(
         chain_id,
         block_num,
         block_pos.block_id,
-<<<<<<< Updated upstream
-=======
-        None,
->>>>>>> Stashed changes
         // Block is always final
         block_num,
         block_pos.block_id,
@@ -77,6 +73,7 @@ async fn generate_block(
             traces: Some(vec![]),
             deltas: Some(vec![]),
         },
+        false,
     )
 }
 

@@ -91,10 +91,6 @@ pub async fn raw_deserializer(
                         config.chain_id.0,
                         b.block_num,
                         b.block_id,
-<<<<<<< Updated upstream
-=======
-                        r.prev_block.as_ref().map(|b| b.block_id),
->>>>>>> Stashed changes
                         r.last_irreversible.block_num,
                         r.last_irreversible.block_id,
                         r.clone(),

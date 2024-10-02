@@ -21,13 +21,10 @@ fn decode_block() {
                     1,
                     b.block_num,
                     Checksum256::default(),
-<<<<<<< Updated upstream
-=======
-                    None,
->>>>>>> Stashed changes
                     b.block_num,
                     Checksum256::default(),
                     r.clone(),
+                    false,
                 );
                 block.deserialize();
             } else {

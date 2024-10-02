@@ -33,26 +33,25 @@ lazy_static! {
         block_message_channel_size: default_channel_size(),
         final_message_channel_size: default_channel_size()
     };
-    // TODO: Add this back when/if we support starting at deploy block
-    // pub static ref MAINNET_DEPLOY_CONFIG: TranslatorConfig = TranslatorConfig {
-    //     chain_id: 40.into(),
-    //
-    //     last_legacy_raw_tx: None,
-    //     evm_start_block: 180698860,
-    //     evm_stop_block: None,
-    //
-    //     prev_hash: "757720a8e51c63ef1d4f907d6569dacaa965e91c2661345902de18af11f81063".to_string(),
-    //     validate_hash: Some(
-    //         "ed58397aca4c7ce2117fae8093bdced8f01d47855a46bb5ad6e4df4a93e8ee27".to_string()
-    //     ),
-    //
-    //     http_endpoint: String::from("http://127.0.0.1:8888"),
-    //     ship_endpoint: String::from("ws://127.0.0.1:29999"),
-    //
-    //     raw_message_channel_size: default_channel_size(),
-    //     block_message_channel_size: default_channel_size(),
-    //     final_message_channel_size: default_channel_size()
-    // };
+    pub static ref MAINNET_DEPLOY_CONFIG: TranslatorConfig = TranslatorConfig {
+        chain_id: 40.into(),
+
+        last_legacy_raw_tx: None,
+        evm_start_block: 180698860,
+        evm_stop_block: None,
+
+        prev_hash: "757720a8e51c63ef1d4f907d6569dacaa965e91c2661345902de18af11f81063".to_string(),
+        validate_hash: Some(
+            "ed58397aca4c7ce2117fae8093bdced8f01d47855a46bb5ad6e4df4a93e8ee27".to_string()
+        ),
+
+        http_endpoint: String::from("http://127.0.0.1:8888"),
+        ship_endpoint: String::from("ws://127.0.0.1:29999"),
+
+        raw_message_channel_size: default_channel_size(),
+        block_message_channel_size: default_channel_size(),
+        final_message_channel_size: default_channel_size()
+    };
     // pub static ref TESTNET_GENESIS_CONFIG: TranslatorConfig = TranslatorConfig {
     //     chain_id: 41.into(),
     //
