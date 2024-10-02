@@ -160,9 +160,12 @@ pub async fn final_processor(
                 .collect(),
         );
 
+	let prev_ship_hash = block.prev_block_hash.map(|hash| hash.as_string());
         let completed_block = TelosEVMBlock {
             block_num: evm_block_num,
             block_hash,
+	    ship_hash: block.block_hash.as_string(),
+            prev_ship_hash,
             lib_num: block.lib_num,
             lib_hash: block.lib_hash.as_string(),
             transactions: block.transactions,

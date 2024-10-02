@@ -64,6 +64,7 @@ async fn generate_block(
         chain_id,
         block_num,
         block_pos.block_id,
+        None,
         // Block is always final
         block_num,
         block_pos.block_id,
