@@ -83,6 +83,10 @@ pub async fn raw_deserializer(
             ShipResult::GetBlocksResultV0(r) => {
                 unackd_blocks += 1;
                 if let Some(b) = &r.this_block {
+                    let use_legacy_raw_action = config
+                        .last_legacy_raw_tx
+                        .map(|n| b.block_num <= n)
+                        .unwrap_or(false);
                     let block = ProcessingEVMBlock::new(
                         config.chain_id.0,
                         b.block_num,
@@ -91,6 +95,7 @@ pub async fn raw_deserializer(
                         r.last_irreversible.block_num,
                         r.last_irreversible.block_id,
                         r.clone(),
+                        use_legacy_raw_action,
                     );
                     debug!("Block #{} sending to block deserializer...", b.block_num);
                     block_deserializer_tx.send(block).await?;
