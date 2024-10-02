@@ -12,6 +12,7 @@ use reth_primitives::B256;
 use reth_telos_rpc_engine_api::structs::{
     TelosAccountStateTableRow, TelosAccountTableRow, TelosEngineAPIExtraFields,
 };
+use std::collections::HashMap;
 use std::str::FromStr;
 use tokio::{sync::mpsc, time::Instant};
 use tracing::{debug, error, info};
@@ -28,7 +29,7 @@ pub async fn final_processor(
     let mut unlogged_transactions = 0;
     let block_delta = config.chain_id.block_delta();
 
-    let mut parent_hash = FixedBytes::from_str(&config.prev_hash)
+    let mut config_parent_hash = FixedBytes::from_str(&config.prev_hash)
         .wrap_err("Prev hash config is not a valid 32 byte hex string")?;
 
     let validate_hash = match config.validate_hash {
@@ -47,11 +48,30 @@ pub async fn final_processor(
         .map(|n| n + block_delta)
         .unwrap_or(u32::MAX);
 
+    let mut prev_block = 0;
+
+    let mut hash_mapping: HashMap<String, B256> = HashMap::new();
+
     while let Some(mut block) = rx.recv().await {
         if &block.block_num > stop_block {
             break;
         }
         debug!("Finalizing block #{}", block.block_num);
+
+        if block.block_num - 1 != prev_block && prev_block > 0 {
+            info!(
+                "Fork detected: {} != {prev_block}",
+                block.block_num - 1
+            );
+        }
+        prev_block = block.block_num;
+
+        let prev_ship_hash = block.prev_block_hash.map(|hash| hash.as_string());
+
+        let parent_hash = prev_ship_hash
+            .as_ref()
+            .and_then(|hash| hash_mapping.get(hash).cloned())
+            .unwrap_or(config_parent_hash);
 
         let (header, exec_payload) = block
             .generate_evm_data(parent_hash, block_delta, &native_to_evm_cache)
@@ -160,11 +180,10 @@ pub async fn final_processor(
                 .collect(),
         );
 
-	let prev_ship_hash = block.prev_block_hash.map(|hash| hash.as_string());
         let completed_block = TelosEVMBlock {
             block_num: evm_block_num,
             block_hash,
-	    ship_hash: block.block_hash.as_string(),
+            ship_hash: block.block_hash.as_string(),
             prev_ship_hash,
             lib_num: block.lib_num,
             lib_hash: block.lib_hash.as_string(),
@@ -182,6 +201,11 @@ pub async fn final_processor(
             },
         };
 
+        hash_mapping.insert(
+            completed_block.ship_hash.clone(),
+            completed_block.block_hash,
+        );
+
         let block_num = block.block_num;
         if let Some(tx) = tx.clone() {
             if let Err(error) = tx.send(completed_block).await {
@@ -189,7 +213,7 @@ pub async fn final_processor(
                 break;
             }
         }
-        parent_hash = block_hash;
+
         if &block_num == stop_block {
             debug!("Processed stop block #{block_num}, exiting...");
             shutdown_tx
