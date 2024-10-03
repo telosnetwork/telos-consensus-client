@@ -120,6 +120,7 @@ impl ConsensusClient {
         let mut batch = vec![];
         let chain_id = &self.config.chain_id;
         let mut lib: data::Block = self.db.get_lib()?.unwrap_or_default();
+        let mut last_lib_hash: Option<B256> = None;
         loop {
             let message = tokio::select! {
                 message = rx.recv() => message,
@@ -201,12 +202,12 @@ impl ConsensusClient {
                     .get_block_or_prev(lib_evm_num)?
                     .map(|block| block.hash.parse().unwrap())
             } else {
-                debug!("Synced to head, LIB is unchanged");
-                None
+                debug!("Synced to head, LIB is unchanged {f:?}");
+                last_lib_hash
             };
-
-            debug!("Send batch finalized hash: {finalized_hash:?}",);
-            self.send_batch(&batch, finalized_hash, safe_hash).await?;
+            last_lib_hash = finalized_hash;
+            debug!("Send batch finalized hash: {last_lib_hash:?}",);
+            self.send_batch(&batch, last_lib_hash, safe_hash).await?;
             batch.clear();
         }
 
