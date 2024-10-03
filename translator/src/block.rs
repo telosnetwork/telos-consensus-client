@@ -110,7 +110,6 @@ pub struct TelosEVMBlock {
     pub block_num: u32,
     pub block_hash: B256,
     pub ship_hash: String,
-    pub prev_ship_hash: Option<String>,
     pub lib_num: u32,
     pub lib_hash: String,
     pub header: Header,
