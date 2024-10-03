@@ -202,7 +202,7 @@ impl ConsensusClient {
                     .get_block_or_prev(lib_evm_num)?
                     .map(|block| block.hash.parse().unwrap())
             } else {
-                debug!("Synced to head, LIB is unchanged {f:?}");
+                debug!("Synced to head, LIB is unchanged");
                 last_lib_hash
             };
             last_lib_hash = finalized_hash;
