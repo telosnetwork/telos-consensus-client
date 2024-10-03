@@ -59,10 +59,7 @@ pub async fn final_processor(
         debug!("Finalizing block #{}", block.block_num);
 
         if block.block_num - 1 != prev_block && prev_block > 0 {
-            info!(
-                "Fork detected: {} != {prev_block}",
-                block.block_num - 1
-            );
+            info!("Fork detected: {} != {prev_block}", block.block_num - 1);
         }
         prev_block = block.block_num;
 
