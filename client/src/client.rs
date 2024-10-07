@@ -38,6 +38,8 @@ pub enum Error {
     RangeAboveMaximum(u32),
     #[error("Cannot shutdown translator: {0}")]
     TranslatorShutdown(String),
+    #[error("Call to execution API failed: {0}")]
+    ExecutionApiError(#[from] ExecutionApiError),
 }
 
 const SAFE_HASH_LOOKUP: u32 = 50;
@@ -54,6 +56,7 @@ pub struct ConsensusClient {
     pub config: AppConfig,
     execution_api: ExecutionApiClient,
     //latest_consensus_block: ExecutionPayloadV1,
+    pub latest_executor_block: Option<Block>,
     pub latest_valid_executor_block: Option<Block>,
     //is_forked: bool,
     pub db: Database,
@@ -72,6 +75,10 @@ impl ConsensusClient {
             false => Database::open(&config.data_path)?,
             true => Database::init(&config.data_path)?,
         };
+        let latest_executor_block = execution_api
+            .get_latest_block()
+            .await
+            .wrap_err("Failed to get latest executor block")?;
         let latest_valid_executor_block = execution_api
             .get_latest_finalized_block()
             .await
@@ -80,6 +87,7 @@ impl ConsensusClient {
         Ok(Self {
             config,
             execution_api,
+            latest_executor_block,
             latest_valid_executor_block,
             db,
             shutdown_tx,
@@ -98,10 +106,24 @@ impl ConsensusClient {
         Some((number.as_u32(), hash.to_string()))
     }
 
-    pub fn is_in_start_stop_range(&self, num: u32) -> bool {
+    pub fn is_in_start_stop_range(&self, block: u32) -> bool {
         match (self.config.evm_start_block, self.config.evm_stop_block) {
-            (start_block, Some(stop_block)) => start_block <= num && num <= stop_block,
-            (start_block, None) => start_block <= num,
+            (start_block, Some(stop_block)) => start_block <= block && block <= stop_block,
+            (start_block, None) => start_block <= block,
+        }
+    }
+
+    pub fn is_in_check_range(&self, block: u64) -> bool {
+        match (
+            self.latest_valid_executor_block.as_ref(),
+            self.latest_executor_block.as_ref(),
+        ) {
+            (None, None) => false,
+            (None, Some(latest)) => block < latest.header.number,
+            (Some(_), None) => unreachable!(),
+            (Some(valid), Some(latest)) => {
+                valid.header.number <= block && block <= latest.header.number
+            }
         }
     }
 
@@ -172,6 +194,22 @@ impl ConsensusClient {
             }
 
             let block_hash = block.block_hash;
+
+            if self.is_in_check_range(block_num.as_u64()) {
+                debug!("Checking if block {block_num} exists...");
+                let evm_block = self
+                    .execution_api
+                    .get_block_by_number(block_num.into())
+                    .await?;
+
+                if let Some(evm_block) = evm_block {
+                    if evm_block.header.hash != block_hash {
+                        return Err(Error::ExecutorHashMismatch);
+                    }
+                    continue;
+                }
+            }
+
             let block_is_final = block.is_final(chain_id);
             let block_is_lib = block.is_lib(chain_id);
             let lib_evm_num = block.lib_evm_num(chain_id);

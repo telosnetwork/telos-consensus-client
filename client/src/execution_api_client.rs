@@ -48,12 +48,14 @@ impl From<Vec<(Value, JsonError)>> for JsonErrors {
 }
 
 pub enum BlockStatus {
+    Latest,
     Finalized,
 }
 
 impl Display for BlockStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let status_str = match self {
+            BlockStatus::Latest => "latest",
             BlockStatus::Finalized => "finalized",
         };
         write!(f, "{}", status_str)
@@ -203,6 +205,24 @@ impl ExecutionApiClient {
         let request = RpcRequest {
             method: ExecutionApiMethod::BlockByNumber,
             params: json!([BlockStatus::Finalized.to_string(), true]),
+        };
+        let result = self.rpc(request).await?.result;
+
+        if result.is_null() {
+            // This should only happen on a fresh chain where only genesis block exists
+            return self.get_block_by_number(0).await;
+        }
+
+        serde_json::from_value(result)
+            .map_err(|_| ExecutionApiError::CannotDeserialize)
+            .map(Some)
+    }
+
+    /// Get latest block
+    pub async fn get_latest_block(&self) -> Result<Option<Block>, ExecutionApiError> {
+        let request = RpcRequest {
+            method: ExecutionApiMethod::BlockByNumber,
+            params: json!([BlockStatus::Latest.to_string(), true]),
         };
         let result = self.rpc(request).await?.result;
 
