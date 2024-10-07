@@ -57,7 +57,7 @@ pub struct ConsensusClient {
     execution_api: ExecutionApiClient,
     //latest_consensus_block: ExecutionPayloadV1,
     pub latest_executor_block: Option<Block>,
-    pub latest_valid_executor_block: Option<Block>,
+    pub latest_finalized_executor_block: Option<Block>,
     //is_forked: bool,
     pub db: Database,
     shutdown_tx: mpsc::Sender<()>,
@@ -79,7 +79,7 @@ impl ConsensusClient {
             .get_latest_block()
             .await
             .wrap_err("Failed to get latest executor block")?;
-        let latest_valid_executor_block = execution_api
+        let latest_finalized_executor_block = execution_api
             .get_latest_finalized_block()
             .await
             .wrap_err("Failed to get latest valid executor block")?;
@@ -88,7 +88,7 @@ impl ConsensusClient {
             config,
             execution_api,
             latest_executor_block,
-            latest_valid_executor_block,
+            latest_finalized_executor_block,
             db,
             shutdown_tx,
             shutdown_rx,
@@ -101,7 +101,7 @@ impl ConsensusClient {
     }
 
     fn latest_evm_block(&self) -> Option<(u32, String)> {
-        let latest = self.latest_valid_executor_block.as_ref()?;
+        let latest = self.latest_finalized_executor_block.as_ref()?;
         let (number, hash) = (latest.header.number, latest.header.hash);
         Some((number.as_u32(), hash.to_string()))
     }
@@ -115,7 +115,7 @@ impl ConsensusClient {
 
     pub fn is_in_check_range(&self, block: u64) -> bool {
         match (
-            self.latest_valid_executor_block.as_ref(),
+            self.latest_finalized_executor_block.as_ref(),
             self.latest_executor_block.as_ref(),
         ) {
             (None, None) => false,
@@ -128,7 +128,7 @@ impl ConsensusClient {
     }
 
     pub fn latest_evm_number(&self) -> Option<u32> {
-        self.latest_valid_executor_block
+        self.latest_finalized_executor_block
             .as_ref()
             .map(|block| block.header.number.as_u32())
     }

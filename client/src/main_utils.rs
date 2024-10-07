@@ -18,7 +18,7 @@ pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Er
     let (block_sender, block_receiver) = mpsc::channel::<TelosEVMBlock>(1000);
 
     info!(
-	latest_valid_executor_block = ?client.latest_valid_executor_block,
+	latest_finalized_executor_block = ?client.latest_finalized_executor_block,
 	latest_executor_block = ?client.latest_executor_block,
 	"Telos consensus client starting, awaiting result..."
     );
