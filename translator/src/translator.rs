@@ -18,6 +18,7 @@ pub fn default_channel_size() -> usize {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranslatorConfig {
     pub chain_id: ChainId,
+    pub last_legacy_raw_tx: Option<u32>,
     pub evm_start_block: u32,
     pub evm_stop_block: Option<u32>,
     pub prev_hash: String,

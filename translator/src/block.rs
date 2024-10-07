@@ -1,20 +1,20 @@
 use crate::transaction::TelosEVMTransaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS, DEFAULT_GAS_LIMIT};
 use crate::types::evm_types::{
-    AccountRow, AccountStateRow, CreateAction, EvmContractConfigRow, OpenWalletAction,
-    PrintedReceipt, RawAction, SetRevisionAction, TransferAction, WithdrawAction,
+    AccountRow, AccountStateRow, CreateAction, EvmContractConfigRow, LegacyRawAction,
+    OpenWalletAction, PrintedReceipt, RawAction, SetRevisionAction, TransferAction, WithdrawAction,
 };
 use crate::types::names::*;
 use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
-use crate::types::translator_types::NameToAddressCache;
+use crate::types::translator_types::{ChainId, NameToAddressCache};
 use alloy::primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Header, Transaction, TxEnvelope};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_rlp::Encodable;
-use antelope::chain::checksum::Checksum256;
+use antelope::chain::checksum::{Checksum160, Checksum256};
 use antelope::chain::name::Name;
 use antelope::serializer::Packer;
 use reth_primitives::ReceiptWithBloom;
@@ -102,6 +102,7 @@ pub struct ProcessingEVMBlock {
     pub new_wallets: Vec<WalletEvents>,
     pub lib_num: u32,
     pub lib_hash: Checksum256,
+    pub use_legacy_raw_action: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -114,6 +115,55 @@ pub struct TelosEVMBlock {
     pub transactions: Vec<(TelosEVMTransaction, ReceiptWithBloom)>,
     pub execution_payload: ExecutionPayloadV1,
     pub extra_fields: TelosEngineAPIExtraFields,
+}
+
+#[derive(Clone, Debug)]
+pub struct RawActionValues {
+    pub tx: Vec<u8>,
+    pub sender: Option<Checksum160>,
+}
+
+impl From<LegacyRawAction> for RawActionValues {
+    fn from(value: LegacyRawAction) -> Self {
+        Self {
+            tx: value.tx,
+            sender: value.sender,
+        }
+    }
+}
+
+impl From<RawAction> for RawActionValues {
+    fn from(value: RawAction) -> Self {
+        Self {
+            tx: value.tx,
+            sender: value.sender,
+        }
+    }
+}
+
+impl TelosEVMBlock {
+    pub fn lib_evm_num(&self, chain_id: &ChainId) -> u32 {
+        self.lib_num.saturating_sub(chain_id.block_delta())
+    }
+
+    pub fn block_num_with_delta(&self, chain_id: &ChainId) -> u32 {
+        self.block_num + chain_id.block_delta()
+    }
+
+    pub fn is_final(&self, chain_id: &ChainId) -> bool {
+        self.block_num_with_delta(chain_id) <= self.lib_num
+    }
+
+    pub fn is_lib(&self, chain_id: &ChainId) -> bool {
+        self.block_num_with_delta(chain_id) == self.lib_num
+    }
+}
+
+pub fn decode_raw_action_values(encoded: &[u8], use_legacy_raw_action: bool) -> RawActionValues {
+    match use_legacy_raw_action {
+        true => decode::<LegacyRawAction>(encoded).into(),
+        false => decode::<RawAction>(encoded).into(),
+    }
 }
 
 pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
@@ -130,6 +180,7 @@ impl ProcessingEVMBlock {
         lib_num: u32,
         lib_hash: Checksum256,
         result: GetBlocksResultV0,
+        use_legacy_raw_action: bool,
     ) -> Self {
         Self {
             block_num,
@@ -138,6 +189,7 @@ impl ProcessingEVMBlock {
             lib_hash,
             chain_id,
             result,
+            use_legacy_raw_action,
             signed_block: None,
             block_traces: None,
             contract_rows: None,
@@ -232,13 +284,17 @@ impl ProcessingEVMBlock {
             self.new_gas_price = Some((self.transactions.len() as u64, gas_price));
         } else if action_account == EOSIO_EVM && action_name == RAW {
             // Normally signed EVM transaction
-            let raw: RawAction = decode(&action.data());
-            let printed_receipt = PrintedReceipt::from_console(action.console());
+            let raw: RawActionValues =
+                decode_raw_action_values(&action.data(), self.use_legacy_raw_action);
+            let mut printed_receipt = PrintedReceipt::from_console(action.console());
             if printed_receipt.is_none() {
-                panic!(
-                    "No printed receipt found for raw action in block: {}",
-                    self.block_num
-                );
+                if !self.use_legacy_raw_action {
+                    panic!(
+                        "No printed receipt found for raw action in block: {}",
+                        self.block_num
+                    );
+                }
+                printed_receipt = Some(PrintedReceipt::default());
             }
             let transaction_result = TelosEVMTransaction::from_raw_action(
                 self.chain_id,

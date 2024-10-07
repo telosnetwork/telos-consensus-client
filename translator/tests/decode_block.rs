@@ -24,6 +24,7 @@ fn decode_block() {
                     b.block_num,
                     Checksum256::default(),
                     r.clone(),
+                    false,
                 );
                 block.deserialize();
             } else {
