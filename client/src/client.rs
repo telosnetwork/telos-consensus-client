@@ -282,7 +282,21 @@ impl ConsensusClient {
             .rpc_batch(rpc_batch)
             .await
             .map_err(|e| Error::NewPayloadV1(e.to_string()))?;
-        // TODO: check for VALID status on new_payloadv1_result, and handle the failure case
+
+        let error_response: Vec<String> = new_payloadv1_result
+            .clone()
+            .into_iter()
+            .filter_map(|response| response.error.map(|err| err.message))
+            .collect();
+
+        if !error_response.is_empty() {
+            debug!(
+                "Error sending NewPayloadV1.Result: {:?}",
+                new_payloadv1_result
+            );
+            return Err(Error::NewPayloadV1(error_response.join("\n")));
+        }
+
         debug!("NewPayloadV1 result: {:?}", new_payloadv1_result);
 
         let last_block_sent = batch.last().unwrap();
