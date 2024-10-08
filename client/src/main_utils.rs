@@ -34,20 +34,23 @@ pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Er
     let translator_handle = tokio::spawn(translator.launch(Some(block_sender)));
 
     // Run the client and handle the result
-    if let Ok(Err(error)) = client_handle.await {
-        warn!("Consensus client run failed! Error: {error:?}");
+    match client_handle.await.map_err(From::from) {
+        Ok(Err(error)) | Err(error) => {
+            warn!("Consensus client run failed! Error: {error:?}");
 
-        if let Err(error) = translator_shutdown.shutdown().await {
-            warn!("Cannot send shutdown signal! Error: {error:?}");
-            return Err(TranslatorShutdown(error.to_string()));
-        }
+            if let Err(error) = translator_shutdown.shutdown().await {
+                warn!("Cannot send shutdown signal! Error: {error:?}");
+                return Err(TranslatorShutdown(error.to_string()));
+            }
 
-        if let Err(error) = translator_handle.await {
-            warn!("Cannot stop translator! Error: {error:?}");
-            return Err(TranslatorShutdown(error.to_string()));
+            if let Err(error) = translator_handle.await {
+                warn!("Cannot stop translator! Error: {error:?}");
+                return Err(TranslatorShutdown(error.to_string()));
+            }
+            warn!("Retrying...");
+            return Err(error);
         }
-        warn!("Retrying...");
-        return Err(error);
+        _ => (),
     }
 
     info!("Reached stop block/signal, consensus client run finished!");
