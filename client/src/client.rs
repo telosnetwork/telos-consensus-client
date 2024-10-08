@@ -11,6 +11,7 @@ use reth_rpc_types::Block;
 use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
 use tokio::sync::mpsc;
+use tokio::task::JoinError;
 use tracing::{debug, error, info};
 
 #[derive(Debug, thiserror::Error)]
@@ -40,6 +41,8 @@ pub enum Error {
     TranslatorShutdown(String),
     #[error("Call to execution API failed: {0}")]
     ExecutionApiError(#[from] ExecutionApiError),
+    #[error("Failed to run consensus client: {0}")]
+    ConsensusClientRun(#[from] JoinError),
 }
 
 const SAFE_HASH_LOOKUP: u32 = 50;
@@ -115,8 +118,8 @@ impl ConsensusClient {
 
     pub fn is_in_check_range(&self, block: u64) -> bool {
         match (
-            self.latest_finalized_executor_block.as_ref(),
-            self.latest_executor_block.as_ref(),
+            &self.latest_finalized_executor_block,
+            &self.latest_executor_block,
         ) {
             (None, None) => false,
             (None, Some(latest)) => block < latest.header.number,
@@ -143,6 +146,7 @@ impl ConsensusClient {
         let chain_id = &self.config.chain_id;
         let mut lib: data::Block = self.db.get_lib()?.unwrap_or_default();
         let mut last_lib_hash: Option<B256> = None;
+
         loop {
             let message = tokio::select! {
                 message = rx.recv() => message,
