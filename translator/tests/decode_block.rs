@@ -21,6 +21,7 @@ fn decode_block() {
                     1,
                     b.block_num,
                     Checksum256::default(),
+                    None,
                     b.block_num,
                     Checksum256::default(),
                     r.clone(),

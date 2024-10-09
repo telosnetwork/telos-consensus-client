@@ -1,4 +1,5 @@
 use crate::block::{DecodedRow, TelosEVMBlock, WalletEvents};
+use crate::types::translator_types::ChainId;
 use crate::{
     block::ProcessingEVMBlock, translator::TranslatorConfig,
     types::translator_types::NameToAddressCache,
@@ -8,12 +9,64 @@ use alloy_rlp::Encodable;
 use antelope::api::client::{APIClient, DefaultProvider};
 use eyre::{eyre, Context, Result};
 use hex::encode;
+use reth_primitives::B256;
 use reth_telos_rpc_engine_api::structs::{
     TelosAccountStateTableRow, TelosAccountTableRow, TelosEngineAPIExtraFields,
 };
+use std::collections::HashMap;
 use std::str::FromStr;
 use tokio::{sync::mpsc, time::Instant};
 use tracing::{debug, error, info};
+
+struct BlockMap {
+    parent_hash: B256,
+    prev_block_num: Option<u32>,
+    map: HashMap<String, (u32, B256)>,
+}
+
+impl BlockMap {
+    fn new(parent_hash: B256) -> Self {
+        Self {
+            parent_hash,
+            prev_block_num: None,
+            map: HashMap::new(),
+        }
+    }
+
+    fn parent_hash(&self, block: &ProcessingEVMBlock) -> Option<B256> {
+        let Some(prev_block_num) = self.prev_block_num else {
+            return Some(self.parent_hash);
+        };
+
+        let block_num = block.block_num;
+        if block_num == prev_block_num + 1 {
+            return Some(self.parent_hash);
+        }
+
+        debug!("Fork detected for block_num: {block_num}, prev_block_num = {prev_block_num}");
+        block
+            .prev_block_hash
+            .map(|hash| hash.as_string())
+            .as_ref()
+            .and_then(|hash| self.map.get(hash).cloned())
+            .map(|(_, hash)| hash)
+    }
+
+    fn next(&mut self, block: &TelosEVMBlock, chain_id: &ChainId) {
+        let block_num = block.block_num_with_delta(chain_id);
+
+        self.prev_block_num = Some(block_num);
+        self.map
+            .insert(block.ship_hash.clone(), (block_num, block.block_hash));
+        self.parent_hash = block.block_hash;
+        let size_before = self.map.len();
+        self.map.retain(|_, &mut (num, _)| num >= block.lib_num);
+        debug!(
+            "Removed {} final blocks from the map",
+            size_before - self.map.len()
+        );
+    }
+}
 
 pub async fn final_processor(
     config: TranslatorConfig,
@@ -27,7 +80,7 @@ pub async fn final_processor(
     let mut unlogged_transactions = 0;
     let block_delta = config.chain_id.block_delta();
 
-    let mut parent_hash = FixedBytes::from_str(&config.prev_hash)
+    let config_parent_hash = FixedBytes::from_str(&config.prev_hash)
         .wrap_err("Prev hash config is not a valid 32 byte hex string")?;
 
     let validate_hash = match config.validate_hash {
@@ -46,11 +99,18 @@ pub async fn final_processor(
         .map(|n| n + block_delta)
         .unwrap_or(u32::MAX);
 
+    let mut block_map = BlockMap::new(config_parent_hash);
+
     while let Some(mut block) = rx.recv().await {
-        if &block.block_num > stop_block {
+        let block_num = block.block_num;
+        if &block_num > stop_block {
             break;
         }
-        debug!("Finalizing block #{}", block.block_num);
+        debug!("Finalizing block #{block_num}");
+
+        let parent_hash = block_map
+            .parent_hash(&block)
+            .expect("Block parent hash can be found");
 
         let (header, exec_payload) = block
             .generate_evm_data(parent_hash, block_delta, &native_to_evm_cache)
@@ -96,7 +156,6 @@ pub async fn final_processor(
             unlogged_transactions = 0;
             last_log = Instant::now();
         }
-        // TODO: Fork handling, hashing, all the things...
 
         let evm_block_num = header.number as u32;
 
@@ -163,8 +222,9 @@ pub async fn final_processor(
         let completed_block = TelosEVMBlock {
             block_num: evm_block_num,
             block_hash,
+            ship_hash: block.block_hash.as_string(),
             lib_num: block.lib_num,
-            lib_hash: FixedBytes::from_slice(&block.lib_hash.data),
+            lib_hash: block.lib_hash.as_string(),
             transactions: block.transactions,
             header,
             execution_payload: exec_payload,
@@ -179,6 +239,8 @@ pub async fn final_processor(
             },
         };
 
+        block_map.next(&completed_block, &config.chain_id);
+
         let block_num = block.block_num;
         if let Some(tx) = tx.clone() {
             if let Err(error) = tx.send(completed_block).await {
@@ -186,7 +248,7 @@ pub async fn final_processor(
                 break;
             }
         }
-        parent_hash = block_hash;
+
         if &block_num == stop_block {
             debug!("Processed stop block #{block_num}, exiting...");
             shutdown_tx

@@ -11,7 +11,8 @@ use reth_rpc_types::Block;
 use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
 use tokio::sync::mpsc;
-use tracing::{debug, error};
+use tokio::task::JoinError;
+use tracing::{debug, error, info};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -38,7 +39,13 @@ pub enum Error {
     RangeAboveMaximum(u32),
     #[error("Cannot shutdown translator: {0}")]
     TranslatorShutdown(String),
+    #[error("Call to execution API failed: {0}")]
+    ExecutionApiError(#[from] ExecutionApiError),
+    #[error("Failed to run consensus client: {0}")]
+    ConsensusClientRun(#[from] JoinError),
 }
+
+const SAFE_HASH_LOOKUP: u32 = 50;
 
 pub struct Shutdown(mpsc::Sender<()>);
 impl Shutdown {
@@ -52,7 +59,8 @@ pub struct ConsensusClient {
     pub config: AppConfig,
     execution_api: ExecutionApiClient,
     //latest_consensus_block: ExecutionPayloadV1,
-    pub latest_valid_executor_block: Option<Block>,
+    pub latest_executor_block: Option<Block>,
+    pub latest_finalized_executor_block: Option<Block>,
     //is_forked: bool,
     pub db: Database,
     shutdown_tx: mpsc::Sender<()>,
@@ -70,7 +78,11 @@ impl ConsensusClient {
             false => Database::open(&config.data_path)?,
             true => Database::init(&config.data_path)?,
         };
-        let latest_valid_executor_block = execution_api
+        let latest_executor_block = execution_api
+            .get_latest_block()
+            .await
+            .wrap_err("Failed to get latest executor block")?;
+        let latest_finalized_executor_block = execution_api
             .get_latest_finalized_block()
             .await
             .wrap_err("Failed to get latest valid executor block")?;
@@ -78,7 +90,8 @@ impl ConsensusClient {
         Ok(Self {
             config,
             execution_api,
-            latest_valid_executor_block,
+            latest_executor_block,
+            latest_finalized_executor_block,
             db,
             shutdown_tx,
             shutdown_rx,
@@ -91,20 +104,34 @@ impl ConsensusClient {
     }
 
     fn latest_evm_block(&self) -> Option<(u32, String)> {
-        let latest = self.latest_valid_executor_block.as_ref()?;
+        let latest = self.latest_finalized_executor_block.as_ref()?;
         let (number, hash) = (latest.header.number, latest.header.hash);
         Some((number.as_u32(), hash.to_string()))
     }
 
-    pub fn is_in_start_stop_range(&self, num: u32) -> bool {
+    pub fn is_in_start_stop_range(&self, block: u32) -> bool {
         match (self.config.evm_start_block, self.config.evm_stop_block) {
-            (start_block, Some(stop_block)) => start_block <= num && num <= stop_block,
-            (start_block, None) => start_block <= num,
+            (start_block, Some(stop_block)) => start_block <= block && block <= stop_block,
+            (start_block, None) => start_block <= block,
+        }
+    }
+
+    pub fn is_in_check_range(&self, block: u64) -> bool {
+        match (
+            &self.latest_finalized_executor_block,
+            &self.latest_executor_block,
+        ) {
+            (None, None) => false,
+            (None, Some(latest)) => block < latest.header.number,
+            (Some(_), None) => unreachable!(),
+            (Some(valid), Some(latest)) => {
+                valid.header.number <= block && block <= latest.header.number
+            }
         }
     }
 
     pub fn latest_evm_number(&self) -> Option<u32> {
-        self.latest_valid_executor_block
+        self.latest_finalized_executor_block
             .as_ref()
             .map(|block| block.header.number.as_u32())
     }
@@ -116,7 +143,10 @@ impl ConsensusClient {
 
     pub async fn run(mut self, mut rx: mpsc::Receiver<TelosEVMBlock>) -> Result<(), Error> {
         let mut batch = vec![];
-        let mut lib: Option<data::Block> = self.db.get_lib()?;
+        let chain_id = &self.config.chain_id;
+        let mut lib: data::Block = self.db.get_lib()?.unwrap_or_default();
+        let mut last_lib_hash: Option<B256> = None;
+
         loop {
             let message = tokio::select! {
                 message = rx.recv() => message,
@@ -130,63 +160,108 @@ impl ConsensusClient {
                 break;
             };
 
-            let block_num = block.block_num.as_u64();
-            let block_hash = block.block_hash;
-            let lib_num = block.lib_num;
+            let block_num = block.block_num;
 
-            if block_num % self.config.block_checkpoint_interval.as_u64() != 0 {
-                self.db.put_block(From::from(&block))?;
-                debug!("Block {} put in the database", block.block_num);
-            }
+            self.db.put_block(From::from(&block))?;
+            debug!("Block {block_num} put in the database");
 
-            if block_num % self.config.block_checkpoint_interval.as_u64() == 0 {
-                self.db.put_block(From::from(&block))?;
-                debug!("Block {} put in the database", block.block_num);
-            }
+            let latest_start = block_num.saturating_sub(self.config.latest_blocks_in_db_num);
 
-            let latest_start: u32 = block_num
-                .saturating_sub(self.config.latest_blocks_in_db_num.into())
-                .as_u32();
-
+            // Keep latest blocks and every nth block
             if latest_start > 0 && latest_start % self.config.block_checkpoint_interval != 0 {
                 self.db.delete_block(latest_start)?;
-                debug!("Block {} delete from the database", latest_start);
+                debug!("Block {latest_start} deleted from the database");
             }
 
-            if lib.as_ref().map(|lib| lib.number < lib_num).unwrap_or(true) {
-                lib = Some(From::from(Lib(&block)));
-                self.db.put_lib(From::from(Lib(&block)))?;
-                debug!("LIB {} put in the database", block.lib_num);
+            // NOTE: Case when new lib < current one is not supported
+            let is_new_lib = lib.number != block.lib_num;
+
+            if is_new_lib {
+                let new_lib = Lib(&block);
+                self.db.put_lib(Lib(&block).into())?;
+                info!("LIB {new_lib:?} put in the database");
+                lib = new_lib.into();
             }
 
-            if let Some((latest_num, latest_hash)) = &self.latest_evm_block() {
+            if let Some((latest_evm_num, latest_evm_hash)) = self.latest_evm_block() {
                 // Check fork
-                if block_num == latest_num.as_u64() && &block_hash.to_string() != latest_hash {
-                    error!("Fork detected! Latest executor block hash {latest_num:?} does not match consensus block hash {block_num:?}" );
+                if block_num == latest_evm_num && block.block_hash.to_string() != latest_evm_hash {
+                    error!("Fork detected! Latest executor block hash {latest_evm_num:?} does not match consensus block hash {block_num:?}");
                     return Err(Error::ExecutorHashMismatch);
                 }
 
                 // Skip synced blocks
-                if block_num <= latest_num.as_u64() {
-                    debug!("Block {block_num} skipped as its behind {latest_num} evm block");
+                if block_num <= latest_evm_num {
+                    debug!("Block {block_num} skipped as its behind {latest_evm_num} evm block");
                     continue;
                 }
             }
 
-            // TODO: Check if we are caught up, if so do not batch anything
+            let block_hash = block.block_hash;
+
+            if self.is_in_check_range(block_num.as_u64()) {
+                debug!("Checking if block {block_num} exists...");
+                let evm_block = self
+                    .execution_api
+                    .get_block_by_number(block_num.into())
+                    .await?;
+
+                if let Some(evm_block) = evm_block {
+                    if evm_block.header.hash != block_hash {
+                        return Err(Error::ExecutorHashMismatch);
+                    }
+                    continue;
+                }
+            }
+
+            let block_is_final = block.is_final(chain_id);
+            let block_is_lib = block.is_lib(chain_id);
+            let lib_evm_num = block.lib_evm_num(chain_id);
 
             batch.push(block);
-            if batch.len() >= self.config.batch_size {
-                self.send_batch(&batch).await?;
-                batch = vec![];
-            }
+
+            // if LIB is less or equal than current block batch size is 1 or more blocks
+            // if LIB is greater than current block send in batches
+            let flush = !block_is_final || block_is_lib || batch.len() == self.config.batch_size;
+
+            if !flush {
+                continue;
+            };
+
+            let safe_hash = self
+                .db
+                .get_block_or_prev(block_num.saturating_sub(SAFE_HASH_LOOKUP))?
+                .map(|block| block.hash.parse().unwrap())
+                .unwrap_or(block_hash);
+
+            let finalized_hash = if block_is_final {
+                debug!("Synced to head, LIB < current block");
+                Some(block_hash)
+            } else if is_new_lib {
+                // if lib hash has been changed we should send finalized hash for fork choice update
+                debug!("New LIB is detected");
+                self.db
+                    .get_block_or_prev(lib_evm_num)?
+                    .map(|block| block.hash.parse().unwrap())
+            } else {
+                debug!("Synced to head, LIB is unchanged");
+                last_lib_hash
+            };
+            last_lib_hash = finalized_hash;
+            debug!("Send batch finalized hash: {last_lib_hash:?}",);
+            self.send_batch(&batch, last_lib_hash, safe_hash).await?;
+            batch.clear();
         }
 
-        // launch_handle.await.map_err(|_| Error::SpawnTranslator)?
         Ok(())
     }
 
-    async fn send_batch(&self, batch: &[TelosEVMBlock]) -> Result<(), Error> {
+    async fn send_batch(
+        &self,
+        batch: &[TelosEVMBlock],
+        finalized_hash: Option<B256>,
+        safe_hash: B256,
+    ) -> Result<(), Error> {
         let rpc_batch = batch
             .iter()
             .map(|block| {
@@ -207,56 +282,72 @@ impl ConsensusClient {
             .rpc_batch(rpc_batch)
             .await
             .map_err(|e| Error::NewPayloadV1(e.to_string()))?;
-        // TODO: check for VALID status on new_payloadv1_result, and handle the failure case
+
+        let error_response: Vec<String> = new_payloadv1_result
+            .clone()
+            .into_iter()
+            .filter_map(|response| response.error.map(|err| err.message))
+            .collect();
+
+        if !error_response.is_empty() {
+            debug!(
+                "Error sending NewPayloadV1.Result: {:?}",
+                new_payloadv1_result
+            );
+            return Err(Error::NewPayloadV1(error_response.join("\n")));
+        }
+
         debug!("NewPayloadV1 result: {:?}", new_payloadv1_result);
 
         let last_block_sent = batch.last().unwrap();
-        let fork_choice_updated_result = self
-            .fork_choice_updated(
-                last_block_sent.block_hash,
-                last_block_sent.block_hash,
-                last_block_sent.block_hash,
-            )
-            .await;
 
-        let fork_choice_updated = fork_choice_updated_result.map_err(|e| {
-            debug!("Fork choice update error: {}", e);
-            ForkChoiceUpdated(e.to_string())
-        })?;
+        if let Some(finalized_hash_value) = finalized_hash {
+            let fork_choice_updated_result = self
+                .fork_choice_updated(last_block_sent.block_hash, safe_hash, finalized_hash_value)
+                .await;
 
-        if let Some(error) = fork_choice_updated.error {
-            debug!("Fork choice error: {:?}", error);
-            return Err(ForkChoiceUpdated(error.message));
-        }
+            let fork_choice_updated = fork_choice_updated_result.map_err(|e| {
+                debug!("Fork choice update error: {}", e);
+                ForkChoiceUpdated(e.to_string())
+            })?;
 
-        let fork_choice_updated: ForkchoiceUpdated =
-            serde_json::from_value(fork_choice_updated.result).unwrap();
-        debug!("fork_choice_updated_result {:?}", fork_choice_updated);
+            if let Some(error) = fork_choice_updated.error {
+                debug!("Fork choice error: {:?}", error);
+                return Err(ForkChoiceUpdated(error.message));
+            }
 
-        // TODO check for all invalid statuses, possible values are:
-        // Valid, Invalid, Accepted, Syncing
-        if fork_choice_updated.is_invalid() || fork_choice_updated.is_syncing() {
+            let fork_choice_updated: ForkchoiceUpdated =
+                serde_json::from_value(fork_choice_updated.result).unwrap();
+            info!("fork_choice_updated_result {:?}", fork_choice_updated);
+
+            // Valid, Invalid, Accepted, Syncing
+            if fork_choice_updated.is_invalid() || fork_choice_updated.is_syncing() {
+                info!(
+                    "Fork choice update status is {} ",
+                    fork_choice_updated.payload_status.status
+                );
+                return Err(ForkChoiceUpdated(format!(
+                    "Invalid status {}",
+                    fork_choice_updated.payload_status.status
+                )));
+            }
+
             debug!(
-                "Fork choice update status is {} ",
-                fork_choice_updated.payload_status.status
+                "Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}",
+                last_block_sent.block_hash,
+                last_block_sent.header.parent_hash,
+                last_block_sent.block_num
             );
-            return Err(ForkChoiceUpdated(format!(
-                "Invalid status {}",
-                fork_choice_updated.payload_status.status
-            )));
+            info!(
+                "fork_choice_updated_result for block number {}: {:?}",
+                last_block_sent.block_num, fork_choice_updated
+            );
+        } else {
+            info!(
+                "Fork choice updated call skipped for block {}",
+                last_block_sent.block_num
+            );
         }
-
-        // TODO: Check status of fork_choice_updated_result and handle the failure case
-        debug!(
-            "Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}",
-            last_block_sent.block_hash,
-            last_block_sent.header.parent_hash,
-            last_block_sent.block_num
-        );
-        debug!(
-            "fork_choice_updated_result for block number {}: {:?}",
-            last_block_sent.block_num, fork_choice_updated
-        );
 
         Ok(())
     }

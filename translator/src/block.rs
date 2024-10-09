@@ -8,7 +8,7 @@ use crate::types::names::*;
 use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
-use crate::types::translator_types::NameToAddressCache;
+use crate::types::translator_types::{ChainId, NameToAddressCache};
 use alloy::primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Header, Transaction, TxEnvelope};
@@ -87,7 +87,8 @@ pub enum DecodedRow {
 #[derive(Clone)]
 pub struct ProcessingEVMBlock {
     pub block_num: u32,
-    block_hash: Checksum256,
+    pub block_hash: Checksum256,
+    pub prev_block_hash: Option<Checksum256>,
     chain_id: u64,
     result: GetBlocksResultV0,
     signed_block: Option<SignedBlock>,
@@ -108,12 +109,31 @@ pub struct ProcessingEVMBlock {
 pub struct TelosEVMBlock {
     pub block_num: u32,
     pub block_hash: B256,
+    pub ship_hash: String,
     pub lib_num: u32,
-    pub lib_hash: B256,
+    pub lib_hash: String,
     pub header: Header,
     pub transactions: Vec<(TelosEVMTransaction, ReceiptWithBloom)>,
     pub execution_payload: ExecutionPayloadV1,
     pub extra_fields: TelosEngineAPIExtraFields,
+}
+
+impl TelosEVMBlock {
+    pub fn lib_evm_num(&self, chain_id: &ChainId) -> u32 {
+        self.lib_num.saturating_sub(chain_id.block_delta())
+    }
+
+    pub fn block_num_with_delta(&self, chain_id: &ChainId) -> u32 {
+        self.block_num + chain_id.block_delta()
+    }
+
+    pub fn is_final(&self, chain_id: &ChainId) -> bool {
+        self.block_num_with_delta(chain_id) <= self.lib_num
+    }
+
+    pub fn is_lib(&self, chain_id: &ChainId) -> bool {
+        self.block_num_with_delta(chain_id) == self.lib_num
+    }
 }
 
 pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
@@ -127,6 +147,7 @@ impl ProcessingEVMBlock {
         chain_id: u64,
         block_num: u32,
         block_hash: Checksum256,
+        prev_block_hash: Option<Checksum256>,
         lib_num: u32,
         lib_hash: Checksum256,
         result: GetBlocksResultV0,
@@ -134,6 +155,7 @@ impl ProcessingEVMBlock {
         Self {
             block_num,
             block_hash,
+            prev_block_hash,
             lib_num,
             lib_hash,
             chain_id,

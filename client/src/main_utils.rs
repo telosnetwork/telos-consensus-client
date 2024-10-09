@@ -13,37 +13,53 @@ use tracing::{info, warn};
 pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Error> {
     let client = build_consensus_client(&args, config).await?;
     let client_shutdown = client.shutdown_handle();
+
     let translator = Translator::new((&client.config).into());
+    let translator_shutdown = translator.shutdown_handle();
+
+    info!(
+        latest_finalized_executor_block = ?client.latest_finalized_executor_block,
+        latest_executor_block = ?client.latest_executor_block,
+        "Telos consensus client starting, awaiting result..."
+    );
 
     let (block_sender, block_receiver) = mpsc::channel::<TelosEVMBlock>(1000);
 
-    info!("Telos consensus client starting, awaiting result...");
     let client_handle = tokio::spawn(client.run(block_receiver));
-
-    let translator_shutdown = translator.shutdown_handle();
 
     info!(
         evm_start_block = translator.config.evm_start_block,
         evm_stop_block = ?translator.config.evm_stop_block,
         "Telos translator client launching, awaiting result...",
     );
-    let translator_handle = tokio::spawn(translator.launch(Some(block_sender)));
 
-    // Run the client and handle the result
-    if let Ok(Err(error)) = client_handle.await {
-        warn!("Consensus client run failed! Error: {error:?}");
+    let mut translator_handle = Box::pin(tokio::spawn(translator.launch(Some(block_sender))));
 
-        if let Err(error) = translator_shutdown.shutdown().await {
-            warn!("Cannot send shutdown signal! Error: {error:?}");
-            return Err(TranslatorShutdown(error.to_string()));
+    tokio::select! {
+        result = client_handle => {
+            if let Err(error) = result.map_err(From::from).and_then(|inner| inner) {
+                warn!("Consensus client run failed! Error: {error:?}");
+
+                if let Err(error) = translator_shutdown.shutdown().await {
+                    warn!("Cannot send shutdown signal! Error: {error:?}");
+                }
+
+                if let Err(error) = translator_handle.as_mut().await {
+                    warn!("Cannot stop translator! Error: {error:?}");
+                }
+
+                warn!("Retrying...");
+                return Err(error);
+            }
+        },
+        result = translator_handle.as_mut() => {
+            if let Err(error) = result.map_err(From::from).and_then(|inner| inner) {
+                warn!("Translator run failed! Error: {error:?}");
+
+                warn!("Retrying...");
+                return Err(TranslatorShutdown(error.to_string()));
+            }
         }
-
-        if let Err(error) = translator_handle.await {
-            warn!("Cannot stop translator! Error: {error:?}");
-            return Err(TranslatorShutdown(error.to_string()));
-        }
-        warn!("Retrying...");
-        return Err(error);
     }
 
     info!("Reached stop block/signal, consensus client run finished!");

@@ -72,7 +72,7 @@ pub async fn raw_deserializer(
                         .unwrap_or(u32::MAX),
                     max_messages_in_flight: 10000,
                     have_positions: vec![],
-                    irreversible_only: true, // TODO: Fork handling
+                    irreversible_only: false, // TODO: Fork handling
                     fetch_block: true,
                     fetch_traces: true,
                     fetch_deltas: true,
@@ -87,6 +87,7 @@ pub async fn raw_deserializer(
                         config.chain_id.0,
                         b.block_num,
                         b.block_id,
+                        r.prev_block.as_ref().map(|b| b.block_id),
                         r.last_irreversible.block_num,
                         r.last_irreversible.block_id,
                         r.clone(),
