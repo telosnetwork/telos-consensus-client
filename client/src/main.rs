@@ -10,7 +10,7 @@ use telos_consensus_client::{
     main_utils::{parse_log_level, run_client},
 };
 use tokio_retry::{strategy::FixedInterval, Retry};
-use tracing::info;
+use tracing::{error, info};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -29,9 +29,12 @@ async fn main() -> Result<()> {
     let max_retries = config.max_retry.unwrap_or(8u8).as_usize();
     let retry_strategy = FixedInterval::from_millis(retry_interval).take(max_retries);
 
-    Retry::spawn(retry_strategy, || run_client(args.clone(), config.clone()))
-        .await
-        .wrap_err("Stopping consensus client, run failed!")?;
+    if let Err(error) =
+        Retry::spawn(retry_strategy, || run_client(args.clone(), config.clone())).await
+    {
+        error!("Stopping consensus client, run failed!");
+        return Err(error).wrap_err("Stopping consensus client, run failed!");
+    }
 
     info!("Consensus client Finished!");
     Ok(())
