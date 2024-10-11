@@ -273,7 +273,10 @@ impl ProcessingEVMBlock {
             .await;
 
             return match transaction_result {
-                Ok(transaction) => Ok(self.add_transaction(transaction)),
+                Ok(transaction) => {
+                    self.add_transaction(transaction);
+                    Ok(())
+                }
                 Err(e) => {
                     return Err(eyre!("Error transforming from raw action. Error: {}", e));
                 }

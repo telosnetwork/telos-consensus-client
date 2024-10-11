@@ -79,7 +79,7 @@ impl NameToAddressCache {
                 }
 
                 error!("Could not get account after {i} attempts for {address}");
-                Err(eyre!("Can not get account retries for {address}").into())
+                Err(eyre!("Can not get account retries for {address}"))
             }
         }
     }
@@ -119,7 +119,7 @@ impl NameToAddressCache {
                     i += 1;
                 }
                 error!("Could not get account after {i} attempts for index {index}");
-                Err(eyre!("Can not get account retries for index {index}").into())
+                Err(eyre!("Can not get account retries for index {index}"))
             }
         }
     }
