@@ -114,7 +114,7 @@ pub async fn final_processor(
 
         let (header, exec_payload) = block
             .generate_evm_data(parent_hash, block_delta, &native_to_evm_cache)
-            .await;
+            .await?;
 
         let block_hash = exec_payload.block_hash;
 
@@ -151,7 +151,7 @@ pub async fn final_processor(
                 blocks_sec,
                 trx_sec
             );
-            //info!("Block map is {} long", block_map.len());
+
             unlogged_blocks = 0;
             unlogged_transactions = 0;
             last_log = Instant::now();
@@ -177,7 +177,7 @@ pub async fn final_processor(
                 DecodedRow::AccountState(removed, acc_state_diff, scope) => {
                     statediffs_accountstate.push(TelosAccountStateTableRow {
                         removed,
-                        address: native_to_evm_cache.get_index(scope.n).await.unwrap(),
+                        address: native_to_evm_cache.get_index(scope.n).await?,
                         key: U256::from_be_slice(&acc_state_diff.key.data),
                         value: U256::from_be_slice(&acc_state_diff.value.data),
                     });
@@ -197,8 +197,7 @@ pub async fn final_processor(
                         U256::from_be_slice(
                             native_to_evm_cache
                                 .get(create_action.account.value())
-                                .await
-                                .unwrap()
+                                .await?
                                 .as_slice(),
                         ),
                     )),

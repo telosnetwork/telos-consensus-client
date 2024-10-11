@@ -107,15 +107,12 @@ impl TelosEVMTransaction {
         block_hash: Checksum256,
         action: TransferAction,
         native_to_evm_cache: &NameToAddressCache,
-    ) -> Self {
+    ) -> eyre::Result<Self> {
         let address: Address =
             if action.memo.len() == ADDRESS_HEX_SIZE && action.memo.starts_with("0x") {
-                action.memo.parse().unwrap()
+                action.memo.parse()?
             } else {
-                native_to_evm_cache
-                    .get(action.from.n)
-                    .await
-                    .expect("Failed to get address")
+                native_to_evm_cache.get(action.from.n).await?
             };
 
         let value = U256::from(action.quantity.amount()) * U256::from(100_000_000_000_000i64);
@@ -135,7 +132,7 @@ impl TelosEVMTransaction {
         let mut raw: Vec<u8> = vec![];
         tx_legacy.encode_with_signature_fields(&sig, &mut raw);
         let envelope = TxEnvelope::Legacy(signed_legacy);
-        TelosEVMTransaction {
+        Ok(TelosEVMTransaction {
             envelope,
             receipt: PrintedReceipt {
                 charged_gas: "".to_string(),
@@ -149,7 +146,7 @@ impl TelosEVMTransaction {
                 output: "".to_string(),
                 errors: None,
             },
-        }
+        })
     }
 
     pub async fn from_withdraw_no_cache(
@@ -196,15 +193,15 @@ impl TelosEVMTransaction {
         block_hash: Checksum256,
         action: WithdrawAction,
         native_to_evm_cache: &NameToAddressCache,
-    ) -> Self {
-        let address = native_to_evm_cache
-            .get(action.to.n)
-            .await
-            .expect("Failed to get address");
-        TelosEVMTransaction::from_withdraw_no_cache(
+    ) -> eyre::Result<Self> {
+        let address = native_to_evm_cache.get(action.to.n).await?;
+
+        let telos_evm_transactions = TelosEVMTransaction::from_withdraw_no_cache(
             chain_id, trx_index, block_hash, action, address,
         )
-        .await
+        .await;
+
+        Ok(telos_evm_transactions)
     }
 
     pub fn hash(&self) -> &B256 {

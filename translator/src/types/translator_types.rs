@@ -41,85 +41,87 @@ impl NameToAddressCache {
         }
     }
 
-    pub async fn get(&self, name: u64) -> Option<Address> {
+    pub async fn get(&self, name: u64) -> eyre::Result<Address> {
         let evm_contract = Name::from_u64(EOSIO_EVM);
         let address = Name::from_u64(name).as_string();
         let cached = self.cache.get(&name);
 
         debug!("getting {address} cache hit = {:?}", cached.is_some());
 
-        if cached.is_some() {
-            return cached;
-        }
+        match cached {
+            Some(cached_address) => Ok(cached_address),
+            None => {
+                let mut i = 0u8;
+                while i <= MAX_RETRY {
+                    info!("Fetching address {address} try {i}");
+                    let account_result: eyre::Result<GetTableRowsResponse<AccountRow>> = self
+                        .get_account_address(name, evm_contract, IndexPosition::TERTIARY)
+                        .await;
 
-        let mut i = 0u8;
-        while i <= MAX_RETRY {
-            info!("Fetching address {address} try {i}");
-            let account_result: eyre::Result<GetTableRowsResponse<AccountRow>> = self
-                .get_account_address(name, evm_contract, IndexPosition::TERTIARY)
-                .await;
-
-            match account_result {
-                Ok(account_result) => {
-                    if let Some(account_row) = account_result.rows.first() {
-                        let address = Address::from(account_row.address.data);
-                        self.cache.insert(name, address);
-                        self.index_cache.insert(account_row.index, address);
-                        return Some(address);
-                    } else {
-                        warn!("Got empty rows for {address}, retry attempt {i}");
+                    match account_result {
+                        Ok(account_result) => {
+                            if let Some(account_row) = account_result.rows.first() {
+                                let address = Address::from(account_row.address.data);
+                                self.cache.insert(name, address);
+                                self.index_cache.insert(account_row.index, address);
+                                return Ok(address);
+                            } else {
+                                warn!("Got empty rows for {address}, retry attempt {i}");
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Error {e} fetching {address}, retry attempt {i}");
+                        }
                     }
+
+                    sleep(BASE_DELAY * 2u32.pow(i as u32)).await;
+                    i += 1;
                 }
-                Err(e) => {
-                    warn!("Error {e} fetching {address}, retry attempt {i}");
-                }
+
+                error!("Could not get account after {i} attempts for {address}");
+                Err(eyre!("Can not get account retries for {address}").into())
             }
-
-            sleep(BASE_DELAY * 2u32.pow(i as u32)).await;
-            i += 1;
         }
-
-        error!("Could not get account after {i} attempts for {address}");
-        None
     }
 
-    pub async fn get_index(&self, index: u64) -> Option<Address> {
+    pub async fn get_index(&self, index: u64) -> eyre::Result<Address> {
         let evm_contract = Name::from_u64(EOSIO_EVM);
         let cached = self.index_cache.get(&index);
         debug!("getting index {index} cache hit = {:?}", cached.is_some());
 
-        if cached.is_some() {
-            return cached;
-        }
+        match cached {
+            Some(cached_address) => Ok(cached_address),
+            None => {
+                let mut i = 0u8;
+                while i <= MAX_RETRY {
+                    info!("Fetching index {index} try {i}");
+                    let account_result: eyre::Result<GetTableRowsResponse<AccountRow>> = self
+                        .get_account_address(index, evm_contract, IndexPosition::PRIMARY)
+                        .await;
 
-        let mut i = 0u8;
-        while i <= MAX_RETRY {
-            info!("Fetching index {index} try {i}");
-            let account_result: eyre::Result<GetTableRowsResponse<AccountRow>> = self
-                .get_account_address(index, evm_contract, IndexPosition::PRIMARY)
-                .await;
-
-            match account_result {
-                Ok(account_result) => {
-                    if let Some(account_row) = account_result.rows.first() {
-                        let address = Address::from(account_row.address.data);
-                        self.cache.insert(index, address);
-                        self.index_cache.insert(account_row.index, address);
-                        return Some(address);
-                    } else {
-                        warn!("Got empty rows for index {index}, retry attempt {i}");
+                    match account_result {
+                        Ok(account_result) => {
+                            if let Some(account_row) = account_result.rows.first() {
+                                let address = Address::from(account_row.address.data);
+                                self.cache.insert(index, address);
+                                self.index_cache.insert(account_row.index, address);
+                                return Ok(address);
+                            } else {
+                                warn!("Got empty rows for index {index}, retry attempt {i}");
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Error {e} fetching index {index}, retry attempt {i}");
+                        }
                     }
-                }
-                Err(e) => {
-                    warn!("Error {e} fetching index {index}, retry attempt {i}");
-                }
-            }
 
-            sleep(BASE_DELAY * 2u32.pow(i as u32)).await;
-            i += 1;
+                    sleep(BASE_DELAY * 2u32.pow(i as u32)).await;
+                    i += 1;
+                }
+                error!("Could not get account after {i} attempts for index {index}");
+                Err(eyre!("Can not get account retries for index {index}").into())
+            }
         }
-        error!("Could not get account after {i} attempts for index {index}");
-        None
     }
 
     pub async fn get_account_address(

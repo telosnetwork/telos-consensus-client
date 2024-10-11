@@ -98,22 +98,27 @@ async fn genesis_mainnet() {
 
     block.deserialize();
 
-    let (header, payload) = block
+    if let Ok((header, payload)) = block
         .generate_evm_data(
             zero_bytes,
             evm_chain_id_mainnet.block_delta(),
             &native_to_evm_cache,
         )
-        .await;
+        .await
+    {
+        println!("genesis: {:#?}", header);
+        println!("hash: {:#?}", payload.block_hash);
 
-    println!("genesis: {:#?}", header);
-    println!("hash: {:#?}", payload.block_hash);
-
-    assert_eq!(
-        payload.block_hash,
-        FixedBytes::from_hex("36fe7024b760365e3970b7b403e161811c1e626edd68460272fcdfa276272563")
+        assert_eq!(
+            payload.block_hash,
+            FixedBytes::from_hex(
+                "36fe7024b760365e3970b7b403e161811c1e626edd68460272fcdfa276272563"
+            )
             .unwrap()
-    );
+        );
+    } else {
+        panic!("Failed to generate evm data");
+    }
 }
 
 #[tokio::test]
@@ -136,19 +141,22 @@ async fn deploy_mainnet() {
 
     block.deserialize();
 
-    let (header, payload) = block
+    if let Ok((header, payload)) = block
         .generate_evm_data(
             parent_hash,
             evm_chain_id_mainnet.block_delta(),
             &native_to_evm_cache,
         )
-        .await;
+        .await
+    {
+        println!("genesis: {:#?}", header);
+        println!("hash: {:#?}", payload.block_hash);
 
-    println!("genesis: {:#?}", header);
-    println!("hash: {:#?}", payload.block_hash);
-
-    assert_eq!(
-        payload.block_hash,
-        FixedBytes::from_hex(MAINNET_DEPLOY_CONFIG.validate_hash.clone().unwrap()).unwrap()
-    );
+        assert_eq!(
+            payload.block_hash,
+            FixedBytes::from_hex(MAINNET_DEPLOY_CONFIG.validate_hash.clone().unwrap()).unwrap()
+        );
+    } else {
+        panic!("Failed to generate evm data");
+    }
 }
