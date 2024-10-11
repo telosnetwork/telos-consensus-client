@@ -17,6 +17,7 @@ use alloy_rlp::Encodable;
 use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::serializer::Packer;
+use eyre::eyre;
 use reth_primitives::ReceiptWithBloom;
 use reth_rpc_types::ExecutionPayloadV1;
 use reth_telos_rpc_engine_api::structs::TelosEngineAPIExtraFields;
@@ -239,7 +240,7 @@ impl ProcessingEVMBlock {
         &mut self,
         action: Box<dyn BasicTrace + Send>,
         native_to_evm_cache: &NameToAddressCache,
-    ) {
+    ) -> eyre::Result<()> {
         let action_name = action.action_name();
         let action_account = action.action_account();
         let action_receiver = action.receiver();
@@ -271,12 +272,12 @@ impl ProcessingEVMBlock {
             )
             .await;
 
-            match transaction_result {
-                Ok(transaction) => self.add_transaction(transaction),
+            return match transaction_result {
+                Ok(transaction) => Ok(self.add_transaction(transaction)),
                 Err(e) => {
-                    panic!("Error handling action. Error: {}", e);
+                    return Err(eyre!("Error transforming from raw action. Error: {}", e));
                 }
-            }
+            };
         } else if action_account == EOSIO_EVM && action_name == WITHDRAW {
             // Withdrawal from EVM
             let withdraw_action: WithdrawAction = decode(&action.data());
@@ -287,7 +288,7 @@ impl ProcessingEVMBlock {
                 withdraw_action,
                 native_to_evm_cache,
             )
-            .await;
+            .await?;
             self.add_transaction(transaction);
         } else if action_account == EOSIO_TOKEN
             && action_name == TRANSFER
@@ -298,7 +299,7 @@ impl ProcessingEVMBlock {
             if transfer_action.to.n != EOSIO_EVM
                 || SYSTEM_ACCOUNTS.contains(&transfer_action.from.n)
             {
-                return;
+                return Ok(());
             }
 
             let transaction = TelosEVMTransaction::from_transfer(
@@ -308,7 +309,7 @@ impl ProcessingEVMBlock {
                 transfer_action,
                 native_to_evm_cache,
             )
-            .await;
+            .await?;
             self.add_transaction(transaction);
         } else if action_account == EOSIO_EVM && action_name == DORESOURCES {
             let config_delta_row = self
@@ -339,6 +340,7 @@ impl ProcessingEVMBlock {
                 wallet_action,
             ));
         }
+        Ok(())
     }
 
     pub async fn generate_evm_data(
@@ -346,7 +348,7 @@ impl ProcessingEVMBlock {
         parent_hash: FixedBytes<32>,
         block_delta: u32,
         native_to_evm_cache: &NameToAddressCache,
-    ) -> (Header, ExecutionPayloadV1) {
+    ) -> eyre::Result<(Header, ExecutionPayloadV1)> {
         if self.signed_block.is_none()
             || self.block_traces.is_none()
             || self.contract_rows.is_none()
@@ -395,13 +397,13 @@ impl ProcessingEVMBlock {
 
         let traces = self.block_traces.clone().unwrap_or_default();
 
-        for t in traces {
-            match t {
-                TransactionTrace::V0(t) => {
-                    for action in t.action_traces {
-                        self.handle_action(Box::new(action), native_to_evm_cache)
-                            .await;
-                    }
+        for TransactionTrace::V0(t) in traces {
+            for action in t.action_traces {
+                if let Err(e) = self
+                    .handle_action(Box::new(action), native_to_evm_cache)
+                    .await
+                {
+                    return Err(eyre!("Error handling the action. {}", e));
                 }
             }
         }
@@ -497,7 +499,7 @@ impl ProcessingEVMBlock {
             transactions,
         };
 
-        (header, exec_payload)
+        Ok((header, exec_payload))
     }
 }
 
