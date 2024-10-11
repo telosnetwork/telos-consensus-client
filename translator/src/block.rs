@@ -256,31 +256,25 @@ impl ProcessingEVMBlock {
         } else if action_account == EOSIO_EVM && action_name == RAW {
             // Normally signed EVM transaction
             let raw: RawAction = decode(&action.data());
-            let printed_receipt = PrintedReceipt::from_console(action.console());
-            if printed_receipt.is_none() {
-                panic!(
-                    "No printed receipt found for raw action in block: {}",
-                    self.block_num
-                );
-            }
-            let transaction_result = TelosEVMTransaction::from_raw_action(
+            let printed_receipt =
+                PrintedReceipt::from_console(action.console()).ok_or_else(|| {
+                    eyre::eyre!(
+                        "No printed receipt found for raw action in block: {}",
+                        self.block_num
+                    )
+                })?;
+
+            let transaction = TelosEVMTransaction::from_raw_action(
                 self.chain_id,
                 self.transactions.len(),
                 self.block_hash,
                 raw,
-                printed_receipt.unwrap(),
+                printed_receipt,
             )
-            .await;
+            .await?;
 
-            return match transaction_result {
-                Ok(transaction) => {
-                    self.add_transaction(transaction);
-                    Ok(())
-                }
-                Err(e) => {
-                    return Err(eyre!("Error transforming from raw action. Error: {}", e));
-                }
-            };
+            self.add_transaction(transaction);
+            return Ok(());
         } else if action_account == EOSIO_EVM && action_name == WITHDRAW {
             // Withdrawal from EVM
             let withdraw_action: WithdrawAction = decode(&action.data());
