@@ -24,7 +24,8 @@ async fn test_deposit() {
         },
         &NameToAddressCache::new(APIClient::default()),
     )
-    .await;
+    .await
+    .unwrap();
 
     assert_eq!(
         trx.hash().to_string(),
