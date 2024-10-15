@@ -176,17 +176,30 @@ pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
     result
 }
 
+pub struct ProcessingEVMBlockArgs {
+    pub chain_id: u64,
+    pub block_num: u32,
+    pub block_hash: Checksum256,
+    pub prev_block_hash: Option<Checksum256>,
+    pub lib_num: u32,
+    pub lib_hash: Checksum256,
+    pub result: GetBlocksResultV0,
+    pub use_legacy_raw_action: bool,
+}
+
 impl ProcessingEVMBlock {
-    pub fn new(
-        chain_id: u64,
-        block_num: u32,
-        block_hash: Checksum256,
-        prev_block_hash: Option<Checksum256>,
-        lib_num: u32,
-        lib_hash: Checksum256,
-        result: GetBlocksResultV0,
-        use_legacy_raw_action: bool,
-    ) -> Self {
+    pub fn new(args: ProcessingEVMBlockArgs) -> Self {
+        let ProcessingEVMBlockArgs {
+            chain_id,
+            block_num,
+            block_hash,
+            prev_block_hash,
+            lib_num,
+            lib_hash,
+            result,
+            use_legacy_raw_action,
+        } = args;
+
         Self {
             block_num,
             block_hash,
