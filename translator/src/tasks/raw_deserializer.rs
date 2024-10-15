@@ -1,4 +1,4 @@
-use crate::block::ProcessingEVMBlock;
+use crate::block::{ProcessingEVMBlock, ProcessingEVMBlockArgs};
 use crate::translator::TranslatorConfig;
 use crate::types::ship_types::ShipRequest::{GetBlocksAck, GetStatus};
 use crate::types::ship_types::{
@@ -87,16 +87,16 @@ pub async fn raw_deserializer(
                         .last_legacy_raw_tx
                         .map(|n| b.block_num <= n)
                         .unwrap_or(false);
-                    let block = ProcessingEVMBlock::new(
-                        config.chain_id.0,
-                        b.block_num,
-                        b.block_id,
-                        r.prev_block.as_ref().map(|b| b.block_id),
-                        r.last_irreversible.block_num,
-                        r.last_irreversible.block_id,
-                        r.clone(),
+                    let block = ProcessingEVMBlock::new(ProcessingEVMBlockArgs {
+                        chain_id: config.chain_id.0,
+                        block_num: b.block_num,
+                        block_hash: b.block_id,
+                        prev_block_hash: r.prev_block.as_ref().map(|b| b.block_id),
+                        lib_num: r.last_irreversible.block_num,
+                        lib_hash: r.last_irreversible.block_id,
+                        result: r.clone(),
                         use_legacy_raw_action,
-                    );
+                    });
                     debug!("Block #{} sending to block deserializer...", b.block_num);
                     block_deserializer_tx.send(block).await?;
                     debug!("Block #{} sent to block deserializer", b.block_num);
