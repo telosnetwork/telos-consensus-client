@@ -1,6 +1,6 @@
 use antelope::chain::checksum::Checksum256;
 use antelope::util::hex_to_bytes;
-use telos_translator_rs::block::ProcessingEVMBlock;
+use telos_translator_rs::block::{ProcessingEVMBlock, ProcessingEVMBlockArgs};
 use telos_translator_rs::types::ship_types::{ShipResult, SignedBlock};
 
 #[test]
@@ -18,14 +18,16 @@ fn decode_block() {
             if let Some(b) = &r.this_block {
                 println!("Got block: {}", b.block_num);
                 let mut block = ProcessingEVMBlock::new(
-                    1,
-                    b.block_num,
-                    Checksum256::default(),
-                    None,
-                    b.block_num,
-                    Checksum256::default(),
-                    r.clone(),
-                    false,
+                    ProcessingEVMBlockArgs {
+                        chain_id: 1,
+                        block_num: b.block_num,
+                        block_hash: Checksum256::default(),
+                        prev_block_hash: None,
+                        lib_num: b.block_num,
+                        lib_hash: Checksum256::default(),
+                        result: r.clone(),
+                        use_legacy_raw_action: false,
+                    }
                 );
                 block.deserialize();
             } else {
