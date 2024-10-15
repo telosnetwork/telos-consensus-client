@@ -14,6 +14,9 @@ mod common;
 use crate::common::test_utils::compare_block;
 use common::test_utils::load_15_data;
 
+// TODO: Figure out the best end block for this test based on the container
+const END_BLOCK: u32 = 35;
+
 #[tokio::test]
 async fn evm_deploy() {
     // Change this container to a local image if using new ship data,
@@ -42,6 +45,7 @@ async fn evm_deploy() {
         validate_hash: None,
         evm_start_block: 1,
         evm_stop_block: Some(30),
+        last_legacy_raw_tx: None,
         ..TESTNET_GENESIS_CONFIG.clone()
     };
 
@@ -50,17 +54,22 @@ async fn evm_deploy() {
     let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 
     let translator = Translator::new(config);
+    let translator_shutdown = translator.shutdown_handle();
 
-    match translator.launch(Some(tx)).await {
-        Ok(_) => info!("Translator launched successfully"),
-        Err(e) => panic!("Failed to launch translator: {:?}", e),
-    }
+    let translator_handle = tokio::spawn(translator.launch(Some(tx)));
 
     while let Some(block) = rx.recv().await {
+        if block.block_num > END_BLOCK {
+            break;
+        }
         info!("{}:{}", block.block_num, block.block_hash);
+        // TODO: Some kind of assertion that all blocks in valid_data were seen
 
         if let Some(valid_block) = valid_data.get(&block.block_num) {
             compare_block(&block, valid_block);
         }
     }
+
+    let _ = translator_shutdown.shutdown().await;
+    let _ = translator_handle.await;
 }
