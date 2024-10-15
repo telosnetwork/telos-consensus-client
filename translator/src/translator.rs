@@ -46,6 +46,10 @@ impl Shutdown {
     pub async fn shutdown(&self) -> Result<()> {
         Ok(self.0.send(()).await?)
     }
+
+    pub fn is_finished(&self) -> bool {
+        self.0.is_closed()
+    }
 }
 
 impl Translator {
@@ -112,18 +116,21 @@ impl Translator {
         let ship_reader_handle = tokio::spawn(ship_reader(ws_rx, raw_ds_tx, self.shutdown_rx));
 
         info!("Translator launched successfully");
-        let result = join_all(vec![
+
+        let handles = vec![
             ship_reader_handle,
             raw_deserializer_handle,
             evm_block_processor_handle,
             final_processor_handle,
-        ])
-        .await;
+        ];
 
-        result
+        join_all(handles)
+            .await
             .into_iter()
-            .collect::<std::result::Result<Vec<_>, _>>()
+            .map(|result| result.map_err(From::from))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .collect::<Result<Vec<_>>>()
             .map(|_| ())
-            .wrap_err("Failed to execute tasks")
     }
 }
