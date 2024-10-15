@@ -33,33 +33,38 @@ pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Er
         "Telos translator client launching, awaiting result...",
     );
 
-    let mut translator_handle = Box::pin(tokio::spawn(translator.launch(Some(block_sender))));
+    let translator_handle = tokio::spawn(translator.launch(Some(block_sender)));
 
-    tokio::select! {
-        result = client_handle => {
-            if let Err(error) = result.map_err(From::from).and_then(|inner| inner) {
-                warn!("Consensus client run failed! Error: {error:?}");
+    let client_error = client_handle
+        .await
+        .map_err(From::from)
+        .and_then(|inner| inner)
+        .err();
 
-                if let Err(error) = translator_shutdown.shutdown().await {
-                    warn!("Cannot send shutdown signal! Error: {error:?}");
-                }
+    if let Some(error) = client_error.as_ref() {
+        warn!("Consensus client run failed! Error: {error:#}");
+    }
 
-                if let Err(error) = translator_handle.as_mut().await {
-                    warn!("Cannot stop translator! Error: {error:?}");
-                }
-
-                warn!("Retrying...");
-                return Err(error);
-            }
-        },
-        result = translator_handle.as_mut() => {
-            if let Err(error) = result.map_err(From::from).and_then(|inner| inner) {
-                warn!("Translator run failed! Error: {error:?}");
-
-                warn!("Retrying...");
-                return Err(TranslatorShutdown(error.to_string()));
-            }
+    if !translator_shutdown.is_finished() {
+        if let Err(error) = translator_shutdown.shutdown().await {
+            warn!("Cannot send shutdown signal! Error: {error:#}");
         }
+    }
+
+    let translator_error = translator_handle
+        .await
+        .map_err(From::from)
+        .and_then(|inner| inner)
+        .map_err(|error| TranslatorShutdown(error.to_string()))
+        .err();
+
+    if let Some(error) = translator_error.as_ref() {
+        warn!("Translator run failed! Error: {error:#}");
+    }
+
+    if let Some(error) = client_error.or(translator_error) {
+        warn!("Retrying...");
+        return Err(error);
     }
 
     info!("Reached stop block/signal, consensus client run finished!");
