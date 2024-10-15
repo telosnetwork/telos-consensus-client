@@ -65,7 +65,7 @@ impl Translator {
     pub async fn launch(self, output_tx: Option<mpsc::Sender<TelosEVMBlock>>) -> Result<()> {
         let api_client = APIClient::<DefaultProvider>::default_provider(
             self.config.http_endpoint.clone(),
-            Some(3),
+            Some(1),
         )
         .map_err(|error| eyre!(error))
         .wrap_err("Failed to create API client")?;

@@ -23,7 +23,7 @@ use tracing::{debug, error, info, warn};
 pub type WebsocketTransmitter = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 pub type WebsocketReceiver = SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
 
-const MAX_RETRY: u8 = 10;
+const MAX_RETRY: u8 = 3;
 const BASE_DELAY: Duration = Duration::from_millis(20);
 
 pub struct NameToAddressCache {
