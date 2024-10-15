@@ -14,6 +14,7 @@ use telos_translator_rs::{
     },
 };
 use tracing::info;
+use telos_translator_rs::block::ProcessingEVMBlockArgs;
 
 async fn generate_block(
     chain_id: u64,
@@ -61,24 +62,25 @@ async fn generate_block(
     info!("block_pos.block_id {}", block_pos.block_id);
 
     ProcessingEVMBlock::new(
-        chain_id,
-        block_num,
-        block_pos.block_id,
-        None,
-        // Block is always final
-        block_num,
-        block_pos.block_id,
-        GetBlocksResultV0 {
-            head: block_pos.clone(),
-            last_irreversible: block_pos.clone(),
-            this_block: Some(block_pos.clone()),
-            prev_block: None,
-            block: Some(block_bytes),
-            traces: Some(vec![]),
-            deltas: Some(vec![]),
-        },
-        false,
-    )
+        ProcessingEVMBlockArgs {
+            chain_id: chain_id,
+            block_num: block_num,
+            block_hash: block_pos.block_id,
+            prev_block_hash: None,
+            // Block is always final
+            lib_num: block_num,
+            lib_hash: block_pos.block_id,
+            result: GetBlocksResultV0 {
+                head: block_pos.clone(),
+                last_irreversible: block_pos.clone(),
+                this_block: Some(block_pos.clone()),
+                prev_block: None,
+                block: Some(block_bytes),
+                traces: Some(vec![]),
+                deltas: Some(vec![]),
+            },
+            use_legacy_raw_action: false,
+    })
 }
 
 #[tokio::test]
