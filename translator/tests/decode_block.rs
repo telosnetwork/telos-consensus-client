@@ -17,18 +17,16 @@ fn decode_block() {
         ShipResult::GetBlocksResultV0(r) => {
             if let Some(b) = &r.this_block {
                 println!("Got block: {}", b.block_num);
-                let mut block = ProcessingEVMBlock::new(
-                    ProcessingEVMBlockArgs {
-                        chain_id: 1,
-                        block_num: b.block_num,
-                        block_hash: Checksum256::default(),
-                        prev_block_hash: None,
-                        lib_num: b.block_num,
-                        lib_hash: Checksum256::default(),
-                        result: r.clone(),
-                        use_legacy_raw_action: false,
-                    }
-                );
+                let mut block = ProcessingEVMBlock::new(ProcessingEVMBlockArgs {
+                    chain_id: 1,
+                    block_num: b.block_num,
+                    block_hash: Checksum256::default(),
+                    prev_block_hash: None,
+                    lib_num: b.block_num,
+                    lib_hash: Checksum256::default(),
+                    result: r.clone(),
+                    use_legacy_raw_action: false,
+                });
                 block.deserialize();
             } else {
                 panic!("GetBlocksResultV0 without a block");
