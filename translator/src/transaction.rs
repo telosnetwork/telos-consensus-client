@@ -1,6 +1,5 @@
-use crate::block::RawActionValues;
 use crate::rlp::telos_rlp_decode::TelosTxDecodable;
-use crate::types::evm_types::{PrintedReceipt, TransferAction, WithdrawAction};
+use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::translator_types::NameToAddressCache;
 use alloy::primitives::private::alloy_rlp::Error;
 use alloy::primitives::TxKind::Call;
@@ -41,7 +40,7 @@ impl TelosEVMTransaction {
         _chain_id: u64,
         trx_index: usize,
         block_hash: Checksum256,
-        raw: RawActionValues,
+        raw: RawAction,
         receipt: PrintedReceipt,
     ) -> Result<Self, Error> {
         // TODO: Check for unsigned transactions and handle correctly

@@ -14,12 +14,6 @@ use serde::{Deserialize, Deserializer, Serialize};
 use tracing::warn;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
-pub struct LegacyRawAction {
-    pub tx: Vec<u8>,
-    pub sender: Option<Checksum160>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
 pub struct RawAction {
     pub ram_payer: Name,
     pub tx: Vec<u8>,

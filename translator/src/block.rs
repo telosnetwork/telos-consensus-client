@@ -1,8 +1,8 @@
 use crate::transaction::TelosEVMTransaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS, DEFAULT_GAS_LIMIT};
 use crate::types::evm_types::{
-    AccountRow, AccountStateRow, CreateAction, EvmContractConfigRow, LegacyRawAction,
-    OpenWalletAction, PrintedReceipt, RawAction, SetRevisionAction, TransferAction, WithdrawAction,
+    AccountRow, AccountStateRow, CreateAction, EvmContractConfigRow, OpenWalletAction,
+    PrintedReceipt, RawAction, SetRevisionAction, TransferAction, WithdrawAction,
 };
 use crate::types::names::*;
 use crate::types::ship_types::{
@@ -16,7 +16,6 @@ use alloy_eips::eip2718::Encodable2718;
 use alloy_rlp::Encodable;
 use antelope::chain::checksum::{Checksum160, Checksum256};
 use alloy_rpc_types_engine::ExecutionPayloadV1;
-use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::serializer::Packer;
 use eyre::eyre;
@@ -105,7 +104,7 @@ pub struct ProcessingEVMBlock {
     pub new_wallets: Vec<WalletEvents>,
     pub lib_num: u32,
     pub lib_hash: Checksum256,
-    pub use_legacy_raw_action: bool,
+    pub skip_raw_action: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -119,30 +118,6 @@ pub struct TelosEVMBlock {
     pub transactions: Vec<(TelosEVMTransaction, ReceiptWithBloom)>,
     pub execution_payload: ExecutionPayloadV1,
     pub extra_fields: TelosEngineAPIExtraFields,
-}
-
-#[derive(Clone, Debug)]
-pub struct RawActionValues {
-    pub tx: Vec<u8>,
-    pub sender: Option<Checksum160>,
-}
-
-impl From<LegacyRawAction> for RawActionValues {
-    fn from(value: LegacyRawAction) -> Self {
-        Self {
-            tx: value.tx,
-            sender: value.sender,
-        }
-    }
-}
-
-impl From<RawAction> for RawActionValues {
-    fn from(value: RawAction) -> Self {
-        Self {
-            tx: value.tx,
-            sender: value.sender,
-        }
-    }
 }
 
 impl TelosEVMBlock {
@@ -163,11 +138,8 @@ impl TelosEVMBlock {
     }
 }
 
-pub fn decode_raw_action_values(encoded: &[u8], use_legacy_raw_action: bool) -> RawActionValues {
-    match use_legacy_raw_action {
-        true => decode::<LegacyRawAction>(encoded).into(),
-        false => decode::<RawAction>(encoded).into(),
-    }
+pub fn decode_raw_action(encoded: &[u8]) -> RawAction {
+    decode::<RawAction>(encoded).into()
 }
 
 pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
@@ -184,7 +156,7 @@ pub struct ProcessingEVMBlockArgs {
     pub lib_num: u32,
     pub lib_hash: Checksum256,
     pub result: GetBlocksResultV0,
-    pub use_legacy_raw_action: bool,
+    pub skip_raw_action: bool,
 }
 
 impl ProcessingEVMBlock {
@@ -197,7 +169,7 @@ impl ProcessingEVMBlock {
             lib_num,
             lib_hash,
             result,
-            use_legacy_raw_action,
+            skip_raw_action,
         } = args;
 
         Self {
@@ -208,7 +180,7 @@ impl ProcessingEVMBlock {
             lib_hash,
             chain_id,
             result,
-            use_legacy_raw_action,
+            skip_raw_action,
             signed_block: None,
             block_traces: None,
             contract_rows: None,
@@ -262,13 +234,13 @@ impl ProcessingEVMBlock {
     }
 
     fn find_config_row(&self) -> Option<&EvmContractConfigRow> {
-        return self.decoded_rows.iter().find_map(|row| {
+        self.decoded_rows.iter().find_map(|row| {
             if let DecodedRow::Config(config) = row {
                 Some(config)
             } else {
                 None
             }
-        });
+        })
     }
 
     fn add_transaction(&mut self, transaction: TelosEVMTransaction) {
@@ -302,9 +274,11 @@ impl ProcessingEVMBlock {
 
             self.new_gas_price = Some((self.transactions.len() as u64, gas_price));
         } else if action_account == EOSIO_EVM && action_name == RAW {
+            if self.skip_raw_action {
+                return Ok(());
+            }
             // Normally signed EVM transaction
-            let raw: RawActionValues =
-                decode_raw_action_values(&action.data(), self.use_legacy_raw_action);
+            let raw: RawAction = decode_raw_action(&action.data());
             let printed_receipt =
                 PrintedReceipt::from_console(action.console()).ok_or_else(|| {
                     eyre::eyre!(

@@ -25,7 +25,7 @@ fn decode_block() {
                     lib_num: b.block_num,
                     lib_hash: Checksum256::default(),
                     result: r.clone(),
-                    use_legacy_raw_action: false,
+                    skip_raw_action: false,
                 });
                 block.deserialize();
             } else {
