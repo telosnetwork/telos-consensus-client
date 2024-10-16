@@ -45,7 +45,7 @@ async fn evm_deploy() {
         validate_hash: None,
         evm_start_block: 1,
         evm_stop_block: Some(30),
-        last_legacy_raw_tx: None,
+        skip_raw_tx_until: None,
         ..TESTNET_GENESIS_CONFIG.clone()
     };
 

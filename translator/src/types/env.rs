@@ -17,7 +17,7 @@ lazy_static! {
     pub static ref MAINNET_GENESIS_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 40.into(),
 
-        last_legacy_raw_tx: None,
+        skip_raw_tx_until: None,
         evm_start_block: 37,
         evm_stop_block: None,
 
@@ -36,7 +36,7 @@ lazy_static! {
     pub static ref MAINNET_DEPLOY_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 40.into(),
 
-        last_legacy_raw_tx: None,
+        skip_raw_tx_until: None,
         evm_start_block: 180698860,
         evm_stop_block: None,
 
@@ -56,7 +56,7 @@ lazy_static! {
         chain_id: 41.into(),
 
         // TODO: Figure out this number
-        last_legacy_raw_tx: Some(1234),
+        skip_raw_tx_until: Some(1234),
         evm_start_block: 58,
         evm_stop_block: None,
 

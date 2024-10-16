@@ -78,7 +78,7 @@ async fn generate_block(
             traces: Some(vec![]),
             deltas: Some(vec![]),
         },
-        use_legacy_raw_action: false,
+        skip_raw_action: false,
     })
 }
 
