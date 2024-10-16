@@ -1,7 +1,7 @@
 use crate::transaction::TelosEVMTransaction;
 use crate::types::env::{ANTELOPE_EPOCH_MS, ANTELOPE_INTERVAL_MS, DEFAULT_GAS_LIMIT};
 use crate::types::evm_types::{
-    AccountRow, AccountStateRow, CreateAction, EvmContractConfigRow, OpenWalletAction, 
+    AccountRow, AccountStateRow, CreateAction, EvmContractConfigRow, OpenWalletAction,
     PrintedReceipt, RawAction, SetRevisionAction, TransferAction, WithdrawAction,
 };
 use crate::types::names::*;
@@ -14,7 +14,7 @@ use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Header, Transaction, TxEnvelope};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_rlp::Encodable;
-use antelope::chain::checksum::{Checksum256};
+use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::serializer::Packer;
 use eyre::eyre;
@@ -139,7 +139,7 @@ impl TelosEVMBlock {
 }
 
 pub fn decode_raw_action(encoded: &[u8]) -> RawAction {
-    decode::<RawAction>(encoded).into()
+    decode::<RawAction>(encoded)
 }
 
 pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
