@@ -14,8 +14,8 @@ use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Header, Transaction, TxEnvelope};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_rlp::Encodable;
-use antelope::chain::checksum::{Checksum160, Checksum256};
 use alloy_rpc_types_engine::ExecutionPayloadV1;
+use antelope::chain::checksum::Checksum256;
 use antelope::chain::name::Name;
 use antelope::serializer::Packer;
 use eyre::eyre;
@@ -139,7 +139,7 @@ impl TelosEVMBlock {
 }
 
 pub fn decode_raw_action(encoded: &[u8]) -> RawAction {
-    decode::<RawAction>(encoded).into()
+    decode::<RawAction>(encoded)
 }
 
 pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
