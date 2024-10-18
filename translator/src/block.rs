@@ -392,7 +392,7 @@ impl ProcessingEVMBlock {
                     if r.code == Name::new_from_str("eosio.evm") {
                         // delta.0 is "present" and if false, the row was removed
                         let removed = !delta.0;
-                        if r.table == Name::new_from_str("config") {
+                        if r.table == Name::new_from_str("config") && !self.skip_raw_action {
                             if removed {
                                 panic!(
                                     "Config row removed, this should never happen: {}",
