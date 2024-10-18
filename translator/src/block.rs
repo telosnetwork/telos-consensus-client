@@ -65,8 +65,8 @@ impl BasicTrace for ActionTrace {
 
     fn console(&self) -> String {
         match self {
-            ActionTrace::V0(a) => a.console.clone(),
-            ActionTrace::V1(a) => a.console.clone(),
+            ActionTrace::V0(a) => String::from_utf8(a.console.clone()).unwrap_or_default(),
+            ActionTrace::V1(a) => String::from_utf8(a.console.clone()).unwrap_or_default(),
         }
     }
 
