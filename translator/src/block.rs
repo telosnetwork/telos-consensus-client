@@ -65,8 +65,8 @@ impl BasicTrace for ActionTrace {
 
     fn console(&self) -> String {
         match self {
-            ActionTrace::V0(a) => a.console.clone(),
-            ActionTrace::V1(a) => a.console.clone(),
+            ActionTrace::V0(a) => String::from_utf8(a.console.clone()).unwrap_or_default(),
+            ActionTrace::V1(a) => String::from_utf8(a.console.clone()).unwrap_or_default(),
         }
     }
 
@@ -104,6 +104,7 @@ pub struct ProcessingEVMBlock {
     pub new_wallets: Vec<WalletEvents>,
     pub lib_num: u32,
     pub lib_hash: Checksum256,
+    pub skip_raw_action: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -137,22 +138,40 @@ impl TelosEVMBlock {
     }
 }
 
+pub fn decode_raw_action(encoded: &[u8]) -> RawAction {
+    decode::<RawAction>(encoded)
+}
+
 pub fn decode<T: Packer + Default>(raw: &[u8]) -> T {
     let mut result = T::default();
     result.unpack(raw);
     result
 }
 
+pub struct ProcessingEVMBlockArgs {
+    pub chain_id: u64,
+    pub block_num: u32,
+    pub block_hash: Checksum256,
+    pub prev_block_hash: Option<Checksum256>,
+    pub lib_num: u32,
+    pub lib_hash: Checksum256,
+    pub result: GetBlocksResultV0,
+    pub skip_raw_action: bool,
+}
+
 impl ProcessingEVMBlock {
-    pub fn new(
-        chain_id: u64,
-        block_num: u32,
-        block_hash: Checksum256,
-        prev_block_hash: Option<Checksum256>,
-        lib_num: u32,
-        lib_hash: Checksum256,
-        result: GetBlocksResultV0,
-    ) -> Self {
+    pub fn new(args: ProcessingEVMBlockArgs) -> Self {
+        let ProcessingEVMBlockArgs {
+            chain_id,
+            block_num,
+            block_hash,
+            prev_block_hash,
+            lib_num,
+            lib_hash,
+            result,
+            skip_raw_action,
+        } = args;
+
         Self {
             block_num,
             block_hash,
@@ -161,6 +180,7 @@ impl ProcessingEVMBlock {
             lib_hash,
             chain_id,
             result,
+            skip_raw_action,
             signed_block: None,
             block_traces: None,
             contract_rows: None,
@@ -214,13 +234,13 @@ impl ProcessingEVMBlock {
     }
 
     fn find_config_row(&self) -> Option<&EvmContractConfigRow> {
-        return self.decoded_rows.iter().find_map(|row| {
+        self.decoded_rows.iter().find_map(|row| {
             if let DecodedRow::Config(config) = row {
                 Some(config)
             } else {
                 None
             }
-        });
+        })
     }
 
     fn add_transaction(&mut self, transaction: TelosEVMTransaction) {
@@ -254,8 +274,11 @@ impl ProcessingEVMBlock {
 
             self.new_gas_price = Some((self.transactions.len() as u64, gas_price));
         } else if action_account == EOSIO_EVM && action_name == RAW {
+            if self.skip_raw_action {
+                return Ok(());
+            }
             // Normally signed EVM transaction
-            let raw: RawAction = decode(&action.data());
+            let raw: RawAction = decode_raw_action(&action.data());
             let printed_receipt =
                 PrintedReceipt::from_console(action.console()).ok_or_else(|| {
                     eyre::eyre!(
@@ -369,7 +392,7 @@ impl ProcessingEVMBlock {
                     if r.code == Name::new_from_str("eosio.evm") {
                         // delta.0 is "present" and if false, the row was removed
                         let removed = !delta.0;
-                        if r.table == Name::new_from_str("config") {
+                        if r.table == Name::new_from_str("config") && !self.skip_raw_action {
                             if removed {
                                 panic!(
                                     "Config row removed, this should never happen: {}",
