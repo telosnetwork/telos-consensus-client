@@ -6,7 +6,7 @@ use tracing::error;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(long, default_value = "config.toml")]
+    #[arg(long, default_value = "translator-config.toml")]
     config: String,
 }
 

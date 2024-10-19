@@ -265,7 +265,7 @@ impl ProcessingEVMBlock {
         let action_account = action.action_account();
         let action_receiver = action.receiver();
 
-        if action_account == EOSIO_EVM && action_name == INIT {
+        if action_account == EOSIO_EVM && action_name == INIT && !self.skip_raw_action {
             let config_delta_row = self
                 .find_config_row()
                 .expect("Table delta for the init action not found");
@@ -312,7 +312,7 @@ impl ProcessingEVMBlock {
             self.add_transaction(transaction);
         } else if action_account == EOSIO_TOKEN
             && action_name == TRANSFER
-            && action_receiver == EOSIO_EVM
+            && action_receiver == EOSIO_TOKEN
         {
             // Deposit/transfer to EVM
             let transfer_action: TransferAction = decode(&action.data());
