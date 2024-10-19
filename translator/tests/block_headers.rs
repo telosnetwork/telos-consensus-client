@@ -3,6 +3,7 @@ use antelope::{
     api::client::{APIClient, DefaultProvider},
     chain::{checksum::Checksum256, Encoder},
 };
+use telos_translator_rs::block::ProcessingEVMBlockArgs;
 use telos_translator_rs::{
     block::ProcessingEVMBlock,
     types::{
@@ -60,15 +61,15 @@ async fn generate_block(
 
     info!("block_pos.block_id {}", block_pos.block_id);
 
-    ProcessingEVMBlock::new(
-        chain_id,
-        block_num,
-        block_pos.block_id,
-        None,
+    ProcessingEVMBlock::new(ProcessingEVMBlockArgs {
+        chain_id: chain_id,
+        block_num: block_num,
+        block_hash: block_pos.block_id,
+        prev_block_hash: None,
         // Block is always final
-        block_num,
-        block_pos.block_id,
-        GetBlocksResultV0 {
+        lib_num: block_num,
+        lib_hash: block_pos.block_id,
+        result: GetBlocksResultV0 {
             head: block_pos.clone(),
             last_irreversible: block_pos.clone(),
             this_block: Some(block_pos.clone()),
@@ -77,7 +78,8 @@ async fn generate_block(
             traces: Some(vec![]),
             deltas: Some(vec![]),
         },
-    )
+        skip_raw_action: false,
+    })
 }
 
 #[tokio::test]
