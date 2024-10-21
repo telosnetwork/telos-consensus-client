@@ -1,9 +1,9 @@
-use std::fmt;
-use std::fmt::Display;
 use alloy_rpc_types::Block;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::Client;
 use serde_json::{json, Value};
+use std::fmt;
+use std::fmt::Display;
 use thiserror::Error;
 use tracing::debug;
 
