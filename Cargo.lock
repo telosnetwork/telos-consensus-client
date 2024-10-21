@@ -348,43 +348,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alloy-rpc-types-admin"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fefd12e99dd6b7de387ed13ad047ce2c90d8950ca62fc48b8a457ebb8f936c61"
-dependencies = [
- "alloy-genesis",
- "alloy-primitives",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "alloy-rpc-types-anvil"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d25cb45ad7c0930dd62eecf164d2afe4c3d2dd2c82af85680ad1f118e1e5cb83"
-dependencies = [
- "alloy-primitives",
- "alloy-serde",
- "serde",
-]
-
-[[package]]
-name = "alloy-rpc-types-beacon"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e7081d2206dca51ce23a06338d78d9b536931cc3f15134fc1c6535eb2b77f18"
-dependencies = [
- "alloy-eips",
- "alloy-primitives",
- "alloy-rpc-types-engine",
- "serde",
- "serde_with",
- "thiserror",
-]
-
-[[package]]
 name = "alloy-rpc-types-engine"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -396,7 +359,8 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "derive_more",
- "jsonrpsee-types",
+ "jsonwebtoken",
+ "rand",
  "serde",
 ]
 
@@ -417,48 +381,8 @@ dependencies = [
  "derive_more",
  "hashbrown 0.14.5",
  "itertools 0.13.0",
- "jsonrpsee-types",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "alloy-rpc-types-mev"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "922d92389e5022650c4c60ffd2f9b2467c3f853764f0f74ff16a23106f9017d5"
-dependencies = [
- "alloy-eips",
- "alloy-primitives",
- "alloy-serde",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "alloy-rpc-types-trace"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98db35cd42c90b484377e6bc44d95377a7a38a5ebee996e67754ac0446d542ab"
-dependencies = [
- "alloy-primitives",
- "alloy-rpc-types-eth",
- "alloy-serde",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "alloy-rpc-types-txpool"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bac37082c3b21283b3faf5cc0e08974272aee2f756ce1adeb26db56a5fce0d5"
-dependencies = [
- "alloy-primitives",
- "alloy-rpc-types-eth",
- "alloy-serde",
- "serde",
 ]
 
 [[package]]
@@ -672,8 +596,8 @@ dependencies = [
 
 [[package]]
 name = "antelope-client"
-version = "0.2.1"
-source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=development#84ef2249471ff5f808c689000cf711185c9a059d"
+version = "0.3.0"
+source = "git+https://github.com/telosnetwork/antelope-rs.git?branch=master#fea2203b2edb5cfcedd5365031e5286b47dc5c66"
 dependencies = [
  "antelope-client-macros",
  "async-trait",
@@ -2778,18 +2702,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jsonrpsee-types"
-version = "0.24.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ca331cd7b3fe95b33432825c2d4c9f5a43963e207fdc01ae67f9fd80ab0930f"
-dependencies = [
- "http 1.1.0",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
 name = "jsonwebtoken"
 version = "9.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3294,37 +3206,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "op-alloy-genesis"
-version = "0.2.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e1b8a9b70da0e027242ec1762f0f3a386278b6291d00d12ff5a64929dc19f68"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-primitives",
- "alloy-sol-types",
- "serde",
- "serde_repr",
-]
-
-[[package]]
-name = "op-alloy-protocol"
-version = "0.2.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf300a82ae2d30e2255bfea87a2259da49f63a25a44db561ae64cc9e3084139f"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-serde",
- "hashbrown 0.14.5",
- "op-alloy-consensus",
- "op-alloy-genesis",
- "serde",
-]
-
-[[package]]
 name = "op-alloy-rpc-types"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3340,23 +3221,6 @@ dependencies = [
  "op-alloy-consensus",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "op-alloy-rpc-types-engine"
-version = "0.2.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2947272a81ebf988f4804b6f0f6a7c0b2f6f89a908cb410e36f8f3828f81c778"
-dependencies = [
- "alloy-eips",
- "alloy-primitives",
- "alloy-rpc-types-engine",
- "alloy-serde",
- "derive_more",
- "op-alloy-consensus",
- "op-alloy-genesis",
- "op-alloy-protocol",
- "serde",
 ]
 
 [[package]]
@@ -4029,26 +3893,6 @@ dependencies = [
  "revm-primitives",
  "roaring",
  "serde",
-]
-
-[[package]]
-name = "reth-rpc-types"
-version = "1.0.6"
-source = "git+https://github.com/telosnetwork/telos-reth?branch=telos-main#63d23e00982a0ab7704a6dff97b3f5d355e11d56"
-dependencies = [
- "alloy-primitives",
- "alloy-rpc-types",
- "alloy-rpc-types-admin",
- "alloy-rpc-types-anvil",
- "alloy-rpc-types-beacon",
- "alloy-rpc-types-engine",
- "alloy-rpc-types-mev",
- "alloy-rpc-types-trace",
- "alloy-rpc-types-txpool",
- "alloy-serde",
- "jsonrpsee-types",
- "op-alloy-rpc-types",
- "op-alloy-rpc-types-engine",
 ]
 
 [[package]]
@@ -4951,6 +4795,8 @@ dependencies = [
  "alloy",
  "alloy-consensus",
  "alloy-rlp",
+ "alloy-rpc-types",
+ "alloy-rpc-types-engine",
  "antelope-client",
  "arrowbatch",
  "axum",
@@ -4966,7 +4812,6 @@ dependencies = [
  "rand",
  "reqwest 0.11.27",
  "reth-primitives",
- "reth-rpc-types",
  "rocksdb",
  "serde",
  "serde_json",
@@ -4989,6 +4834,7 @@ dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-rlp",
+ "alloy-rpc-types-engine",
  "antelope-client",
  "async-trait",
  "bytes",
@@ -5005,7 +4851,6 @@ dependencies = [
  "num-traits",
  "reqwest 0.12.8",
  "reth-primitives",
- "reth-rpc-types",
  "reth-telos-rpc-engine-api",
  "reth-trie-common",
  "rlp",

@@ -19,7 +19,7 @@ use antelope::chain::name::Name;
 use antelope::serializer::Packer;
 use eyre::eyre;
 use reth_primitives::ReceiptWithBloom;
-use reth_rpc_types::ExecutionPayloadV1;
+use alloy_rpc_types_engine::ExecutionPayloadV1;
 use reth_telos_rpc_engine_api::structs::TelosEngineAPIExtraFields;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
 use std::cmp::{max, Ordering};
