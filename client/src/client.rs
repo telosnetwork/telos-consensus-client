@@ -1,3 +1,5 @@
+use alloy_rpc_types::Block;
+use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated};
 use crate::client::Error::ForkChoiceUpdated;
 use crate::config::{AppConfig, CliArgs};
 use crate::data::{self, Database, Lib};
@@ -5,9 +7,7 @@ use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequ
 use crate::json_rpc::JsonResponseBody;
 use eyre::{Context, Result};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
-use reth_primitives::B256;
-use reth_rpc_types::engine::{ForkchoiceState, ForkchoiceUpdated};
-use reth_rpc_types::Block;
+use reth_primitives::{B256};
 use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
 use tokio::sync::mpsc;
