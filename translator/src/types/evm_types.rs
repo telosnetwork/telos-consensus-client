@@ -26,7 +26,7 @@ pub struct TransferAction {
     pub from: Name,
     pub to: Name,
     pub quantity: Asset,
-    pub memo: String,
+    pub memo: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
