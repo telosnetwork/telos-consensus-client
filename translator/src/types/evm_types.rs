@@ -25,7 +25,7 @@ pub struct TransferAction {
     pub from: Name,
     pub to: Name,
     pub quantity: Asset,
-    pub memo: String,
+    pub memo: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
@@ -103,7 +103,7 @@ pub struct CreateAction {
     pub data: String,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct PrintedReceipt {
     pub charged_gas: String,
     pub trx_index: u16,
@@ -117,6 +117,23 @@ pub struct PrintedReceipt {
     pub output: String,
     pub errors: Option<Vec<String>>,
     // pub itxs: any[], // Define struct for this
+}
+
+impl Default for PrintedReceipt {
+    fn default() -> Self {
+        PrintedReceipt {
+            charged_gas: "".to_string(),
+            trx_index: 0,
+            block: 0,
+            status: 0,
+            epoch: 0,
+            createdaddr: "".to_string(),
+            gasused: "5208".to_string(),
+            logs: vec![],
+            output: "".to_string(),
+            errors: None,
+        }
+    }
 }
 
 fn deserialize_logs<'de, D>(deserializer: D) -> Result<Vec<Log>, D::Error>

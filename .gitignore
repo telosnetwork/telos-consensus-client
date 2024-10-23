@@ -1,6 +1,7 @@
 .idea
 /target
 config.toml
+translator-config.toml
 *.csv
 *.log
 *.pid
