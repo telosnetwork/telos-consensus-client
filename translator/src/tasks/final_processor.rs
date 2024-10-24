@@ -4,12 +4,11 @@ use crate::{
     block::ProcessingEVMBlock, translator::TranslatorConfig,
     types::translator_types::NameToAddressCache,
 };
-use alloy::primitives::{Address, Bytes, FixedBytes, U256};
+use alloy::primitives::{Address, Bytes, FixedBytes, B256, U256};
 use alloy_rlp::Encodable;
 use antelope::api::client::{APIClient, DefaultProvider};
 use eyre::{eyre, Context, Result};
 use hex::encode;
-use reth_primitives::B256;
 use reth_telos_rpc_engine_api::structs::{
     TelosAccountStateTableRow, TelosAccountTableRow, TelosEngineAPIExtraFields,
 };
