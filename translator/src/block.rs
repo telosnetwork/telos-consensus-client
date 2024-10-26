@@ -23,6 +23,7 @@ use reth_primitives::ReceiptWithBloom;
 use reth_telos_rpc_engine_api::structs::TelosEngineAPIExtraFields;
 use reth_trie_common::root::ordered_trie_root_with_encoder;
 use std::cmp::{max, Ordering};
+use std::collections::HashMap;
 use tracing::{debug, warn};
 
 const MINIMUM_FEE_PER_GAS: u128 = 7;
@@ -378,6 +379,8 @@ impl ProcessingEVMBlock {
 
         let row_deltas = self.contract_rows.clone().unwrap_or_default();
 
+        let mut deduped_accstate_deltas = HashMap::new();
+
         for delta in row_deltas {
             match delta.1 {
                 ContractRow::V0(r) => {
@@ -404,15 +407,33 @@ impl ProcessingEVMBlock {
                             self.decoded_rows
                                 .push(DecodedRow::Account(removed, decode(&r.value)));
                         } else if r.table == Name::new_from_str("accountstate") {
-                            self.decoded_rows.push(DecodedRow::AccountState(
-                                removed,
-                                decode(&r.value),
-                                r.scope,
-                            ));
+                            let decoded_row: AccountStateRow = decode(&r.value);
+                            let complex_key = (r.scope.n, decoded_row.key.data);
+                            match deduped_accstate_deltas.get(&complex_key) {
+                                Some(prev_acc_state) => {
+                                    match prev_acc_state {
+                                        DecodedRow::AccountState(_vrem, prev_row, _scope) => {
+                                            if prev_row.index < decoded_row.index {
+                                                deduped_accstate_deltas.insert(complex_key, DecodedRow::AccountState(removed, decoded_row, r.scope));
+                                            }
+                                        },
+                                        _ => {
+                                            panic!("Not suposed to happen");
+                                        }
+                                    }
+                                },
+                                None => {
+                                    deduped_accstate_deltas.insert(complex_key, DecodedRow::AccountState(removed, decoded_row, r.scope));
+                                }
+                            }
                         }
                     }
                 }
             }
+        }
+
+        for row in deduped_accstate_deltas.values() {
+            self.decoded_rows.push(row.clone());
         }
 
         let traces = self.block_traces.clone().unwrap_or_default();
