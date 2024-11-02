@@ -1,5 +1,5 @@
 use crate::block::{DecodedRow, TelosEVMBlock, WalletEvents};
-use crate::types::translator_types::ChainId;
+use crate::types::translator_types::{ChainId, generate_extra_fields_from_json};
 use crate::{
     block::ProcessingEVMBlock, translator::TranslatorConfig,
     types::translator_types::NameToAddressCache,
@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use tokio::{sync::mpsc, time::Instant};
 use tracing::{debug, error, info};
+use crate::types::env::TESTNET_DEPLOY_STATE;
 
 struct BlockMap {
     parent_hash: B256,
@@ -162,80 +163,96 @@ pub async fn final_processor(
         let mut statediffs_account = vec![];
         let mut statediffs_accountstate = vec![];
 
-        for row in block.decoded_rows {
-            match row {
-                DecodedRow::Account(removed, acc_diff) => {
-                    statediffs_account.push(TelosAccountTableRow {
-                        removed,
-                        address: Address::from_slice(&acc_diff.address.data),
-                        account: acc_diff.account.to_string(),
-                        nonce: acc_diff.nonce,
-                        code: Bytes::from(acc_diff.code.clone()),
-                        balance: U256::from_be_slice(&acc_diff.balance.data),
-                    })
-                }
-                DecodedRow::AccountState(removed, acc_state_diff, scope) => {
-                    statediffs_accountstate.push(TelosAccountStateTableRow {
-                        removed,
-                        address: native_to_evm_cache.get_index(scope.n).await?,
-                        key: U256::from_be_slice(&acc_state_diff.key.data),
-                        value: U256::from_be_slice(&acc_state_diff.value.data),
-                    });
-                }
-                _ => (),
-            }
-        }
-
         let mut new_addresses_using_create = vec![];
         let mut new_addresses_using_openwallet = vec![];
 
-        for new_wallet in block.new_wallets {
-            match new_wallet {
-                WalletEvents::CreateWallet(trx_index, create_action) => new_addresses_using_create
-                    .push((
-                        trx_index as u64,
-                        U256::from_be_slice(
-                            native_to_evm_cache
-                                .get(create_action.account.value())
-                                .await?
-                                .as_slice(),
-                        ),
-                    )),
-                WalletEvents::OpenWallet(trx_index, openwallet_action) => {
-                    new_addresses_using_openwallet.push((
-                        trx_index as u64,
-                        U256::from_be_slice(&openwallet_action.address.data),
-                    ))
+        let mut receipts = Some(vec![]);
+
+        let completed_block = if evm_block_num > config.evm_deploy_block.unwrap_or_default() {
+            for row in block.decoded_rows {
+                match row {
+                    DecodedRow::Account(removed, acc_diff) => {
+                        statediffs_account.push(TelosAccountTableRow {
+                            removed,
+                            address: Address::from_slice(&acc_diff.address.data),
+                            account: acc_diff.account.to_string(),
+                            nonce: acc_diff.nonce,
+                            code: Bytes::from(acc_diff.code.clone()),
+                            balance: U256::from_be_slice(&acc_diff.balance.data),
+                        })
+                    }
+                    DecodedRow::AccountState(removed, acc_state_diff, scope) => {
+                        statediffs_accountstate.push(TelosAccountStateTableRow {
+                            removed,
+                            address: native_to_evm_cache.get_index(scope.n).await?,
+                            key: U256::from_be_slice(&acc_state_diff.key.data),
+                            value: U256::from_be_slice(&acc_state_diff.value.data),
+                        });
+                    }
+                    _ => (),
                 }
             }
-        }
 
-        let receipts = Some(
-            block
-                .transactions
-                .iter()
-                .map(|(_trx, full_receipt)| full_receipt.receipt.clone())
-                .collect(),
-        );
+            for new_wallet in block.new_wallets {
+                match new_wallet {
+                    WalletEvents::CreateWallet(trx_index, create_action) => new_addresses_using_create
+                        .push((
+                            trx_index as u64,
+                            U256::from_be_slice(
+                                native_to_evm_cache
+                                    .get(create_action.account.value())
+                                    .await?
+                                    .as_slice(),
+                            ),
+                        )),
+                    WalletEvents::OpenWallet(trx_index, openwallet_action) => {
+                        new_addresses_using_openwallet.push((
+                            trx_index as u64,
+                            U256::from_be_slice(&openwallet_action.address.data),
+                        ))
+                    }
+                }
+            }
 
-        let completed_block = TelosEVMBlock {
-            block_num: evm_block_num,
-            block_hash,
-            ship_hash: block.block_hash.as_string(),
-            lib_num: block.lib_num,
-            lib_hash: block.lib_hash.as_string(),
-            transactions: block.transactions,
-            header,
-            execution_payload: exec_payload,
-            extra_fields: TelosEngineAPIExtraFields {
-                statediffs_account: Some(statediffs_account),
-                statediffs_accountstate: Some(statediffs_accountstate),
-                revision_changes: block.new_revision,
-                gasprice_changes: block.new_gas_price,
-                new_addresses_using_create: Some(new_addresses_using_create),
-                new_addresses_using_openwallet: Some(new_addresses_using_openwallet),
-                receipts,
-            },
+            receipts = Some(
+                block
+                    .transactions
+                    .iter()
+                    .map(|(_trx, full_receipt)| full_receipt.receipt.clone())
+                    .collect(),
+            );
+
+            TelosEVMBlock {
+                block_num: evm_block_num,
+                block_hash,
+                ship_hash: block.block_hash.as_string(),
+                lib_num: block.lib_num,
+                lib_hash: block.lib_hash.as_string(),
+                transactions: block.transactions,
+                header,
+                execution_payload: exec_payload,
+                extra_fields: TelosEngineAPIExtraFields {
+                    statediffs_account: Some(statediffs_account),
+                    statediffs_accountstate: Some(statediffs_accountstate),
+                    revision_changes: block.new_revision,
+                    gasprice_changes: block.new_gas_price,
+                    new_addresses_using_create: Some(new_addresses_using_create),
+                    new_addresses_using_openwallet: Some(new_addresses_using_openwallet),
+                    receipts,
+                },
+            }
+        } else {
+            TelosEVMBlock {
+                block_num: evm_block_num,
+                block_hash,
+                ship_hash: block.block_hash.as_string(),
+                lib_num: block.lib_num,
+                lib_hash: block.lib_hash.as_string(),
+                transactions: block.transactions,
+                header,
+                execution_payload: exec_payload,
+                extra_fields: generate_extra_fields_from_json(TESTNET_DEPLOY_STATE),
+            }
         };
 
         block_map.next(&completed_block, &config.chain_id);

@@ -1,7 +1,7 @@
 use crate::block::ProcessingEVMBlock;
 use crate::types::evm_types::AccountRow;
 use crate::types::names::{ACCOUNT, EOSIO_EVM};
-use alloy::primitives::Address;
+use alloy::primitives::{Address, Bytes, U256};
 use antelope::api::client::{APIClient, DefaultProvider};
 use antelope::api::v1::structs::{
     GetTableRowsParams, GetTableRowsResponse, IndexPosition, TableIndexType,
@@ -13,8 +13,11 @@ use moka::sync::Cache;
 use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
 use std::net::TcpStream;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use antelope::util::hex_to_bytes;
+use reth_telos_rpc_engine_api::structs::{TelosAccountStateTableRow, TelosAccountTableRow, TelosEngineAPIExtraFields};
 use tokio::time::sleep;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -214,5 +217,52 @@ impl ChainId {
             41 => 57,
             _ => 0,
         }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AccountJSON {
+    address: String,
+    account: String,
+    balance: String,
+    nonce: u64,
+    code: String,
+    storage: std::collections::HashMap<String, String>
+}
+
+pub fn generate_extra_fields_from_json(state_json: &str) -> TelosEngineAPIExtraFields {
+    // Deserialize the JSON string back into the struct
+    let accounts: Vec<AccountJSON> = serde_json::from_str(state_json).unwrap();
+
+    let mut exec_accounts = Vec::new();
+    let mut exec_accounts_state = Vec::new();
+
+    for account in accounts {
+        exec_accounts.push(TelosAccountTableRow {
+            removed: false,
+            address: account.address.parse().unwrap(),
+            account: account.account,
+            nonce: account.nonce,
+            code: Bytes::from(hex_to_bytes(&account.code)),
+            balance: account.balance.parse().unwrap(),
+        });
+        for (key, value) in account.storage {
+            exec_accounts_state.push(TelosAccountStateTableRow {
+                removed: false,
+                address: account.address.parse().unwrap(),
+                key: U256::from_str(&key).unwrap(),
+                value: U256::from_str(&value).unwrap(),
+            });
+        }
+    }
+
+    TelosEngineAPIExtraFields {
+        statediffs_account: Some(exec_accounts),
+        statediffs_accountstate: Some(exec_accounts_state),
+        revision_changes: None,
+        gasprice_changes: None,
+        new_addresses_using_create: Some(vec![]),
+        new_addresses_using_openwallet: Some(vec![]),
+        receipts: Some(vec![]),
     }
 }

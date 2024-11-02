@@ -40,8 +40,8 @@ pub struct AppConfig {
     /// The parent hash of the start_block
     pub prev_hash: String,
 
-    /// (Optional) For testnet, the last block with incompatible transactions (raw action missing estimate_gas and ram_payer fields, different receipt format)
-    pub skip_raw_tx_until: Option<u32>,
+    /// (Optional) For testnet, skip all events until deploy block
+    pub evm_deploy_block: Option<u32>,
 
     /// Start block to start with, should be at or before the first block of the execution node
     pub evm_start_block: u32,
@@ -78,7 +78,7 @@ impl From<&AppConfig> for TranslatorConfig {
             evm_start_block: config.evm_start_block,
             evm_stop_block: config.evm_stop_block,
             prev_hash: config.prev_hash.clone(),
-            skip_raw_tx_until: config.skip_raw_tx_until,
+            evm_deploy_block: config.evm_deploy_block,
             validate_hash: config.validate_hash.clone(),
             http_endpoint: config.chain_endpoint.clone(),
             ship_endpoint: config.ship_endpoint.clone(),
