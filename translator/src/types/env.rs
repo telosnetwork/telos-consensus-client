@@ -12,12 +12,14 @@ pub const ZERO_HASH_HEX: &str = "00000000000000000000000000000000000000000000000
 
 pub const DEFAULT_GAS_LIMIT: u128 = 0x7fffffff;
 
+pub const TESTNET_DEPLOY_STATE: &str = include_str!("testnet-evm-state-136393755.json");
+
 lazy_static! {
     pub static ref ZERO_HASH: FixedBytes<32> = FixedBytes::from_str(ZERO_HASH_HEX).unwrap();
     pub static ref MAINNET_GENESIS_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 40.into(),
 
-        skip_raw_tx_until: None,
+        evm_deploy_block: None,
         evm_start_block: 37,
         evm_stop_block: None,
 
@@ -36,7 +38,7 @@ lazy_static! {
     pub static ref MAINNET_DEPLOY_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 40.into(),
 
-        skip_raw_tx_until: None,
+        evm_deploy_block: None,
         evm_start_block: 180698860,
         evm_stop_block: None,
 
@@ -54,9 +56,8 @@ lazy_static! {
     };
     pub static ref TESTNET_GENESIS_CONFIG: TranslatorConfig = TranslatorConfig {
         chain_id: 41.into(),
-
+        evm_deploy_block: Some(136393755),
         // TODO: Figure out this number
-        skip_raw_tx_until: Some(1234),
         evm_start_block: 58,
         evm_stop_block: None,
 
@@ -90,4 +91,6 @@ lazy_static! {
     //     block_message_channel_size: default_channel_size(),
     //     final_message_channel_size: default_channel_size()
     // };
+
+
 }

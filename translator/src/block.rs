@@ -104,7 +104,7 @@ pub struct ProcessingEVMBlock {
     pub new_wallets: Vec<WalletEvents>,
     pub lib_num: u32,
     pub lib_hash: Checksum256,
-    pub skip_raw_action: bool,
+    pub skip_events: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -156,7 +156,7 @@ pub struct ProcessingEVMBlockArgs {
     pub lib_num: u32,
     pub lib_hash: Checksum256,
     pub result: GetBlocksResultV0,
-    pub skip_raw_action: bool,
+    pub skip_events: bool,
 }
 
 impl ProcessingEVMBlock {
@@ -169,7 +169,7 @@ impl ProcessingEVMBlock {
             lib_num,
             lib_hash,
             result,
-            skip_raw_action,
+            skip_events,
         } = args;
 
         Self {
@@ -180,7 +180,7 @@ impl ProcessingEVMBlock {
             lib_hash,
             chain_id,
             result,
-            skip_raw_action,
+            skip_events,
             signed_block: None,
             block_traces: None,
             contract_rows: None,
@@ -265,7 +265,7 @@ impl ProcessingEVMBlock {
         let action_account = action.action_account();
         let action_receiver = action.receiver();
 
-        if action_account == EOSIO_EVM && action_name == INIT && !self.skip_raw_action {
+        if action_account == EOSIO_EVM && action_name == INIT {
             let config_delta_row = self
                 .find_config_row()
                 .expect("Table delta for the init action not found");
@@ -274,9 +274,6 @@ impl ProcessingEVMBlock {
 
             self.new_gas_price = Some((self.transactions.len() as u64, gas_price));
         } else if action_account == EOSIO_EVM && action_name == RAW {
-            if self.skip_raw_action {
-                return Ok(());
-            }
             // Normally signed EVM transaction
             let raw: RawAction = decode_raw_action(&action.data());
             let printed_receipt =
@@ -378,52 +375,54 @@ impl ProcessingEVMBlock {
 
         let row_deltas = self.contract_rows.clone().unwrap_or_default();
 
-        for delta in row_deltas {
-            match delta.1 {
-                ContractRow::V0(r) => {
-                    // Global eosio.system table, since block_delta is static
-                    // no need to decode
-                    // if r.table == Name::new_from_str("global") {
-                    //     let mut decoder = Decoder::new(r.value.as_slice());
-                    //     let decoded_row = &mut GlobalTable::default();
-                    //     decoder.unpack(decoded_row);
-                    //     info!("Global table: {:?}", decoded_row);
-                    // }
-                    if r.code == Name::new_from_str("eosio.evm") {
-                        // delta.0 is "present" and if false, the row was removed
-                        let removed = !delta.0;
-                        if r.table == Name::new_from_str("config") && !self.skip_raw_action {
-                            if removed {
-                                panic!(
-                                    "Config row removed, this should never happen: {}",
-                                    self.block_num
-                                );
+        if !self.skip_events {
+            for delta in row_deltas {
+                match delta.1 {
+                    ContractRow::V0(r) => {
+                        // Global eosio.system table, since block_delta is static
+                        // no need to decode
+                        // if r.table == Name::new_from_str("global") {
+                        //     let mut decoder = Decoder::new(r.value.as_slice());
+                        //     let decoded_row = &mut GlobalTable::default();
+                        //     decoder.unpack(decoded_row);
+                        //     info!("Global table: {:?}", decoded_row);
+                        // }
+                        if r.code == Name::new_from_str("eosio.evm") {
+                            // delta.0 is "present" and if false, the row was removed
+                            let removed = !delta.0;
+                            if r.table == Name::new_from_str("config") {
+                                if removed {
+                                    panic!(
+                                        "Config row removed, this should never happen: {}",
+                                        self.block_num
+                                    );
+                                }
+                                self.decoded_rows.push(DecodedRow::Config(decode(&r.value)));
+                            } else if r.table == Name::new_from_str("account") {
+                                self.decoded_rows
+                                    .push(DecodedRow::Account(removed, decode(&r.value)));
+                            } else if r.table == Name::new_from_str("accountstate") {
+                                self.decoded_rows.push(DecodedRow::AccountState(
+                                    removed,
+                                    decode(&r.value),
+                                    r.scope,
+                                ));
                             }
-                            self.decoded_rows.push(DecodedRow::Config(decode(&r.value)));
-                        } else if r.table == Name::new_from_str("account") {
-                            self.decoded_rows
-                                .push(DecodedRow::Account(removed, decode(&r.value)));
-                        } else if r.table == Name::new_from_str("accountstate") {
-                            self.decoded_rows.push(DecodedRow::AccountState(
-                                removed,
-                                decode(&r.value),
-                                r.scope,
-                            ));
                         }
                     }
                 }
             }
-        }
 
-        let traces = self.block_traces.clone().unwrap_or_default();
+            let traces = self.block_traces.clone().unwrap_or_default();
 
-        for TransactionTrace::V0(t) in traces {
-            for action in t.action_traces {
-                if let Err(e) = self
-                    .handle_action(Box::new(action), native_to_evm_cache)
-                    .await
-                {
-                    return Err(eyre!("Error handling the action. {}", e));
+            for TransactionTrace::V0(t) in traces {
+                for action in t.action_traces {
+                    if let Err(e) = self
+                        .handle_action(Box::new(action), native_to_evm_cache)
+                        .await
+                    {
+                        return Err(eyre!("Error handling the action. {}", e));
+                    }
                 }
             }
         }
