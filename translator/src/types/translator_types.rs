@@ -230,14 +230,21 @@ pub struct AccountJSON {
     storage: std::collections::HashMap<String, String>
 }
 
-pub fn generate_extra_fields_from_json(state_json: &str) -> TelosEngineAPIExtraFields {
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TelosEVMStateJSON {
+    evm_block_num: u32,
+    gas_price: U256,
+    accounts: Vec<AccountJSON>,
+}
+
+pub fn generate_extra_fields_from_json(state_json: &str) -> (u32, TelosEngineAPIExtraFields) {
     // Deserialize the JSON string back into the struct
-    let accounts: Vec<AccountJSON> = serde_json::from_str(state_json).unwrap();
+    let telos_state: TelosEVMStateJSON = serde_json::from_str(state_json).unwrap();
 
     let mut exec_accounts = Vec::new();
     let mut exec_accounts_state = Vec::new();
 
-    for account in accounts {
+    for account in telos_state.accounts {
         exec_accounts.push(TelosAccountTableRow {
             removed: false,
             address: account.address.parse().unwrap(),
@@ -256,13 +263,13 @@ pub fn generate_extra_fields_from_json(state_json: &str) -> TelosEngineAPIExtraF
         }
     }
 
-    TelosEngineAPIExtraFields {
+    (telos_state.evm_block_num, TelosEngineAPIExtraFields {
         statediffs_account: Some(exec_accounts),
         statediffs_accountstate: Some(exec_accounts_state),
         revision_changes: None,
-        gasprice_changes: None,
+        gasprice_changes: Some((0, telos_state.gas_price)),
         new_addresses_using_create: Some(vec![]),
         new_addresses_using_openwallet: Some(vec![]),
         receipts: Some(vec![]),
-    }
+    })
 }
