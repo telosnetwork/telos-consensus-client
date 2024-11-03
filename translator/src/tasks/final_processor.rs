@@ -242,6 +242,8 @@ pub async fn final_processor(
                 },
             }
         } else {
+            let (state_dump_block, extra_fields) = generate_extra_fields_from_json(TESTNET_DEPLOY_STATE);
+            assert_eq!(state_dump_block, evm_block_num, "State dump doesn\'t match configured deploy block");
             TelosEVMBlock {
                 block_num: evm_block_num,
                 block_hash,
@@ -251,7 +253,7 @@ pub async fn final_processor(
                 transactions: block.transactions,
                 header,
                 execution_payload: exec_payload,
-                extra_fields: generate_extra_fields_from_json(TESTNET_DEPLOY_STATE),
+                extra_fields,
             }
         };
 
