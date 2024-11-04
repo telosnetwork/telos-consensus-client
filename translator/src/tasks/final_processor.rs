@@ -168,7 +168,19 @@ pub async fn final_processor(
 
         let mut receipts = Some(vec![]);
 
-        let completed_block = if evm_block_num > config.evm_deploy_block.unwrap_or_default() {
+        let mut completed_block = TelosEVMBlock {
+            block_num: evm_block_num,
+            block_hash,
+            ship_hash: block.block_hash.as_string(),
+            lib_num: block.lib_num,
+            lib_hash: block.lib_hash.as_string(),
+            transactions: vec![],
+            header,
+            execution_payload: exec_payload,
+            extra_fields: Default::default(),
+        };
+
+        if evm_block_num > config.evm_deploy_block.unwrap_or_default() {
             for row in block.decoded_rows {
                 match row {
                     DecodedRow::Account(removed, acc_diff) => {
@@ -222,39 +234,19 @@ pub async fn final_processor(
                     .collect(),
             );
 
-            TelosEVMBlock {
-                block_num: evm_block_num,
-                block_hash,
-                ship_hash: block.block_hash.as_string(),
-                lib_num: block.lib_num,
-                lib_hash: block.lib_hash.as_string(),
-                transactions: block.transactions,
-                header,
-                execution_payload: exec_payload,
-                extra_fields: TelosEngineAPIExtraFields {
-                    statediffs_account: Some(statediffs_account),
-                    statediffs_accountstate: Some(statediffs_accountstate),
-                    revision_changes: block.new_revision,
-                    gasprice_changes: block.new_gas_price,
-                    new_addresses_using_create: Some(new_addresses_using_create),
-                    new_addresses_using_openwallet: Some(new_addresses_using_openwallet),
-                    receipts,
-                },
-            }
-        } else {
+            completed_block.extra_fields = TelosEngineAPIExtraFields {
+                statediffs_account: Some(statediffs_account),
+                statediffs_accountstate: Some(statediffs_accountstate),
+                revision_changes: block.new_revision,
+                gasprice_changes: block.new_gas_price,
+                new_addresses_using_create: Some(new_addresses_using_create),
+                new_addresses_using_openwallet: Some(new_addresses_using_openwallet),
+                receipts,
+            };
+        } else if evm_block_num == config.evm_deploy_block.unwrap_or_default() {
             let (state_dump_block, extra_fields) = generate_extra_fields_from_json(TESTNET_DEPLOY_STATE);
             assert_eq!(state_dump_block, evm_block_num, "State dump doesn\'t match configured deploy block");
-            TelosEVMBlock {
-                block_num: evm_block_num,
-                block_hash,
-                ship_hash: block.block_hash.as_string(),
-                lib_num: block.lib_num,
-                lib_hash: block.lib_hash.as_string(),
-                transactions: block.transactions,
-                header,
-                execution_payload: exec_payload,
-                extra_fields,
-            }
+            completed_block.extra_fields = extra_fields;
         };
 
         block_map.next(&completed_block, &config.chain_id);
