@@ -177,7 +177,15 @@ pub async fn final_processor(
             transactions: vec![],
             header,
             execution_payload: exec_payload,
-            extra_fields: Default::default(),
+            extra_fields: TelosEngineAPIExtraFields {
+                statediffs_account: Some(vec![]),
+                statediffs_accountstate: Some(vec![]),
+                revision_changes: None,
+                gasprice_changes: None,
+                new_addresses_using_create: Some(vec![]),
+                new_addresses_using_openwallet: Some(vec![]),
+                receipts,
+            },
         };
 
         if evm_block_num > config.evm_deploy_block.unwrap_or_default() {
