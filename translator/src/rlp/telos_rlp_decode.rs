@@ -57,6 +57,8 @@ impl TelosTxDecodable for TxLegacy {
                     //   from the buffer but leave signature value as zeros
                     if buf == &[128, 128, 128] {
                         buf.advance(3);
+                    } else if buf == &[0] {
+                        buf.advance(1);
                     } else {
                         let decoded_signature = Signature::decode_rlp_vrs(buf)?;
                         let v = decoded_signature.v();
