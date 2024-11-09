@@ -1,10 +1,11 @@
 use antelope::api::client::APIClient;
 use antelope::chain::asset::{Asset, Symbol};
-use antelope::chain::checksum::Checksum256;
+use antelope::chain::checksum::{Checksum160, Checksum256};
 use antelope::chain::name::Name;
 use antelope::util::hex_to_bytes;
+use reth_primitives::BloomInput::Raw;
 use telos_translator_rs::transaction::TelosEVMTransaction;
-use telos_translator_rs::types::evm_types::{TransferAction, WithdrawAction};
+use telos_translator_rs::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use telos_translator_rs::types::translator_types::NameToAddressCache;
 
 #[tokio::test]
@@ -20,7 +21,7 @@ async fn test_deposit() {
             from: Name::new("exrsrv.tf"),
             to: Name::new("eosio.evm"),
             quantity: Asset::new(654507, Symbol::new("TLOS", 4)),
-            memo: "0xb4b01216a5bc8f1c8a33cd990a1239030e60c905".to_string(),
+            memo: Vec::from("0xb4b01216a5bc8f1c8a33cd990a1239030e60c905".to_string()),
         },
         &NameToAddressCache::new(APIClient::default()),
     )
@@ -57,4 +58,36 @@ async fn test_withdraw() {
         trx.hash().to_string(),
         "0x38f3f0600ea400119b34289d198c048623520be84f0e9f98941bf033a8e1c49c"
     );
+}
+
+#[tokio::test]
+async fn test_zero_pad_value() {
+    // as found in testnet evm block #179647915
+    let trx = TelosEVMTransaction::from_raw_action(
+        41,
+        0,
+        Checksum256::from_bytes(&hex_to_bytes(
+            "0b3339c3594d86694d0fb78756f22e0d782a7223af0d0d59a51b7bc8b80d8440",
+        )).unwrap(),
+        RawAction {
+            ram_payer: Name::new_from_str("eosio"),
+            tx: hex_to_bytes("f901481985746050fb56831e8480949a469d1e668425907548228ea525a661ff3bfa2b80b90124b069bcc30000000000000000000000000000000000000000000000000000000000000060000000000000000000000000111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000043300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000220000000000000000000000000000003000000000000000000000000000000000"),
+            estimate_gas: false,
+            sender: Some(Checksum160::from_hex("a81803217967f4a8e5306057ef75c452685613ab").unwrap()),
+        },
+        PrintedReceipt {
+            charged_gas: "".to_string(),
+            trx_index: 0,
+            block: 0,
+            status: 0,
+            epoch: 0,
+            createdaddr: "".to_string(),
+            gasused: "".to_string(),
+            logs: vec![],
+            output: "".to_string(),
+            errors: None,
+        }
+        ).await.unwrap();
+
+    println!("{:#?}", trx);
 }
