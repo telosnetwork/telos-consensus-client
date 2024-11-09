@@ -60,8 +60,10 @@ async fn test_withdraw() {
     );
 }
 
+// 
+
 #[tokio::test]
-async fn test_zero_pad_value() {
+async fn test_single_zero_sig() {
     // as found in testnet evm block #179647915
     let trx = TelosEVMTransaction::from_raw_action(
         41,
@@ -88,6 +90,38 @@ async fn test_zero_pad_value() {
             errors: None,
         }
         ).await.unwrap();
+
+    println!("{:#?}", trx);
+}
+
+#[tokio::test]
+async fn test_failed_decode() {
+    // as found in testnet evm block #179647915
+    let trx = TelosEVMTransaction::from_raw_action(
+        41,
+        0,
+        Checksum256::from_bytes(&hex_to_bytes(
+            "0ac6654876b6f061fc165a8aa54e36b1d1704898d26ce33a9c9322068332960e",
+        )).unwrap(),
+        RawAction {
+            ram_payer: Name::new_from_str("eosio"),
+            tx: hex_to_bytes("f8570785746050fb56831e848094a763a9333de157a9009f5eecd778b799e3c6d74e80b5b069bcc3000000000000000000000000000000000000000000000000000000006c33bdd2622e59fd10b411ff8d8d8d4dc5caf6ce0000000000000000000000000000000000000000000000000000000017"),
+            estimate_gas: false,
+            sender: Some(Checksum160::from_hex("6c33bdd2622e59fd10b411ff8d8d8d4dc5caf6ce").unwrap()),
+        },
+        PrintedReceipt {
+            charged_gas: "".to_string(),
+            trx_index: 0,
+            block: 0,
+            status: 0,
+            epoch: 0,
+            createdaddr: "".to_string(),
+            gasused: "".to_string(),
+            logs: vec![],
+            output: "".to_string(),
+            errors: None,
+        }
+    ).await.unwrap();
 
     println!("{:#?}", trx);
 }
