@@ -11,6 +11,7 @@ use antelope::serializer::Encoder;
 use antelope::util::hex_to_bytes;
 use antelope::StructPacker;
 use serde::{Deserialize, Deserializer, Serialize};
+use tracing::warn;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
 pub struct RawAction {
@@ -175,11 +176,11 @@ impl PrintedReceipt {
                 let printed_receipt = serde_json::from_str::<PrintedReceipt>(extracted).unwrap();
                 Some(printed_receipt)
             } else {
-                println!("End pattern not found.");
+                warn!("End pattern not found.");
                 None
             }
         } else {
-            println!("Start pattern not found.");
+            warn!("Start pattern not found.");
             None
         }
     }

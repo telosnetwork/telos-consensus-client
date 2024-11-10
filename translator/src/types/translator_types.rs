@@ -104,6 +104,7 @@ impl NameToAddressCache {
                             let address = Address::from(account_row.address.data);
                             self.cache.insert(index, address);
                             self.index_cache.insert(account_row.index, address);
+
                             return Ok(address);
                         } else {
                             warn!("Got empty rows for index {index}, retry attempt {i}");
