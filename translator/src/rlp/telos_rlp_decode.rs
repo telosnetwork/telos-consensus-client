@@ -57,10 +57,10 @@ impl TelosTxDecodable for TxLegacy {
                     //   from the buffer but leave signature value as zeros
                     if buf == &[128, 128, 128] {
                         buf.advance(3);
-                    // On testnet, there are native signed transactions with signature data encoded as [0] 
+                    // On testnet, there are native signed transactions with signature data encoded as [0, ...]
                     //   also need to purge these and leave the signature value as zeros
-                    } else if buf == &[0] {
-                        buf.advance(1);
+                    } else if buf[0] == 0 {
+                        buf.advance(buf.len());
                     } else {
                         let decoded_signature = Signature::decode_rlp_vrs(buf)?;
                         let v = decoded_signature.v();
