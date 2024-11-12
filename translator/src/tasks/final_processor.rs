@@ -242,6 +242,8 @@ pub async fn final_processor(
                     .collect(),
             );
 
+            completed_block.transactions = block.transactions.clone();
+
             completed_block.extra_fields = TelosEngineAPIExtraFields {
                 statediffs_account: Some(statediffs_account),
                 statediffs_accountstate: Some(statediffs_accountstate),
