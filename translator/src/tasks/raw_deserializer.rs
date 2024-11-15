@@ -96,6 +96,9 @@ pub async fn raw_deserializer(
                         result: r.clone(),
                         skip_events,
                     });
+                    if block_deserializer_tx.is_closed() {
+                        continue;
+                    }
                     debug!("Block #{} sending to block deserializer...", b.block_num);
                     block_deserializer_tx.send(block).await?;
                     debug!("Block #{} sent to block deserializer", b.block_num);

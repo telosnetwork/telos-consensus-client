@@ -26,6 +26,9 @@ pub async fn ship_reader(
             Some(Ok(msg)) => {
                 debug!("Received message {counter}, sending to raw ds pool...",);
                 // write to the channel
+                if raw_ds_tx.is_closed() {
+                    continue;
+                }
                 if let Err(e) = raw_ds_tx.send(msg.into_data()).await {
                     error!("Receiver dropped {:?}", e);
                     break;
