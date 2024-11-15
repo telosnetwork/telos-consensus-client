@@ -1,6 +1,6 @@
 use std::cmp;
 
-use crate::client::Error::{CannotStartConsensusClient, TranslatorShutdown};
+use crate::client::Error::CannotStartConsensusClient;
 use crate::client::{ConsensusClient, Error, Shutdown};
 use crate::config::{AppConfig, CliArgs};
 use eyre::eyre;
@@ -55,15 +55,14 @@ pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Er
         .await
         .map_err(From::from)
         .and_then(|inner| inner)
-        .map_err(|error| TranslatorShutdown(error.to_string()))
+        .map_err(|error| Error::TranslatorError(error.to_string()))
         .err();
 
     if let Some(error) = translator_error.as_ref() {
-        warn!("Translator run failed! Error: {error:#}");
+        warn!("{error:#}");
     }
 
     if let Some(error) = client_error.or(translator_error) {
-        warn!("Retrying...");
         return Err(error);
     }
 
@@ -83,7 +82,6 @@ pub async fn build_consensus_client(
 
     let mut client = ConsensusClient::new(args, config).await.map_err(|e| {
         warn!("Consensus client creation failed: {}", e);
-        warn!("Retrying...");
         CannotStartConsensusClient(e.to_string())
     })?;
 

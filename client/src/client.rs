@@ -39,6 +39,8 @@ pub enum Error {
     RangeAboveMaximum(u32),
     #[error("Cannot shutdown translator: {0}")]
     TranslatorShutdown(String),
+    #[error("Translator error: {0}")]
+    TranslatorError(String),
     #[error("Call to execution API failed: {0}")]
     ExecutionApiError(#[from] ExecutionApiError),
     #[error("Failed to run consensus client: {0}")]
