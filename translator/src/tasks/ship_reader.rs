@@ -4,8 +4,8 @@ use futures_util::StreamExt;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use tracing::debug;
 use tracing::info;
+use tracing::{debug, error};
 
 pub async fn ship_reader(
     mut ws_rx: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
@@ -26,14 +26,14 @@ pub async fn ship_reader(
             Some(Ok(msg)) => {
                 debug!("Received message {counter}, sending to raw ds pool...",);
                 // write to the channel
-                if raw_ds_tx.send(msg.into_data()).await.is_err() {
-                    println!("Receiver dropped");
+                if let Err(e) = raw_ds_tx.send(msg.into_data()).await {
+                    error!("Receiver dropped {:?}", e);
                     break;
                 }
                 debug!("Sent message {counter} to raw ds pool...");
             }
             Some(Err(e)) => {
-                println!("Error receiving message: {}", e);
+                error!("Error receiving message: {}", e);
                 break;
             }
             None => {
