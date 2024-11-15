@@ -10,6 +10,9 @@ pub async fn evm_block_processor(
     while let Some(mut block) = block_rx.recv().await {
         debug!("Processing block {}", block.block_num);
         block.deserialize();
+        if block_tx.is_closed() {
+            continue;
+        }
         if let Err(send_err) = block_tx.send(block).await {
             error!(
                 "Failed to send block to final processor, error: {:?}",
