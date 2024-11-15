@@ -100,7 +100,7 @@ pub async fn raw_deserializer(
                     debug!("Block #{} sent to block deserializer", b.block_num);
                     if last_log.elapsed().as_secs_f64() > 10.0 {
                         info!(
-                            "Raw deserializer block #{} - processed {} blocks/sec",
+                            "Raw deserializer block #{} - processed {:.1} blocks/sec",
                             b.block_num,
                             (unlogged_blocks + unackd_blocks) as f64
                                 / last_log.elapsed().as_secs_f64()
