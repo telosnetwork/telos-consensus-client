@@ -146,7 +146,7 @@ pub async fn final_processor(
             let blocks_sec = unlogged_blocks as f64 / last_log.elapsed().as_secs_f64();
             let trx_sec = unlogged_transactions as f64 / last_log.elapsed().as_secs_f64();
             info!(
-                "Block #{} 0x{} - processed {} blocks/sec and {} tx/sec",
+                "Block #{} 0x{} - processed {:.1} blocks/sec and {:.1} tx/sec",
                 block.block_num,
                 encode(block_hash),
                 blocks_sec,
