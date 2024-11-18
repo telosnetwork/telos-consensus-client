@@ -446,6 +446,11 @@ impl ProcessingEVMBlock {
                     }
                 }
             }
+
+            // This is an exception for the wrong deployment of EVM contract in the testnet on native block #276210867 which caused revision become zero
+            if self.chain_id == 41 && self.block_num == 276210867 {
+                self.new_revision = Some((0, 0));
+            }
         }
 
         let tx_root_hash =
