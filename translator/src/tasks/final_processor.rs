@@ -253,7 +253,7 @@ pub async fn final_processor(
                 new_addresses_using_openwallet: Some(new_addresses_using_openwallet),
                 receipts,
             };
-        } else if evm_block_num == config.evm_deploy_block.unwrap_or_default() {
+        } else if config.evm_deploy_block.is_some_and(|deploy_block| evm_block_num == deploy_block) {
             let (state_dump_block, extra_fields) = generate_extra_fields_from_json(TESTNET_DEPLOY_STATE);
             assert_eq!(state_dump_block, evm_block_num, "State dump doesn\'t match configured deploy block");
             completed_block.extra_fields = extra_fields;
