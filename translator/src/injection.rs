@@ -61,8 +61,6 @@ pub async fn dump_storage(telos_rpc: &str, block_delta: u32) -> TelosEVMStateJSO
     let mut has_more = true;
     let mut lower_bound = Some(TableIndexType::UINT64(0));
 
-    let mut count = 0;
-
     let mut accounts = Vec::new();
 
     while has_more {
@@ -84,7 +82,6 @@ pub async fn dump_storage(telos_rpc: &str, block_delta: u32) -> TelosEVMStateJSO
             for account_row in account_rows.rows {
                 lower_bound = Some(TableIndexType::UINT64(account_row.index + 1));
                 accounts.push(dump_account(&account_row, &api_client).await);
-                count += 1;
             }
         } else {
             panic!("Failed to fetch account row");
@@ -144,8 +141,6 @@ async fn dump_account_storage(account_row: &AccountRow, api_client: &APIClient<D
     let mut has_more = true;
     let mut lower_bound = Some(TableIndexType::UINT64(0));
 
-    let mut count = 0;
-
     let mut storage = HashMap::new();
 
     while has_more {
@@ -178,7 +173,6 @@ async fn dump_account_storage(account_row: &AccountRow, api_client: &APIClient<D
                 storage.insert(key.to_string(), telos_value.to_string());
 
                 lower_bound = Some(TableIndexType::UINT64(account_state_row.index + 1));
-                count += 1;
             }
         } else {
             panic!("Failed to fetch account state row");
