@@ -222,7 +222,6 @@ async fn evm_deploy() {
         chain_endpoint: format!("http://localhost:{port_8888}"),
         batch_size: 5,
         prev_hash: B256::ZERO.to_string(),
-        skip_raw_tx_until: None,
         evm_start_block: 0,
         validate_hash: None,
         evm_stop_block: Some(60),
@@ -232,6 +231,7 @@ async fn evm_deploy() {
         latest_blocks_in_db_num: 100,
         max_retry: None,
         retry_interval: None,
+        evm_deploy_block: None,
     };
 
     let client_under_test = ConsensusClient::new(&args, config.clone()).await.unwrap();
