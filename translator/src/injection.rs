@@ -63,7 +63,7 @@ pub async fn dump_storage(telos_rpc: &str, block_delta: u32) -> TelosEVMStateJSO
         .await
         .expect("Couldnt get config row!");
     assert_eq!(config_row.rows.len(), 1);
-    let gas_price = U256::from_str(&config_row.rows.get(0).unwrap().gas_price).unwrap();
+    let gas_price = U256::from_str(&config_row.rows.first().unwrap().gas_price).unwrap();
 
     let mut has_more = true;
     let mut lower_bound = Some(TableIndexType::UINT64(0));
@@ -132,7 +132,7 @@ async fn dump_account(
     println!("Account: {:?}", address);
     println!("Telos balance: {:?}", telos_balance);
     println!("Telos nonce: {}", account_row.nonce);
-    println!("Telos present code: {}", account_row.code.len() > 0);
+    println!("Telos present code: {}", !account_row.code.is_empty());
 
     let storage = dump_account_storage(account_row, api_client).await;
 
@@ -202,7 +202,7 @@ async fn dump_account_storage(
         }
     }
 
-    return storage;
+    storage
 }
 
 pub fn generate_extra_fields_from_json(state_json: &str) -> (u32, TelosEngineAPIExtraFields) {
