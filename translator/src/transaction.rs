@@ -109,12 +109,14 @@ impl TelosEVMTransaction {
         native_to_evm_cache: &NameToAddressCache,
     ) -> eyre::Result<Self> {
         let str_memo = String::from_utf8(action.memo.clone());
-        let address: Address =
-            if str_memo.as_ref().is_ok_and(|memo| memo.len() == ADDRESS_HEX_SIZE && memo.starts_with("0x")) {
-                str_memo.unwrap().parse()?
-            } else {
-                native_to_evm_cache.get(action.from.n).await?
-            };
+        let address: Address = if str_memo
+            .as_ref()
+            .is_ok_and(|memo| memo.len() == ADDRESS_HEX_SIZE && memo.starts_with("0x"))
+        {
+            str_memo.unwrap().parse()?
+        } else {
+            native_to_evm_cache.get(action.from.n).await?
+        };
 
         let value = U256::from(action.quantity.amount()) * U256::from(100_000_000_000_000i64);
 

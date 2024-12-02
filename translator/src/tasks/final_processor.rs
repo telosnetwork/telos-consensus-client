@@ -1,5 +1,6 @@
 use crate::block::{DecodedRow, TelosEVMBlock, WalletEvents};
-use crate::types::translator_types::{ChainId, generate_extra_fields_from_json};
+use crate::types::env::TESTNET_DEPLOY_STATE;
+use crate::types::translator_types::{generate_extra_fields_from_json, ChainId};
 use crate::{
     block::ProcessingEVMBlock, translator::TranslatorConfig,
     types::translator_types::NameToAddressCache,
@@ -17,7 +18,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use tokio::{sync::mpsc, time::Instant};
 use tracing::{debug, error, info};
-use crate::types::env::TESTNET_DEPLOY_STATE;
 
 struct BlockMap {
     parent_hash: B256,
@@ -215,8 +215,8 @@ pub async fn final_processor(
 
             for new_wallet in block.new_wallets {
                 match new_wallet {
-                    WalletEvents::CreateWallet(trx_index, create_action) => new_addresses_using_create
-                        .push((
+                    WalletEvents::CreateWallet(trx_index, create_action) => {
+                        new_addresses_using_create.push((
                             trx_index as u64,
                             U256::from_be_slice(
                                 native_to_evm_cache
@@ -224,7 +224,8 @@ pub async fn final_processor(
                                     .await?
                                     .as_slice(),
                             ),
-                        )),
+                        ))
+                    }
                     WalletEvents::OpenWallet(trx_index, openwallet_action) => {
                         new_addresses_using_openwallet.push((
                             trx_index as u64,
@@ -253,9 +254,16 @@ pub async fn final_processor(
                 new_addresses_using_openwallet: Some(new_addresses_using_openwallet),
                 receipts,
             };
-        } else if config.evm_deploy_block.is_some_and(|deploy_block| evm_block_num == deploy_block) {
-            let (state_dump_block, extra_fields) = generate_extra_fields_from_json(TESTNET_DEPLOY_STATE);
-            assert_eq!(state_dump_block, evm_block_num, "State dump doesn\'t match configured deploy block");
+        } else if config
+            .evm_deploy_block
+            .is_some_and(|deploy_block| evm_block_num == deploy_block)
+        {
+            let (state_dump_block, extra_fields) =
+                generate_extra_fields_from_json(TESTNET_DEPLOY_STATE);
+            assert_eq!(
+                state_dump_block, evm_block_num,
+                "State dump doesn\'t match configured deploy block"
+            );
             completed_block.extra_fields = extra_fields;
         };
 

@@ -7,17 +7,19 @@ use antelope::api::v1::structs::{
     GetTableRowsParams, GetTableRowsResponse, IndexPosition, TableIndexType,
 };
 use antelope::chain::name::Name;
+use antelope::util::hex_to_bytes;
 use eyre::eyre;
 use futures_util::stream::{SplitSink, SplitStream};
 use moka::sync::Cache;
+use reth_telos_rpc_engine_api::structs::{
+    TelosAccountStateTableRow, TelosAccountTableRow, TelosEngineAPIExtraFields,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
 use std::net::TcpStream;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use antelope::util::hex_to_bytes;
-use reth_telos_rpc_engine_api::structs::{TelosAccountStateTableRow, TelosAccountTableRow, TelosEngineAPIExtraFields};
 use tokio::time::sleep;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -226,7 +228,7 @@ pub struct AccountJSON {
     balance: String,
     nonce: u64,
     code: String,
-    storage: std::collections::HashMap<String, String>
+    storage: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -262,13 +264,16 @@ pub fn generate_extra_fields_from_json(state_json: &str) -> (u32, TelosEngineAPI
         }
     }
 
-    (telos_state.evm_block_num, TelosEngineAPIExtraFields {
-        statediffs_account: Some(exec_accounts),
-        statediffs_accountstate: Some(exec_accounts_state),
-        revision_changes: None,
-        gasprice_changes: Some((0, telos_state.gas_price)),
-        new_addresses_using_create: Some(vec![]),
-        new_addresses_using_openwallet: Some(vec![]),
-        receipts: Some(vec![]),
-    })
+    (
+        telos_state.evm_block_num,
+        TelosEngineAPIExtraFields {
+            statediffs_account: Some(exec_accounts),
+            statediffs_accountstate: Some(exec_accounts_state),
+            revision_changes: None,
+            gasprice_changes: Some((0, telos_state.gas_price)),
+            new_addresses_using_create: Some(vec![]),
+            new_addresses_using_openwallet: Some(vec![]),
+            receipts: Some(vec![]),
+        },
+    )
 }

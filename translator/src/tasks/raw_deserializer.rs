@@ -84,7 +84,8 @@ pub async fn raw_deserializer(
                 unackd_blocks += 1;
                 if let Some(b) = &r.this_block {
                     // Skip if current evm block <= evm deploy
-                    let skip_events = (b.block_num - config.chain_id.block_delta()) <= config.evm_deploy_block.unwrap_or_default();
+                    let skip_events = (b.block_num - config.chain_id.block_delta())
+                        <= config.evm_deploy_block.unwrap_or_default();
                     let block = ProcessingEVMBlock::new(ProcessingEVMBlockArgs {
                         chain_id: config.chain_id.0,
                         block_num: b.block_num,
