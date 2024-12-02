@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Write;
 use telos_translator_rs::injection::dump_storage;
 
-#[tokio::test]
+// #[tokio::test]
 pub async fn dump_it() {
     let telos_rpc = "http://127.0.0.1:8889";
     let block_delta = 57;
