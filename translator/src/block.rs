@@ -408,20 +408,28 @@ impl ProcessingEVMBlock {
                                 let decoded_row: AccountStateRow = decode(&r.value);
                                 let complex_key = (r.scope.n, decoded_row.key.data);
                                 match deduped_accstate_deltas.get(&complex_key) {
-                                    Some(prev_acc_state) => {
-                                        match prev_acc_state {
-                                            DecodedRow::AccountState(_vrem, prev_row, _scope) => {
-                                                if prev_row.index < decoded_row.index {
-                                                    deduped_accstate_deltas.insert(complex_key, DecodedRow::AccountState(removed, decoded_row, r.scope));
-                                                }
-                                            },
-                                            _ => {
-                                                panic!("Not suposed to happen");
+                                    Some(prev_acc_state) => match prev_acc_state {
+                                        DecodedRow::AccountState(_vrem, prev_row, _scope) => {
+                                            if prev_row.index < decoded_row.index {
+                                                deduped_accstate_deltas.insert(
+                                                    complex_key,
+                                                    DecodedRow::AccountState(
+                                                        removed,
+                                                        decoded_row,
+                                                        r.scope,
+                                                    ),
+                                                );
                                             }
+                                        }
+                                        _ => {
+                                            panic!("Not suposed to happen");
                                         }
                                     },
                                     None => {
-                                        deduped_accstate_deltas.insert(complex_key, DecodedRow::AccountState(removed, decoded_row, r.scope));
+                                        deduped_accstate_deltas.insert(
+                                            complex_key,
+                                            DecodedRow::AccountState(removed, decoded_row, r.scope),
+                                        );
                                     }
                                 }
                             }

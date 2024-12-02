@@ -5,7 +5,9 @@ use antelope::chain::name::Name;
 use antelope::util::hex_to_bytes;
 use reth_primitives::BloomInput::Raw;
 use telos_translator_rs::transaction::TelosEVMTransaction;
-use telos_translator_rs::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
+use telos_translator_rs::types::evm_types::{
+    PrintedReceipt, RawAction, TransferAction, WithdrawAction,
+};
 use telos_translator_rs::types::translator_types::NameToAddressCache;
 
 #[tokio::test]
@@ -60,7 +62,7 @@ async fn test_withdraw() {
     );
 }
 
-// 
+//
 
 #[tokio::test]
 async fn test_single_zero_sig() {
