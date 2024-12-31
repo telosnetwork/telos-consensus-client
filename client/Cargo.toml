@@ -13,6 +13,7 @@ clap = { workspace = true }
 serde = { workspace = true }
 eyre = { workspace = true }
 serde_json = { workspace = true }
+futures = "0.3.31"
 tokio = { workspace = true, features = ["full"] }
 toml = { workspace = true }
 tracing = { workspace = true }
