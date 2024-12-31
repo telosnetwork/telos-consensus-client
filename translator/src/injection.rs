@@ -1,4 +1,4 @@
-use alloy::primitives::{Address, Bytes, U256};
+use alloy_primitives::{Address, Bytes, U256};
 use antelope::api::client::{APIClient, DefaultProvider};
 use antelope::api::v1::structs::{GetTableRowsParams, TableIndexType};
 use antelope::chain::checksum::{Checksum160, Checksum256};

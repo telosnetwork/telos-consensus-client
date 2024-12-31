@@ -1,3 +1,4 @@
+use alloy_primitives::B256;
 use crate::client::Error::ForkChoiceUpdated;
 use crate::config::{AppConfig, CliArgs};
 use crate::data::{self, Database, Lib};
@@ -6,8 +7,6 @@ use crate::json_rpc::JsonResponseBody;
 use alloy_rpc_types::Block;
 use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated};
 use eyre::{Context, Result};
-use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
-use reth_primitives::B256;
 use serde_json::json;
 use telos_translator_rs::block::TelosEVMBlock;
 use tokio::sync::mpsc;
@@ -108,7 +107,7 @@ impl ConsensusClient {
     fn latest_evm_block(&self) -> Option<(u32, String)> {
         let latest = self.latest_finalized_executor_block.as_ref()?;
         let (number, hash) = (latest.header.number, latest.header.hash);
-        Some((number.as_u32(), hash.to_string()))
+        Some((number as u32, hash.to_string()))
     }
 
     pub fn is_in_start_stop_range(&self, block: u32) -> bool {
@@ -118,28 +117,28 @@ impl ConsensusClient {
         }
     }
 
-    pub fn is_in_check_range(&self, block: u64) -> bool {
+    pub fn is_in_check_range(&self, block: u32) -> bool {
         match (
             &self.latest_finalized_executor_block,
             &self.latest_executor_block,
         ) {
             (None, None) => false,
-            (None, Some(latest)) => block < latest.header.number,
+            (None, Some(latest)) => block < latest.header.number as u32,
             (Some(_), None) => unreachable!(),
             (Some(valid), Some(latest)) => {
-                valid.header.number <= block && block <= latest.header.number
+                valid.header.number as u32 <= block && block <= latest.header.number as u32
             }
         }
     }
 
-    pub fn latest_evm_number(&self) -> Option<u32> {
+    pub fn latest_evm_number(&self) -> Option<u64> {
         self.latest_finalized_executor_block
             .as_ref()
-            .map(|block| block.header.number.as_u32())
+            .map(|block| block.header.number)
     }
 
     pub fn sync_range(&self) -> Option<u32> {
-        self.latest_evm_number()?
+        (self.latest_evm_number()? as u32)
             .checked_sub(self.config.evm_start_block)
     }
 
@@ -201,7 +200,7 @@ impl ConsensusClient {
 
             let block_hash = block.block_hash;
 
-            if self.is_in_check_range(block_num.as_u64()) {
+            if self.is_in_check_range(block_num) {
                 debug!("Checking if block {block_num} exists...");
                 let evm_block = self
                     .execution_api

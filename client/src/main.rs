@@ -5,7 +5,6 @@ use std::{fs, pin::Pin};
 use clap::Parser;
 use eyre::{Context, Result};
 use futures::Future;
-use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use telos_consensus_client::{
     client::{Error, Shutdown},
     config::{AppConfig, CliArgs},
@@ -63,7 +62,7 @@ async fn main() -> Result<()> {
         .init();
 
     let retry_interval = config.retry_interval.unwrap_or(8000u64);
-    let max_retries = config.max_retry.unwrap_or(8u8).as_usize();
+    let max_retries = config.max_retry.unwrap_or(8usize);
     let retry_strategy = FixedInterval::from_millis(retry_interval).take(max_retries);
 
     if let Err(error) = Retry::spawn(retry_strategy, RunClientAction::new(args, config)).await {

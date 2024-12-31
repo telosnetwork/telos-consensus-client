@@ -9,7 +9,7 @@ use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
 use crate::types::translator_types::{ChainId, NameToAddressCache};
-use alloy::primitives::{Bloom, Bytes, FixedBytes, B256, U256};
+use alloy_primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Header, Transaction, TxEnvelope};
 use alloy_eips::eip2718::Encodable2718;
@@ -21,12 +21,13 @@ use antelope::serializer::Packer;
 use eyre::eyre;
 use reth_primitives::ReceiptWithBloom;
 use reth_telos_rpc_engine_api::structs::TelosEngineAPIExtraFields;
-use reth_trie_common::root::ordered_trie_root_with_encoder;
+use alloy_trie::root::ordered_trie_root_with_encoder;
 use std::cmp::{max, Ordering};
 use std::collections::HashMap;
+use alloy_consensus::transaction::RlpEcdsaTx;
 use tracing::{debug, warn};
 
-const MINIMUM_FEE_PER_GAS: u128 = 7;
+const MINIMUM_FEE_PER_GAS: u64 = 7;
 
 pub trait BasicTrace {
     fn action_name(&self) -> u64;
@@ -97,7 +98,7 @@ pub struct ProcessingEVMBlock {
     block_traces: Option<Vec<TransactionTrace>>,
     contract_rows: Option<Vec<(bool, ContractRow)>>,
     cumulative_gas_used: u64,
-    dyn_gas_limit: Option<u128>,
+    dyn_gas_limit: Option<u64>,
     pub decoded_rows: Vec<DecodedRow>,
     pub transactions: Vec<(TelosEVMTransaction, ReceiptWithBloom)>,
     pub new_gas_price: Option<(u64, U256)>,
@@ -246,8 +247,8 @@ impl ProcessingEVMBlock {
 
     fn add_transaction(&mut self, transaction: TelosEVMTransaction) {
         let full_receipt = transaction.receipt(self.cumulative_gas_used);
-        let gas_limit = transaction.envelope.gas_limit() + self.cumulative_gas_used as u128;
-        self.cumulative_gas_used = full_receipt.receipt.cumulative_gas_used;
+        let gas_limit = transaction.envelope.gas_limit() + self.cumulative_gas_used;
+        self.cumulative_gas_used = full_receipt.receipt.cumulative_gas_used as u64;
         self.transactions.push((transaction, full_receipt));
 
         if self.dyn_gas_limit.is_none() {
@@ -470,7 +471,7 @@ impl ProcessingEVMBlock {
 
                         if envelope.is_eip1559() {
                             let stx = envelope.as_eip1559().unwrap();
-                            stx.tx().encode_with_signature_fields(stx.signature(), buf);
+                            stx.tx().rlp_encode_signed(stx.signature(), buf);
                         } else {
                             panic!("unimplemented tx type");
                         }
@@ -481,7 +482,7 @@ impl ProcessingEVMBlock {
             ordered_trie_root_with_encoder(&self.transactions, |(_trx, r), buf| r.encode(buf));
         let mut logs_bloom = Bloom::default();
         for (_trx, receipt) in &self.transactions {
-            logs_bloom.accrue_bloom(&receipt.bloom);
+            logs_bloom.accrue_bloom(&receipt.logs_bloom);
         }
 
         let gas_limit = if let Some(dyn_gas) = self.dyn_gas_limit {
@@ -503,7 +504,7 @@ impl ProcessingEVMBlock {
             difficulty: Default::default(),
             number: (self.block_num - block_delta) as u64,
             gas_limit,
-            gas_used: self.cumulative_gas_used as u128,
+            gas_used: self.cumulative_gas_used,
             timestamp: (((self.signed_block.clone().unwrap().header.header.timestamp as u64)
                 * ANTELOPE_INTERVAL_MS)
                 + ANTELOPE_EPOCH_MS)
@@ -514,8 +515,9 @@ impl ProcessingEVMBlock {
             blob_gas_used: None,
             excess_blob_gas: None,
             parent_beacon_block_root: None,
-            requests_root: None,
+            requests_hash: None,
             extra_data: Bytes::from(self.block_hash.data),
+            target_blobs_per_block: None,
         };
 
         let base_fee_per_gas = U256::from(
