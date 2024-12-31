@@ -6,12 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+alloy-consensus.workspace = true
+alloy-primitives.workspace = true
+alloy-trie.workspace = true
 reth-primitives = { workspace = true }
-alloy = { workspace = true }
 alloy-rlp = { workspace = true }
 alloy-rpc-types-engine  = { workspace = true }
 alloy-eips = { workspace = true }
-alloy-consensus = { workspace = true }
 antelope-client = { workspace = true }
 bytes = { workspace = true }
 clap = { workspace = true }
@@ -26,17 +27,10 @@ hex = { workspace = true }
 reth-trie-common = { workspace = true }
 reth-telos-rpc-engine-api = { workspace = true }
 num-bigint = "0.4.5"
-dashmap = "5.5.3"
-k256 = { version = "0.13.3", features = ["ecdsa"] }
 moka = { version = "0.12.7", features = ["sync"] }
 tokio-tungstenite = "0.23.0"
 futures-util = "0.3.30"
-ruint = "0.3.0"
-rlp = "0.5.2"
 lazy_static = "1.5.0"
-
-
-#alloy = { version = "0.2.1", features = ["k256"] }
 
 [dev-dependencies]
 testcontainers = { workspace = true }

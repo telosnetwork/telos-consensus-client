@@ -1,5 +1,5 @@
-use alloy::primitives::aliases::BlockTimestamp;
-use alloy::primitives::{Address, Log, B256};
+use alloy_primitives::aliases::BlockTimestamp;
+use alloy_primitives::{Address, Log, B256};
 use antelope::chain::asset::Asset;
 use antelope::chain::binary_extension::BinaryExtension;
 use antelope::chain::checksum::{Checksum160, Checksum256};

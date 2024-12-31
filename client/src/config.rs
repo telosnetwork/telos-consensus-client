@@ -65,7 +65,7 @@ pub struct AppConfig {
     pub latest_blocks_in_db_num: u32,
 
     /// Number of retry attempts
-    pub max_retry: Option<u8>,
+    pub max_retry: Option<usize>,
 
     /// Delay between retries
     pub retry_interval: Option<u64>,

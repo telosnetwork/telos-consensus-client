@@ -1,7 +1,7 @@
-use alloy::primitives::private::alloy_rlp::{Decodable, Error, Header};
-use alloy::primitives::{Bytes, Parity, Signature, TxKind, U256};
+use alloy_primitives::private::alloy_rlp::{Decodable, Error, Header};
+use alloy_primitives::{normalize_v, Bytes, Parity, PrimitiveSignature, Signature, TxKind, U256};
 use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
-
+use alloy_consensus::transaction::from_eip155_value;
 use alloy_rlp::Result;
 use bytes::Buf;
 use tracing::error;
@@ -9,7 +9,7 @@ use tracing::error;
 fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy, Error> {
     let nonce = u64::decode(data).map_err(|_| Error::Custom("Failed to decode nonce"))?;
     let gas_price = u128::decode(data).map_err(|_| Error::Custom("Failed to decode gas price"))?;
-    let gas_limit = u128::decode(data).map_err(|_| Error::Custom("Failed to decode gas limit"))?;
+    let gas_limit = u64::decode(data).map_err(|_| Error::Custom("Failed to decode gas limit"))?;
     let to = TxKind::decode(data).map_err(|_| Error::Custom("Failed to decode to"))?;
     let value = decode_telos_u256(data).map_err(|_| Error::Custom("Failed to decode value"))?;
     let input = Bytes::decode(data).map_err(|_| Error::Custom("Failed to decode input"))?;
@@ -28,8 +28,8 @@ fn decode_fields(data: &mut &[u8]) -> Result<TxLegacy, Error> {
 pub trait TelosTxDecodable {
     fn decode_telos_signed_fields(
         buf: &mut &[u8],
-        sig: Option<Signature>,
-    ) -> Result<Signed<Self>, Error>
+        sig: Option<PrimitiveSignature>,
+    ) -> Result<(Self, PrimitiveSignature)>
     where
         Self: Sized;
 }
@@ -37,8 +37,8 @@ pub trait TelosTxDecodable {
 impl TelosTxDecodable for TxLegacy {
     fn decode_telos_signed_fields(
         buf: &mut &[u8],
-        provided_sig: Option<Signature>,
-    ) -> Result<Signed<Self>, Error> {
+        provided_sig: Option<PrimitiveSignature>,
+    ) -> Result<(Self, PrimitiveSignature)> {
         let header = Header::decode(buf)?;
         if !header.list {
             return Err(Error::Custom("Not a list."));
@@ -62,11 +62,16 @@ impl TelosTxDecodable for TxLegacy {
                     } else if buf[0] == 0 {
                         buf.advance(buf.len());
                     } else {
-                        let decoded_signature = Signature::decode_rlp_vrs(buf)?;
-                        let v = decoded_signature.v();
+                        let mut decoded_v: u128 = 0;
+                        let decoded_signature = PrimitiveSignature::decode_rlp_vrs(buf, |buf| {
+                            let decoded_v = Decodable::decode(buf)?;
+                            let (parity, _chain_id) =
+                                from_eip155_value(decoded_v).ok_or(Error::Custom("invalid parity value"))?;
+                            Ok(parity)
+                        })?;
                         let r = decoded_signature.r();
                         let s = decoded_signature.s();
-                        if v.to_u64() != 0 || r != U256::ZERO || s != U256::ZERO {
+                        if decoded_v != 0 || r != U256::ZERO || s != U256::ZERO {
                             return Err(Error::Custom(
                                 "Unsigned Telos Native trx with signature data",
                             ));
@@ -79,24 +84,23 @@ impl TelosTxDecodable for TxLegacy {
                 if buf.is_empty() {
                     return Err(Error::Custom("Trx without signature"));
                 }
-
-                let parity: Parity = Decodable::decode(buf)?;
+                let v: u128 = Decodable::decode(buf)?;
+                let (parity, chain_id) =
+                    from_eip155_value(v).ok_or(Error::Custom("invalid parity value"))?;
+                
                 let r = decode_telos_u256(buf)?;
                 let s = decode_telos_u256(buf)?;
-
-                Signature::from_rs_and_parity(r, s, parity)
-                    .map_err(|_| Error::Custom("attempted to decode invalid field element"))?
+                tx.chain_id = chain_id;
+                PrimitiveSignature::new(r, s, parity)
             }
         };
 
-        tx.chain_id = sig.v().chain_id();
-
-        let signed = tx.into_signed(sig);
+        // let signed = tx.into_signed(sig);
         if buf.len() + header.payload_length == original_len || buf.iter().all(|&b| b == 128) {
-            return Ok(signed);
+            return Ok((tx, sig));
         }
 
-        error!("Transaction has trailing non-zero RLP values: {:?}", signed);
+        error!("Transaction has trailing non-zero RLP values, tx: {:?} sig: {:?}", tx, sig);
         Err(Error::ListLengthMismatch {
             expected: header.payload_length,
             got: original_len - buf.len(),

@@ -1,23 +1,23 @@
 use crate::rlp::telos_rlp_decode::TelosTxDecodable;
 use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::translator_types::NameToAddressCache;
-use alloy::primitives::private::alloy_rlp::Error;
-use alloy::primitives::TxKind::Call;
-use alloy::primitives::{Address, Bloom, Log, Signature, B256, U256};
-use alloy_consensus::{SignableTransaction, TxEnvelope, TxLegacy};
+use alloy_primitives::private::alloy_rlp::Error;
+use alloy_primitives::TxKind::Call;
+use alloy_primitives::{normalize_v, Address, Bloom, Log, PrimitiveSignature, B256, U256};
+use alloy_consensus::{Eip658Value, Receipt, ReceiptWithBloom, SignableTransaction, Signed, TxEnvelope, TxLegacy};
+use alloy_consensus::transaction::RlpEcdsaTx;
 use alloy_rlp::Decodable;
 use antelope::chain::checksum::Checksum256;
 use num_bigint::{BigUint, ToBigUint};
-use reth_primitives::{Receipt, ReceiptWithBloom};
 
 const ADDRESS_HEX_SIZE: usize = 42;
+pub const TELOS_SIGNED_V_VALUE: u64 = 42u64;
 
 pub fn make_unique_vrs(
     block_hash_native: Checksum256,
     sender_address: Address,
     trx_index: usize,
-) -> Signature {
-    let v = 42u64;
+) -> PrimitiveSignature {
     let hash_biguint = BigUint::from_bytes_be(&block_hash_native.data);
     let trx_index_biguint: BigUint = trx_index.to_biguint().unwrap();
     let r_biguint = hash_biguint + trx_index_biguint;
@@ -26,7 +26,7 @@ pub fn make_unique_vrs(
     s_bytes[..20].copy_from_slice(sender_address.as_slice());
     let r = U256::from_be_slice(r_biguint.to_bytes_be().as_slice());
     let s = U256::from_be_slice(&s_bytes);
-    Signature::from_rs_and_parity(r, s, v).expect("Failed to create signature")
+    PrimitiveSignature::from_scalars_and_parity(r.into(), s.into(), normalize_v(TELOS_SIGNED_V_VALUE).unwrap())
 }
 
 #[derive(Clone, Debug)]
@@ -48,7 +48,7 @@ impl TelosEVMTransaction {
         let tx_raw = &mut raw.tx.as_slice();
 
         if tx_raw[0] >= 0xc0 && tx_raw[0] <= 0xfe {
-            let mut signed_legacy_result = TxLegacy::decode_signed_fields(tx_raw);
+            let mut signed_legacy_result = TxLegacy::rlp_decode_with_signature(tx_raw);
             // If we fail to decode with the strict RLP from reth,
             // and we don't have a raw.sender which suggests a native signed trx
             // then try the telos legacy decode without passing a signature
@@ -64,30 +64,29 @@ impl TelosEVMTransaction {
                         .data,
                 );
                 let sig = make_unique_vrs(block_hash, address, trx_index);
-                let unsigned_legacy = TxLegacy::decode_telos_signed_fields(
+                let (tx_legacy, signature) = TxLegacy::decode_telos_signed_fields(
                     &mut raw.tx.clone().as_slice(),
                     Some(sig),
                 )?;
-                let envelope = TxEnvelope::Legacy(unsigned_legacy);
+                let envelope = TxEnvelope::Legacy(tx_legacy.into_signed(signature));
                 return Ok(TelosEVMTransaction { envelope, receipt });
             }
 
-            let signed_legacy = signed_legacy_result.unwrap();
+            let (tx_legacy, signature) = signed_legacy_result.unwrap();
             // Align with contract, if BOTH are zero it's zero and raw.sender is used
             // https://github.com/telosnetwork/telos.evm/blob/9f2024a2a65e7c6b9bb98b36b368c359e24e6885/eosio.evm/include/eosio.evm/transaction.hpp#L205
-            if signed_legacy.signature().r().is_zero() && signed_legacy.signature().s().is_zero() {
+            if signature.r().is_zero() && signature.s().is_zero() {
                 let address = Address::from(
                     raw.sender
                         .expect("Failed to get address from sender in unsigned transaction, signed_legacy signature is zero")
                         .data,
                 );
                 let sig = make_unique_vrs(block_hash, address, trx_index);
-                let unsigned_legacy = signed_legacy.strip_signature().into_signed(sig);
-                let envelope = TxEnvelope::Legacy(unsigned_legacy);
+                let envelope = TxEnvelope::Legacy(tx_legacy.into_signed(sig));
                 return Ok(TelosEVMTransaction { envelope, receipt });
             }
 
-            let envelope = TxEnvelope::Legacy(signed_legacy);
+            let envelope = TxEnvelope::Legacy(tx_legacy.into_signed(signature));
             Ok(TelosEVMTransaction { envelope, receipt })
         } else {
             let type_bit = tx_raw[0];
@@ -133,7 +132,7 @@ impl TelosEVMTransaction {
         let sig = make_unique_vrs(block_hash, Address::ZERO, trx_index);
         let signed_legacy = tx_legacy.clone().into_signed(sig);
         let mut raw: Vec<u8> = vec![];
-        tx_legacy.encode_with_signature_fields(&sig, &mut raw);
+        tx_legacy.rlp_encode_signed(&sig, &mut raw);
         let envelope = TxEnvelope::Legacy(signed_legacy);
         Ok(TelosEVMTransaction {
             envelope,
@@ -222,19 +221,18 @@ impl TelosEVMTransaction {
     pub fn receipt(&self, cumulative_gas_used: u64) -> ReceiptWithBloom {
         let tx_gas_used = u64::from_str_radix(&self.receipt.gasused, 16).unwrap();
         let logs = self.receipt.logs.clone();
-        let mut bloom = Bloom::default();
+        let mut logs_bloom = Bloom::default();
         for log in &logs {
-            bloom.accrue_log(log);
+            logs_bloom.accrue_log(log);
         }
         let success = self.receipt.status == 1u8;
         ReceiptWithBloom {
             receipt: Receipt {
-                tx_type: Default::default(),
-                cumulative_gas_used: cumulative_gas_used + tx_gas_used,
+                cumulative_gas_used: (cumulative_gas_used + tx_gas_used) as u128,
                 logs,
-                success,
+                status: Eip658Value::from(success),
             },
-            bloom,
+            logs_bloom,
         }
     }
 }

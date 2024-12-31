@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use alloy::primitives::FixedBytes;
+use alloy_primitives::FixedBytes;
 use lazy_static::lazy_static;
 
 use crate::translator::{default_channel_size, TranslatorConfig};
@@ -10,7 +10,7 @@ pub const ANTELOPE_INTERVAL_MS: u64 = 500;
 
 pub const ZERO_HASH_HEX: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
-pub const DEFAULT_GAS_LIMIT: u128 = 0x7fffffff;
+pub const DEFAULT_GAS_LIMIT: u64 = 0x7fffffffu64;
 
 pub const TESTNET_DEPLOY_STATE: &str = include_str!("testnet-evm-deploy-state.json");
 

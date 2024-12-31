@@ -100,7 +100,7 @@ pub async fn build_consensus_client(
         .as_ref()
         .map(|lib| lib.number + client.config.chain_id.block_delta())
         .zip(client.latest_evm_number())
-        .map(|(lib, latest)| cmp::min(lib, latest));
+        .map(|(lib, latest)| cmp::min(lib, latest as u32));
 
     let last_checked = match latest_number {
         Some(latest_number) => client.db.get_block_or_prev(latest_number)?,
