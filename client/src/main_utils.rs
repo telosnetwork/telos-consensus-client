@@ -353,7 +353,7 @@ pub fn parse_log_level(s: &str) -> eyre::Result<LevelFilter> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::U256;
+    use alloy_primitives::U256;
     use telos_translator_rs::types::execution_metadata::TelosExecutionContext;
 
     fn branch(

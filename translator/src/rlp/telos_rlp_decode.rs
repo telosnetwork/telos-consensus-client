@@ -1,6 +1,9 @@
-use alloy::primitives::private::alloy_rlp::{Decodable, Error, Header};
-use alloy::primitives::{Bytes, Parity, Signature, TxKind, U256};
+// alloy-consensus 0.3 uses the legacy Signature type to retain EIP-155 chain-id parity.
+#![allow(deprecated)]
+
 use alloy_consensus::{SignableTransaction, Signed, TxLegacy};
+use alloy_primitives::private::alloy_rlp::{Decodable, Error, Header};
+use alloy_primitives::{Bytes, Parity, Signature, TxKind, U256};
 
 use alloy_rlp::Result;
 use bytes::Buf;

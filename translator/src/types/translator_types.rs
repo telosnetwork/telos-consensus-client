@@ -2,7 +2,7 @@ use crate::block::ProcessingEVMBlock;
 use crate::types::evm_types::AccountRow;
 use crate::types::execution_metadata::TelosEngineAPIExtraFields;
 use crate::types::names::{ACCOUNT, EOSIO_EVM};
-use alloy::primitives::{Address, Bytes, U256};
+use alloy_primitives::{Address, Bytes, U256};
 use antelope::api::client::{APIClient, DefaultProvider};
 use antelope::api::v1::structs::{
     GetTableRowsParams, GetTableRowsResponse, IndexPosition, TableIndexType,

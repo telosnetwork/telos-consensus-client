@@ -1,4 +1,5 @@
 use antelope::api::client::{APIClient, DefaultProvider};
+use serde::Deserialize;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
 use telos_translator_rs::translator::TranslatorConfig;
@@ -17,6 +18,12 @@ use common::test_utils::load_15_data;
 
 // TODO: Figure out the best end block for this test based on the container
 const END_BLOCK: u32 = 35;
+
+#[derive(Deserialize)]
+struct NativeBlockIdentity {
+    id: String,
+    block_num: u32,
+}
 
 #[tokio::test]
 async fn evm_deploy() {
@@ -45,18 +52,28 @@ async fn evm_deploy() {
     )
     .unwrap();
     let native_info = api_client.v1_chain.get_info().await.unwrap();
-    let native_anchor = api_client
-        .v1_chain
-        .get_block("57".to_string())
+    // antelope-rs' full block response still models `trx` as a string, while this pinned nodeos
+    // fixture returns packed transaction objects. This test only needs the immutable block identity.
+    let native_anchor = reqwest::Client::new()
+        .post(format!("http://localhost:{port_8888}/v1/chain/get_block"))
+        .json(&serde_json::json!({"block_num_or_id": "57"}))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<NativeBlockIdentity>()
         .await
         .unwrap();
+    assert_eq!(native_anchor.block_num, 57);
+    assert_eq!(hex::decode(&native_anchor.id).unwrap().len(), 32);
 
     let config = TranslatorConfig {
         http_endpoint: format!("http://localhost:{port_8888}",),
         ship_endpoint: format!("ws://localhost:{port_18999}",),
         native_chain_id: native_info.chain_id.as_string(),
         execution_anchor_native_block_number: 57,
-        execution_anchor_native_block_hash: hex::encode(native_anchor.id.bytes),
+        execution_anchor_native_block_hash: native_anchor.id,
         validate_hash: None,
         execution_context_anchor_block: 1,
         execution_context_starting_gas_price: "0".to_string(),

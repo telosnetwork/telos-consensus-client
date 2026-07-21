@@ -1,4 +1,4 @@
-use alloy::{hex::FromHex, primitives::FixedBytes};
+use alloy_primitives::{hex::FromHex, FixedBytes};
 use antelope::{
     api::client::{APIClient, DefaultProvider},
     chain::{checksum::Checksum256, name::Name, signature::Signature, Encoder},

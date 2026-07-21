@@ -9,7 +9,7 @@ use crate::{
     block::ProcessingEVMBlock, translator::TranslatorConfig,
     types::translator_types::NameToAddressCache,
 };
-use alloy::primitives::{Address, Bytes, FixedBytes, U256};
+use alloy_primitives::{Address, Bytes, FixedBytes, U256};
 use alloy_rlp::Encodable;
 use antelope::api::client::{APIClient, DefaultProvider};
 use eyre::{eyre, Context, Result};

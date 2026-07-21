@@ -1,4 +1,4 @@
-use alloy::primitives::{B256, U256};
+use alloy_primitives::{B256, U256};
 use eyre::{bail, Result};
 use reth_primitives::Receipt;
 use reth_telos_rpc_engine_api::structs::{TelosAccountStateTableRow, TelosAccountTableRow};

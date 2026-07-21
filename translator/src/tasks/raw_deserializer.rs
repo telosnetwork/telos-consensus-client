@@ -37,7 +37,10 @@ pub async fn raw_deserializer(
     //let abi_string = msg.to_string();
     //let abi = ABI::from_string(abi_string.as_str()).unwrap();
     //self.ship_abi = Some(abi_string);
-    let _ = raw_ds_rx.recv().await.ok_or(eyre!("cannot send"))?;
+    let _validated_abi = raw_ds_rx
+        .recv()
+        .await
+        .ok_or_else(|| eyre!("SHIP reader stopped before the validated ABI handshake"))?;
 
     // Send GetStatus request after setting up the ABI
     let request = &GetStatus(GetStatusRequestV0);

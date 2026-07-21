@@ -390,7 +390,7 @@ fn should_prune_execution_branch(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::{B256, U256};
+    use alloy_primitives::{B256, U256};
     use telos_translator_rs::types::execution_metadata::TelosExecutionContext;
 
     fn branch(native_number: u32, native_hash: &str, byte: u8) -> ExecutionBranchEntry {

@@ -1,9 +1,12 @@
+// alloy-consensus 0.3 uses the legacy Signature type to retain EIP-155 chain-id parity.
+#![allow(deprecated)]
+
 use crate::rlp::telos_rlp_decode::TelosTxDecodable;
 use crate::types::evm_types::{PrintedReceipt, RawAction, TransferAction, WithdrawAction};
 use crate::types::translator_types::NameToAddressCache;
-use alloy::primitives::TxKind::Call;
-use alloy::primitives::{Address, Bloom, Log, Signature, B256, U256};
 use alloy_consensus::{SignableTransaction, TxEnvelope, TxLegacy};
+use alloy_primitives::TxKind::Call;
+use alloy_primitives::{Address, Bloom, Log, Signature, B256, U256};
 use alloy_rlp::Decodable;
 use antelope::chain::checksum::Checksum256;
 use eyre::{eyre, Context, Result};

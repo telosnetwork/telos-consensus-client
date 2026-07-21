@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 reth-primitives = { workspace = true }
-alloy = { workspace = true }
+alloy-primitives = { workspace = true }
 alloy-rlp = { workspace = true }
 alloy-rpc-types-engine  = { workspace = true }
 alloy-eips = { workspace = true }
@@ -32,7 +32,6 @@ moka = { version = "0.12.7", features = ["sync"] }
 tokio-tungstenite = "0.23.0"
 futures-util = "0.3.30"
 url = { workspace = true }
-ruint = "0.3.0"
 rlp = "0.5.2"
 lazy_static = "1.5.0"
 

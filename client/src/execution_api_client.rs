@@ -1,4 +1,4 @@
-use alloy::primitives::B256;
+use alloy_primitives::B256;
 use alloy_rpc_types::Block;
 use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE};
 use reqwest::redirect::Policy;

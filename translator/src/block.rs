@@ -10,10 +10,10 @@ use crate::types::ship_types::{
     ActionTrace, ContractRow, GetBlocksResultV0, SignedBlock, TableDelta, TransactionTrace,
 };
 use crate::types::translator_types::{ChainId, NameToAddressCache};
-use alloy::primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_consensus::constants::{EMPTY_OMMER_ROOT_HASH, EMPTY_ROOT_HASH};
 use alloy_consensus::{Header, Transaction, TxEnvelope};
 use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::{Bloom, Bytes, FixedBytes, B256, U256};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_engine::ExecutionPayloadV1;
 use antelope::chain::checksum::Checksum256;

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use alloy::primitives::FixedBytes;
+use alloy_primitives::FixedBytes;
 use lazy_static::lazy_static;
 
 use crate::translator::{default_channel_size, TranslatorConfig};
