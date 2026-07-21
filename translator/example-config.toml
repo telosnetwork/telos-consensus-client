@@ -2,8 +2,14 @@
 
 # These are basic mainnet values, all optional values are left out and will use default values
 chain_id = 40
+native_chain_id = "0000000000000000000000000000000000000000000000000000000000000000"
+execution_anchor_native_block_number = 35
+execution_anchor_native_block_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+native_request_timeout_ms = 10000
 evm_start_block = 0
-block_delta = 36
 prev_hash =  "0000000000000000000000000000000000000000000000000000000000000000"
+execution_context_anchor_block = 0
+execution_context_starting_gas_price = "0"
+execution_context_starting_revision = 0
 http_endpoint = "http://localhost:8888"
 ship_endpoint = "ws://localhost:18999"

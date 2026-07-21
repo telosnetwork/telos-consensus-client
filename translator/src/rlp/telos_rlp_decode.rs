@@ -47,10 +47,10 @@ impl TelosTxDecodable for TxLegacy {
         // record original length so we can check encoding
         let original_len = buf.len();
 
-        let mut tx = decode_fields(buf).expect("Failed to decode fields");
+        let mut tx = decode_fields(buf)?;
 
-        let sig = match provided_sig.is_some() {
-            true => {
+        let sig = match provided_sig {
+            Some(provided_sig) => {
                 if !buf.is_empty() {
                     // There are some native signed transactions which were RLP encoded with 0 values for signature
                     //   in RLP encoding these 0 values are encoded as [128, 128, 128], so we need purge them
@@ -73,9 +73,9 @@ impl TelosTxDecodable for TxLegacy {
                         }
                     }
                 }
-                provided_sig.unwrap()
+                provided_sig
             }
-            false => {
+            None => {
                 if buf.is_empty() {
                     return Err(Error::Custom("Trx without signature"));
                 }
@@ -108,7 +108,7 @@ impl TelosTxDecodable for TxLegacy {
 // which is a rlp specification requirement.
 // Note: legacy transactions signed by the native network who's RLP value field is encoded as bytes and has a leading zeroes.
 fn decode_telos_u256(buf: &mut &[u8]) -> Result<U256> {
-    let bytes = Header::decode_bytes(buf, false).expect("Failed to decode bytes");
+    let bytes = Header::decode_bytes(buf, false)?;
 
     // The RLP spec states that deserialized positive integers with leading zeroes
     // get treated as invalid.
@@ -122,5 +122,5 @@ fn decode_telos_u256(buf: &mut &[u8]) -> Result<U256> {
     //     return Err(Error::LeadingZero);
     // }
 
-    Ok(U256::try_from_be_slice(bytes).expect("Failed to decode U256 from bytes"))
+    U256::try_from_be_slice(bytes).ok_or(Error::Overflow)
 }

@@ -27,7 +27,7 @@ fn decode_block() {
                     result: r.clone(),
                     skip_events: false,
                 });
-                block.deserialize();
+                block.deserialize().unwrap();
             } else {
                 panic!("GetBlocksResultV0 without a block");
             }

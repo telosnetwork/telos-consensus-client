@@ -4,22 +4,37 @@ log_level = "info"
 chain_id = 40
 # Execution API http endpoint (JWT protected endpoint on reth)
 execution_endpoint = "http://localhost:8551"
-# The JWT secret used to sign the JWT token
-jwt_secret = "0000000000000000000000000000000000000000000000000000000000000000"
+# Path to the Engine API JWT secret (64 hexadecimal characters, optionally 0x-prefixed)
+jwt_secret_path = "/etc/telos-reth/jwt.hex"
+# Exact sparse checkpoint block present in the execution database and its canonical hash.
+# Replace both placeholders with values from the signed checkpoint audit.
+execution_anchor_block_number = 0
+execution_anchor_block_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+# Exact Antelope chain id and native parent of the first translated EVM block.
+# Replace these placeholders with values from the same signed checkpoint audit.
+native_chain_id = "0000000000000000000000000000000000000000000000000000000000000000"
+execution_anchor_native_block_number = 36
+execution_anchor_native_block_hash = "0000000000000000000000000000000000000000000000000000000000000000"
+native_request_timeout_ms = 10000
+execution_connect_timeout_ms = 5000
+execution_request_timeout_ms = 30000
+execution_max_response_bytes = 16777216
 # Nodeos ship ws endpoint
 ship_endpoint = "ws://localhost:18999"
 # Nodeos http endpoint
 chain_endpoint = "http://localhost:8888"
 # Block count in between finalize block calls while syncing
 batch_size = 5
-# Block delta between native block and EVM block
-block_delta = 0
 # The parent hash of the evm_start_block
 prev_hash = "0000000000000000000000000000000000000000000000000000000000000000"
-# Start block to start with, should be at or before the first block of the execution node
-emv_start_block = 0
-# (Optional) Expected block hash of the EVM start block
-validate_hash = "00000000000000000000000000000000000000000000000000000000000000000"
+# Context effective at the beginning of this exact EVM block. These values are mandatory.
+execution_context_anchor_block = 1
+execution_context_starting_gas_price = "0"
+execution_context_starting_revision = 0
+# First block translated from SHIP; it must be execution_anchor_block_number + 1
+evm_start_block = 1
+# Expected nonzero block hash of the EVM start block from the signed checkpoint manifest
+validate_hash = "0000000000000000000000000000000000000000000000000000000000000001"
 # (Optional) EMV block number to stop on, default is U32::MAX
 evm_stop_block = 60
 # Path to the RocksDB folder

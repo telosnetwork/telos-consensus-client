@@ -1,5 +1,5 @@
 use alloy::primitives::aliases::BlockTimestamp;
-use alloy::primitives::{Address, Log, B256};
+use alloy::primitives::{Address, Bytes, Log, B256};
 use antelope::chain::asset::Asset;
 use antelope::chain::binary_extension::BinaryExtension;
 use antelope::chain::checksum::{Checksum160, Checksum256};
@@ -8,9 +8,8 @@ use antelope::chain::time::TimePoint;
 use antelope::chain::Packer;
 use antelope::serializer::Decoder;
 use antelope::serializer::Encoder;
-use antelope::util::hex_to_bytes;
 use antelope::StructPacker;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize};
 use tracing::warn;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, StructPacker)]
@@ -149,39 +148,52 @@ where
     }
 
     impl LogHelper {
-        fn address(&self) -> Address {
-            let padded = format!("{:0>40}", self.address);
-            padded.parse().expect("Invalid address")
+        fn address(&self) -> Result<Address, String> {
+            let address = self.address.strip_prefix("0x").unwrap_or(&self.address);
+            if address.len() > 40 {
+                return Err(format!(
+                    "log address exceeds 20 bytes: {} hex characters",
+                    address.len()
+                ));
+            }
+            let padded = format!("{address:0>40}");
+            padded
+                .parse()
+                .map_err(|error| format!("invalid log address: {error}"))
         }
     }
 
     let log_helpers = Vec::<LogHelper>::deserialize(deserializer)?;
     let mut logs = vec![];
     for log in log_helpers {
-        let address = log.address();
+        let address = log.address().map_err(D::Error::custom)?;
         let topics = log
             .topics
             .into_iter()
-            .map(|topic| to_b256(&topic))
-            .collect();
-        let data = log.data.parse().expect("Invalid data");
-        logs.push(Log::new(address, topics, data).unwrap());
+            .map(|topic| parse_b256(&topic).map_err(D::Error::custom))
+            .collect::<Result<Vec<_>, D::Error>>()?;
+        let data = log
+            .data
+            .parse::<Bytes>()
+            .map_err(|error| D::Error::custom(format!("invalid log data: {error}")))?;
+        let log = Log::new(address, topics, data)
+            .ok_or_else(|| D::Error::custom("log contains more than four topics"))?;
+        logs.push(log);
     }
     Ok(logs)
 }
 
-fn to_b256(s: &str) -> B256 {
-    let binding = hex_to_bytes(s);
-    let b256_slice = binding.as_slice();
-    if b256_slice.len() <= 32 {
-        B256::left_padding_from(b256_slice)
-    } else {
-        panic!("Invalid B256 length");
+fn parse_b256(value: &str) -> Result<B256, String> {
+    let value = value.strip_prefix("0x").unwrap_or(value);
+    let bytes = hex::decode(value).map_err(|error| format!("invalid log topic: {error}"))?;
+    if bytes.len() > 32 {
+        return Err(format!("log topic exceeds 32 bytes: {} bytes", bytes.len()));
     }
+    Ok(B256::left_padding_from(&bytes))
 }
 
 impl PrintedReceipt {
-    pub fn from_console(console: String) -> Option<Self> {
+    pub fn from_console(console: &str) -> Result<Option<Self>, serde_json::Error> {
         let start_pattern = "RCPT{{";
         let end_pattern = "}}RCPT";
 
@@ -190,15 +202,67 @@ impl PrintedReceipt {
             if let Some(end) = console[start_index..].find(end_pattern) {
                 let end_index = start_index + end;
                 let extracted = &console[start_index..end_index];
-                let printed_receipt = serde_json::from_str::<PrintedReceipt>(extracted).unwrap();
-                Some(printed_receipt)
+                serde_json::from_str::<PrintedReceipt>(extracted).map(Some)
             } else {
                 warn!("End pattern not found.");
-                None
+                Ok(None)
             }
         } else {
             warn!("Start pattern not found.");
-            None
+            Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn receipt_with_logs(logs: serde_json::Value) -> serde_json::Value {
+        json!({
+            "charged_gas": "0",
+            "trx_index": 0,
+            "block": 1,
+            "status": 1,
+            "epoch": 0,
+            "createdaddr": "",
+            "gasused": "5208",
+            "logs": logs,
+            "output": "",
+            "errors": null
+        })
+    }
+
+    #[test]
+    fn malformed_console_receipt_is_an_error() {
+        assert!(PrintedReceipt::from_console("RCPT{{not-json}}RCPT").is_err());
+        assert!(PrintedReceipt::from_console("no receipt here")
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn malformed_log_fields_are_rejected_without_panicking() {
+        let invalid_topic = receipt_with_logs(json!([{
+            "address": "1",
+            "data": "0x",
+            "topics": ["not-hex"]
+        }]));
+        assert!(serde_json::from_value::<PrintedReceipt>(invalid_topic).is_err());
+
+        let too_many_topics = receipt_with_logs(json!([{
+            "address": "1",
+            "data": "0x",
+            "topics": ["00", "00", "00", "00", "00"]
+        }]));
+        assert!(serde_json::from_value::<PrintedReceipt>(too_many_topics).is_err());
+
+        let oversized_address = receipt_with_logs(json!([{
+            "address": "111111111111111111111111111111111111111111",
+            "data": "0x",
+            "topics": []
+        }]));
+        assert!(serde_json::from_value::<PrintedReceipt>(oversized_address).is_err());
     }
 }

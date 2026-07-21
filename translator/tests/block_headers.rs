@@ -62,8 +62,8 @@ async fn generate_block(
     info!("block_pos.block_id {}", block_pos.block_id);
 
     ProcessingEVMBlock::new(ProcessingEVMBlockArgs {
-        chain_id: chain_id,
-        block_num: block_num,
+        chain_id,
+        block_num,
         block_hash: block_pos.block_id,
         prev_block_hash: None,
         // Block is always final
@@ -98,7 +98,7 @@ async fn genesis_mainnet() {
 
     let mut block = generate_block(evm_chain_id_mainnet.0, http_endpoint, 36).await;
 
-    block.deserialize();
+    block.deserialize().unwrap();
 
     if let Ok((header, payload)) = block
         .generate_evm_data(
@@ -141,7 +141,7 @@ async fn deploy_mainnet() {
     )
     .await;
 
-    block.deserialize();
+    block.deserialize().unwrap();
 
     if let Ok((header, payload)) = block
         .generate_evm_data(

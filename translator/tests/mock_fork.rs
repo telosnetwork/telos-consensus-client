@@ -1,3 +1,4 @@
+use antelope::api::client::{APIClient, DefaultProvider};
 use testcontainers::core::ContainerPort::Tcp;
 use testcontainers::core::WaitFor;
 use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
@@ -13,6 +14,9 @@ use telos_translator_rs::translator::{Translator, TranslatorConfig};
 use telos_translator_rs::types::env::TESTNET_GENESIS_CONFIG;
 
 mod common;
+
+const MOCK_NATIVE_CHAIN_ID: &str =
+    "1111111111111111111111111111111111111111111111111111111111111111";
 
 #[tokio::test]
 async fn mock_fork() {
@@ -41,10 +45,17 @@ async fn mock_fork() {
     // configure a fork from block 30 to 25
     let mock_client = LeapMockClient::new(&format!("http://localhost:{cntr_control_port}"));
 
-    let config = TranslatorConfig {
+    let mut config = TranslatorConfig {
         http_endpoint: format!("http://localhost:{cntr_http_port}",),
         ship_endpoint: format!("ws://localhost:{cntr_ship_port}",),
+        native_chain_id: MOCK_NATIVE_CHAIN_ID.to_string(),
+        execution_anchor_native_block_number: 58,
+        execution_anchor_native_block_hash:
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
         validate_hash: None,
+        execution_context_anchor_block: 2,
+        execution_context_starting_gas_price: "0".to_string(),
+        execution_context_starting_revision: 0,
         evm_start_block: 2,
         evm_stop_block: Some(99),
         ..TESTNET_GENESIS_CONFIG.clone()
@@ -54,7 +65,7 @@ async fn mock_fork() {
 
     let _chain_info = mock_client
         .set_chain(ChainDescriptor {
-            chain_id: None,
+            chain_id: Some(MOCK_NATIVE_CHAIN_ID.to_string()),
             start_time: None,
             jumps: vec![
                 // JumpInfo {from: 13, to: 13},  // 0 delta fork
@@ -70,6 +81,18 @@ async fn mock_fork() {
         })
         .await
         .unwrap();
+
+    let api_client = APIClient::<DefaultProvider>::default_provider(
+        format!("http://localhost:{cntr_http_port}"),
+        Some(10),
+    )
+    .unwrap();
+    let native_anchor = api_client
+        .v1_chain
+        .get_block("58".to_string())
+        .await
+        .unwrap();
+    config.execution_anchor_native_block_hash = hex::encode(native_anchor.id.bytes);
 
     let (tx, mut rx) = mpsc::channel::<TelosEVMBlock>(1000);
 

@@ -1,3 +1,4 @@
+use antelope::api::client::{APIClient, DefaultProvider};
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
 use telos_translator_rs::translator::TranslatorConfig;
@@ -38,11 +39,28 @@ async fn evm_deploy() {
 
     let port_8888 = container.get_host_port_ipv4(8888).await.unwrap();
     let port_18999 = container.get_host_port_ipv4(18999).await.unwrap();
+    let api_client = APIClient::<DefaultProvider>::default_provider(
+        format!("http://localhost:{port_8888}"),
+        Some(10),
+    )
+    .unwrap();
+    let native_info = api_client.v1_chain.get_info().await.unwrap();
+    let native_anchor = api_client
+        .v1_chain
+        .get_block("57".to_string())
+        .await
+        .unwrap();
 
     let config = TranslatorConfig {
         http_endpoint: format!("http://localhost:{port_8888}",),
         ship_endpoint: format!("ws://localhost:{port_18999}",),
+        native_chain_id: native_info.chain_id.as_string(),
+        execution_anchor_native_block_number: 57,
+        execution_anchor_native_block_hash: hex::encode(native_anchor.id.bytes),
         validate_hash: None,
+        execution_context_anchor_block: 1,
+        execution_context_starting_gas_price: "0".to_string(),
+        execution_context_starting_revision: 0,
         evm_start_block: 1,
         evm_stop_block: Some(30),
         ..TESTNET_GENESIS_CONFIG.clone()

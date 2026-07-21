@@ -17,14 +17,17 @@ fn test_unsigned_trx() {
 
     let tx = TxLegacy::decode_telos_signed_fields(
         &mut raw.as_slice(),
-        Some(make_unique_vrs(
-            Checksum256::from_hex(
-                "00000032f9ff3095950dbef8701acc5f0eb193e3c2d089da0e2237659048d62b",
+        Some(
+            make_unique_vrs(
+                Checksum256::from_hex(
+                    "00000032f9ff3095950dbef8701acc5f0eb193e3c2d089da0e2237659048d62b",
+                )
+                .unwrap(),
+                Address::ZERO,
+                0,
             )
             .unwrap(),
-            Address::ZERO,
-            0,
-        )),
+        ),
     );
     if tx.is_err() {
         println!(
@@ -49,14 +52,17 @@ fn test_unsigned_trx2() {
 
     let tx = TxLegacy::decode_telos_signed_fields(
         &mut raw.as_slice(),
-        Some(make_unique_vrs(
-            Checksum256::from_hex(
-                "00000032f9ff3095950dbef8701acc5f0eb193e3c2d089da0e2237659048d62b",
+        Some(
+            make_unique_vrs(
+                Checksum256::from_hex(
+                    "00000032f9ff3095950dbef8701acc5f0eb193e3c2d089da0e2237659048d62b",
+                )
+                .unwrap(),
+                Address::ZERO,
+                0,
             )
             .unwrap(),
-            Address::ZERO,
-            0,
-        )),
+        ),
     );
     if tx.is_err() {
         println!(

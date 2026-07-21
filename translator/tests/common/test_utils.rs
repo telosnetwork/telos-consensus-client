@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use alloy::hex::FromHex;
 use alloy::primitives::{Bytes, B256, U256};
 use alloy_consensus::{Signed, TxEnvelope, TxLegacy};

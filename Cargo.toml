@@ -11,9 +11,9 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 telos-translator-rs = { path = "./translator" }
-reth-primitives = { git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }
-reth-trie-common = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
-reth-telos-rpc-engine-api = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
+reth-primitives = { git = "https://github.com/telosnetwork/telos-reth", rev = "63d23e00982a0ab7704a6dff97b3f5d355e11d56" }
+reth-trie-common = { git = "https://github.com/telosnetwork/telos-reth.git", rev = "63d23e00982a0ab7704a6dff97b3f5d355e11d56" }
+reth-telos-rpc-engine-api = { git = "https://github.com/telosnetwork/telos-reth.git", rev = "63d23e00982a0ab7704a6dff97b3f5d355e11d56" }
 #reth-trie-common = { path = "../telos-reth/crates/trie/common" }
 #reth-telos-rpc-engine-api = { path = "../telos-reth/crates/telos/rpc-engine-api" }
 #reth-primitives = { path = "../telos-reth/crates/primitives" }
@@ -36,5 +36,6 @@ tracing-subscriber = "0.3.1"
 hex = "0.4.3"
 futures = "0.3.30"
 rocksdb = "0.22.0"
-tokio-retry = "0.3"
 testcontainers = "0.22.0"
+url = "2.5.2"
+libc = "0.2.155"
