@@ -44,6 +44,8 @@ pub enum Error {
     RangeAboveMaximum(u32),
     #[error("Cannot shutdown translator: {0}")]
     TranslatorShutdown(String),
+    #[error("Cannot handle shutdown signal: {0}")]
+    ShutdownSignal(String),
     #[error("Translator error: {0}")]
     TranslatorError(String),
     #[error("Call to execution API failed: {0}")]
@@ -281,7 +283,14 @@ impl ConsensusClient {
 
             // if LIB is less or equal than current block batch size is 1 or more blocks
             // if LIB is greater than current block send in batches
-            let flush = !block_is_final || block_is_lib || batch.len() == self.config.batch_size;
+            let configured_stop = self.config.evm_stop_block == Some(block_num);
+            let flush = should_flush_batch(
+                block_is_final,
+                block_is_lib,
+                batch.len(),
+                self.config.batch_size,
+                configured_stop,
+            );
 
             if !flush {
                 continue;
@@ -484,6 +493,16 @@ fn select_finalized_hash(
     Ok(previous_finalized_hash)
 }
 
+fn should_flush_batch(
+    block_is_final: bool,
+    block_is_lib: bool,
+    batch_len: usize,
+    batch_size: usize,
+    configured_stop: bool,
+) -> bool {
+    !block_is_final || block_is_lib || batch_len == batch_size || configured_stop
+}
+
 fn validate_payload_status(
     block_number: u32,
     block_hash: B256,
@@ -554,5 +573,31 @@ mod tests {
             None
         )
         .is_err());
+    }
+
+    #[test]
+    fn configured_stop_flushes_a_partial_historical_batch() {
+        assert!(!should_flush_batch(true, false, 1, 5, false));
+        assert!(should_flush_batch(true, false, 1, 5, true));
+    }
+
+    #[test]
+    fn fixed_qualification_range_flushes_exactly_at_the_stop_block() {
+        let start = 479_294_329_u32;
+        let stop = 479_315_819_u32;
+        let batch_size = 5;
+        let mut batch_len = 0;
+        let mut last_head = None;
+
+        for block in start..=stop {
+            batch_len += 1;
+            if should_flush_batch(true, false, batch_len, batch_size, block == stop) {
+                last_head = Some(block);
+                batch_len = 0;
+            }
+        }
+
+        assert_eq!(last_head, Some(stop));
+        assert_eq!(batch_len, 0);
     }
 }

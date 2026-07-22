@@ -7,15 +7,85 @@ use crate::data::ExecutionCheckpoint;
 use antelope::chain::checksum::Checksum256;
 use eyre::eyre;
 use reth_primitives::B256;
+use std::future::Future;
 use std::str::FromStr;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
 use telos_translator_rs::types::execution_metadata::ExecutionBranchEntry;
 use tokio::sync::mpsc;
+use tokio::task::{JoinError, JoinHandle};
 use tracing::level_filters::LevelFilter;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShutdownSignalKind {
+    Interrupt,
+    Terminate,
+}
+
+impl std::fmt::Display for ShutdownSignalKind {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Interrupt => formatter.write_str("SIGINT"),
+            Self::Terminate => formatter.write_str("SIGTERM"),
+        }
+    }
+}
+
+#[cfg(unix)]
+struct ShutdownSignals {
+    interrupt: tokio::signal::unix::Signal,
+    terminate: tokio::signal::unix::Signal,
+}
+
+#[cfg(unix)]
+impl ShutdownSignals {
+    fn new() -> Result<Self, Error> {
+        use tokio::signal::unix::{signal, SignalKind};
+
+        let interrupt = signal(SignalKind::interrupt())
+            .map_err(|error| Error::ShutdownSignal(error.to_string()))?;
+        let terminate = signal(SignalKind::terminate())
+            .map_err(|error| Error::ShutdownSignal(error.to_string()))?;
+        Ok(Self {
+            interrupt,
+            terminate,
+        })
+    }
+
+    async fn recv(&mut self) -> Result<ShutdownSignalKind, Error> {
+        tokio::select! {
+            signal = self.interrupt.recv() => signal
+                .map(|()| ShutdownSignalKind::Interrupt)
+                .ok_or_else(|| Error::ShutdownSignal("SIGINT stream closed unexpectedly".to_string())),
+            signal = self.terminate.recv() => signal
+                .map(|()| ShutdownSignalKind::Terminate)
+                .ok_or_else(|| Error::ShutdownSignal("SIGTERM stream closed unexpectedly".to_string())),
+        }
+    }
+}
+
+#[cfg(not(unix))]
+struct ShutdownSignals;
+
+#[cfg(not(unix))]
+impl ShutdownSignals {
+    fn new() -> Result<Self, Error> {
+        Ok(Self)
+    }
+
+    async fn recv(&mut self) -> Result<ShutdownSignalKind, Error> {
+        tokio::signal::ctrl_c()
+            .await
+            .map_err(|error| Error::ShutdownSignal(error.to_string()))?;
+        Ok(ShutdownSignalKind::Interrupt)
+    }
+}
 
 pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Error> {
+    // Register before any network or database startup work so an operator signal cannot take the
+    // default process-killing path during initialization.
+    let mut shutdown_signals = ShutdownSignals::new()?;
     let client = build_consensus_client(&args, config).await?;
     let client_shutdown = client.shutdown_handle();
 
@@ -40,11 +110,15 @@ pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Er
 
     let translator_handle = tokio::spawn(translator.launch(Some(block_sender)));
 
-    let client_error = client_handle
-        .await
-        .map_err(From::from)
-        .and_then(|inner| inner)
-        .err();
+    let client_error = await_client_or_shutdown(client_handle, shutdown_signals.recv(), async {
+        if let Err(error) = translator_shutdown.shutdown().await {
+            // A concurrent configured stop closes the receiver before this send. Joining both
+            // tasks below still proves whether they stopped successfully.
+            debug!(%error, "Translator shutdown receiver already closed");
+        }
+    })
+    .await
+    .err();
 
     if let Some(error) = client_error.as_ref() {
         warn!("Consensus client run failed! Error: {error:#}");
@@ -73,6 +147,42 @@ pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Er
 
     info!("Reached stop block/signal, consensus client run finished!");
     Ok(client_shutdown)
+}
+
+async fn await_client_or_shutdown<Signal, RequestShutdown>(
+    mut client_handle: JoinHandle<Result<(), Error>>,
+    signal: Signal,
+    request_shutdown: RequestShutdown,
+) -> Result<(), Error>
+where
+    Signal: Future<Output = Result<ShutdownSignalKind, Error>>,
+    RequestShutdown: Future<Output = ()>,
+{
+    tokio::pin!(signal);
+    tokio::select! {
+        result = &mut client_handle => flatten_client_result(result),
+        signal_result = &mut signal => {
+            if let Ok(signal) = signal_result.as_ref() {
+                info!(%signal, "Shutdown signal received; draining client tasks");
+            }
+            // Always stop and join the client, including the unlikely case that the signal stream
+            // itself fails. Dropping a JoinHandle would detach a task during process shutdown.
+            request_shutdown.await;
+            let client_result = flatten_client_result(client_handle.await);
+            match (signal_result, client_result) {
+                (Err(signal_error), Err(client_error)) => {
+                    warn!(%client_error, "Consensus client also failed while handling a signal-stream error");
+                    Err(signal_error)
+                }
+                (Err(signal_error), Ok(())) => Err(signal_error),
+                (Ok(_), client_result) => client_result,
+            }
+        }
+    }
+}
+
+fn flatten_client_result(result: Result<Result<(), Error>, JoinError>) -> Result<(), Error> {
+    result.map_err(Error::from).and_then(|inner| inner)
 }
 
 pub async fn build_consensus_client(
@@ -354,7 +464,18 @@ pub fn parse_log_level(s: &str) -> eyre::Result<LevelFilter> {
 mod tests {
     use super::*;
     use alloy_primitives::U256;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
+    #[cfg(unix)]
+    use std::{
+        io::{BufRead, BufReader, Write},
+        process::{Command, Stdio},
+        time::{Duration, Instant},
+    };
     use telos_translator_rs::types::execution_metadata::TelosExecutionContext;
+    use tokio::sync::oneshot;
 
     fn branch(
         native_number: u32,
@@ -428,5 +549,141 @@ mod tests {
         );
         assert!(parse_expected_first_child_hash(&B256::ZERO.to_string()).is_err());
         assert!(parse_expected_first_child_hash("not-a-hash").is_err());
+    }
+
+    #[tokio::test]
+    async fn shutdown_signal_requests_and_joins_the_client() {
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let task_stopped = Arc::clone(&stopped);
+        let client_handle = tokio::spawn(async move {
+            shutdown_rx.await.unwrap();
+            task_stopped.store(true, Ordering::SeqCst);
+            Ok(())
+        });
+
+        await_client_or_shutdown(
+            client_handle,
+            async { Ok(ShutdownSignalKind::Interrupt) },
+            async move {
+                let _ = shutdown_tx.send(());
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(stopped.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn natural_client_completion_does_not_request_shutdown() {
+        let requested = Arc::new(AtomicBool::new(false));
+        let shutdown_requested = Arc::clone(&requested);
+        let client_handle = tokio::spawn(async { Ok(()) });
+
+        await_client_or_shutdown(
+            client_handle,
+            std::future::pending::<Result<ShutdownSignalKind, Error>>(),
+            async move {
+                shutdown_requested.store(true, Ordering::SeqCst);
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(!requested.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn signal_stream_failure_still_joins_the_client() {
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let task_stopped = Arc::clone(&stopped);
+        let client_handle = tokio::spawn(async move {
+            shutdown_rx.await.unwrap();
+            task_stopped.store(true, Ordering::SeqCst);
+            Ok(())
+        });
+
+        let error = await_client_or_shutdown(
+            client_handle,
+            async { Err(Error::ShutdownSignal("stream closed".to_string())) },
+            async move {
+                let _ = shutdown_tx.send(());
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "Cannot handle shutdown signal: stream closed"
+        );
+        assert!(stopped.load(Ordering::SeqCst));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_shutdown_signals_exit_cleanly() {
+        const CHILD_ENV: &str = "TELOS_TEST_SHUTDOWN_SIGNAL";
+        if let Some(expected) = std::env::var_os(CHILD_ENV) {
+            let expected = match expected.to_str().unwrap() {
+                "SIGINT" => ShutdownSignalKind::Interrupt,
+                "SIGTERM" => ShutdownSignalKind::Terminate,
+                unexpected => panic!("unexpected child signal {unexpected}"),
+            };
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let mut signals = ShutdownSignals::new().unwrap();
+                println!("TELOS_SIGNAL_READY");
+                std::io::stdout().flush().unwrap();
+                assert_eq!(signals.recv().await.unwrap(), expected);
+            });
+            return;
+        }
+
+        for (name, signal) in [("SIGINT", libc::SIGINT), ("SIGTERM", libc::SIGTERM)] {
+            let mut child = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "main_utils::tests::unix_shutdown_signals_exit_cleanly",
+                    "--nocapture",
+                ])
+                .env(CHILD_ENV, name)
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut output = BufReader::new(child.stdout.take().unwrap());
+            let mut line = String::new();
+            loop {
+                line.clear();
+                assert_ne!(output.read_line(&mut line).unwrap(), 0);
+                if line.trim() == "TELOS_SIGNAL_READY" {
+                    break;
+                }
+            }
+
+            // SAFETY: `child.id()` is the live process spawned immediately above, and `signal` is
+            // one of the two valid constants selected by this test.
+            let child_pid = libc::pid_t::try_from(child.id()).unwrap();
+            assert_eq!(unsafe { libc::kill(child_pid, signal) }, 0);
+
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let status = loop {
+                if let Some(status) = child.try_wait().unwrap() {
+                    break status;
+                }
+                if Instant::now() >= deadline {
+                    child.kill().unwrap();
+                    let _ = child.wait();
+                    panic!("child did not exit after {name}");
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            };
+            assert!(status.success(), "child exited unsuccessfully after {name}");
+        }
     }
 }
