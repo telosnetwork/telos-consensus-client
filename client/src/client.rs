@@ -33,9 +33,9 @@ pub enum Error {
     ExecutorHashMismatch,
     #[error("Invalid native irreversible block: {0}")]
     InvalidIrreversibleBlock(String),
-    #[error("Fork choice updated error")]
+    #[error("Fork choice updated error: {0}")]
     ForkChoiceUpdated(String),
-    #[error("New payload error")]
+    #[error("New payload error: {0}")]
     NewPayloadV1(String),
     #[error("Database error: {0}")]
     Database(eyre::Report),
@@ -508,6 +508,19 @@ fn validate_payload_status(
 mod tests {
     use super::*;
     use alloy_rpc_types_engine::PayloadStatusEnum;
+
+    #[test]
+    fn engine_errors_preserve_the_rpc_detail() {
+        let detail = "Server error: local execution diverged";
+        assert_eq!(
+            Error::NewPayloadV1(detail.to_string()).to_string(),
+            format!("New payload error: {detail}")
+        );
+        assert_eq!(
+            Error::ForkChoiceUpdated(detail.to_string()).to_string(),
+            format!("Fork choice updated error: {detail}")
+        );
+    }
 
     #[test]
     fn new_payload_requires_valid_status_for_the_exact_hash() {
