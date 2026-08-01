@@ -205,6 +205,11 @@ pub async fn build_consensus_client(
             "Block checkpoint interval must be greater than zero".to_string(),
         ));
     }
+    if config.latest_blocks_in_db_num == 0 {
+        return Err(Error::CannotStartConsensusClient(
+            "Latest-block retention must be greater than zero".to_string(),
+        ));
+    }
     if config.execution_connect_timeout_ms == Some(0)
         || config.execution_request_timeout_ms == Some(0)
         || config.native_request_timeout_ms == Some(0)
@@ -301,7 +306,11 @@ pub async fn build_consensus_client(
     }
 
     if let Some(lib) = lib.as_ref() {
-        let removed = client.db.prune_execution_branches(lib.number, &lib.hash)?;
+        let removed = client.db.prune_execution_branches(
+            lib.number,
+            &lib.hash,
+            client.config.latest_blocks_in_db_num,
+        )?;
         if removed > 0 {
             info!(
                 removed,
@@ -529,6 +538,23 @@ mod tests {
         .unwrap();
 
         assert_eq!(selected.branch, reorged);
+    }
+
+    #[test]
+    fn restart_after_execution_rollback_selects_recent_durable_branch() {
+        let ahead = ExecutionCheckpoint::from(branch(340, "ahead", 304, 5));
+        let recovered = branch(338, "recovered", 302, 6);
+
+        let selected = select_restart_checkpoint(
+            Some(ahead),
+            Some((recovered.evm_block_number, recovered.evm_hash)),
+            std::slice::from_ref(&recovered),
+            false,
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(selected.branch, recovered);
     }
 
     #[test]
