@@ -384,8 +384,11 @@ impl ConsensusClient {
             validate_payload_status(block.block_num, block.block_hash, &payload_status)?;
             self.db
                 .put_execution_branch_entry(&execution_branch_entry(block)?)?;
-            self.db
-                .prune_execution_branches(block.lib_num, &block.lib_hash)?;
+            self.db.prune_execution_branches(
+                block.lib_num,
+                &block.lib_hash,
+                self.config.latest_blocks_in_db_num,
+            )?;
             debug!(
                 block_number = block.block_num,
                 block_hash = %block.block_hash,

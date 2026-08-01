@@ -306,6 +306,7 @@ impl Database {
         &self,
         irreversible_block: u32,
         irreversible_hash: &str,
+        recovery_window: u32,
     ) -> Result<usize, Error> {
         let entries = self.get_execution_branch_entries()?;
         if entries.iter().any(|entry| {
@@ -320,7 +321,12 @@ impl Database {
         let mut batch = WriteBatch::default();
         let mut removed = 0;
         for entry in entries {
-            if should_prune_execution_branch(&entry, irreversible_block, irreversible_hash) {
+            if should_prune_execution_branch(
+                &entry,
+                irreversible_block,
+                irreversible_hash,
+                recovery_window,
+            ) {
                 batch.delete(Self::execution_branch_key(&entry.native_hash));
                 removed += 1;
             }
@@ -381,10 +387,17 @@ fn should_prune_execution_branch(
     entry: &ExecutionBranchEntry,
     irreversible_block: u32,
     irreversible_hash: &str,
+    recovery_window: u32,
 ) -> bool {
-    entry.native_block_number < irreversible_block
-        || (entry.native_block_number == irreversible_block
-            && entry.native_hash != irreversible_hash)
+    if entry.native_block_number == irreversible_block && entry.native_hash != irreversible_hash {
+        return true;
+    }
+
+    // Reth can acknowledge a canonical forkchoice before its latest database pages reach durable
+    // storage. Retain the same recent window as the translator block database so a restart after
+    // abrupt power loss can bind the execution client's recovered head to previously VALID
+    // metadata instead of either guessing its context or becoming permanently unrecoverable.
+    entry.native_block_number < irreversible_block.saturating_sub(recovery_window)
 }
 
 #[cfg(test)]
@@ -458,10 +471,35 @@ mod tests {
             for entry in [&old, &lib, &side_at_lib, &newer_a, &newer_b] {
                 database.put_execution_branch_entry(entry).unwrap();
             }
-            assert_eq!(database.prune_execution_branches(100, "lib").unwrap(), 2);
+            assert_eq!(database.prune_execution_branches(100, "lib", 0).unwrap(), 2);
             assert_eq!(
                 database.get_execution_branch_entries().unwrap(),
                 vec![lib, newer_a, newer_b]
+            );
+        }
+        fs::remove_dir_all(path).unwrap();
+    }
+
+    #[test]
+    fn pruning_retains_a_durable_execution_recovery_window() {
+        let path = temporary_database_path("recovery-window");
+        let too_old = branch(89, "too-old", 1);
+        let recovered_head = branch(90, "recovered-head", 2);
+        let recent = branch(99, "recent", 3);
+        let lib = branch(100, "lib", 4);
+        let side_at_lib = branch(100, "side-at-lib", 5);
+        {
+            let database = Database::open(path.to_str().unwrap()).unwrap();
+            for entry in [&too_old, &recovered_head, &recent, &lib, &side_at_lib] {
+                database.put_execution_branch_entry(entry).unwrap();
+            }
+            assert_eq!(
+                database.prune_execution_branches(100, "lib", 10).unwrap(),
+                2
+            );
+            assert_eq!(
+                database.get_execution_branch_entries().unwrap(),
+                vec![recovered_head, recent, lib]
             );
         }
         fs::remove_dir_all(path).unwrap();
