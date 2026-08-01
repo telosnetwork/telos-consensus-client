@@ -133,6 +133,8 @@ pub struct ExecutionApiClient {
 }
 
 const MAX_JWT_FILE_BYTES: usize = 256;
+const REQUIRED_ENGINE_CAPABILITIES: [&str; 2] =
+    ["engine_newPayloadV1", "engine_forkchoiceUpdatedV1"];
 
 fn read_jwt_secret(path: &Path) -> Result<Zeroizing<Vec<u8>>, ExecutionApiError> {
     let mut options = OpenOptions::new();
@@ -337,25 +339,15 @@ impl ExecutionApiClient {
     }
 
     pub async fn exchange_capabilities(&self) -> Result<Vec<String>, ExecutionApiError> {
-        const REQUIRED_CAPABILITIES: [&str; 2] =
-            ["engine_newPayloadV1", "engine_forkchoiceUpdatedV1"];
         let response = self
             .rpc(RpcRequest {
                 method: ExecutionApiMethod::ExchangeCapabilities,
-                params: json!([REQUIRED_CAPABILITIES]),
+                params: json!([REQUIRED_ENGINE_CAPABILITIES]),
             })
             .await?;
         let capabilities: Vec<String> = serde_json::from_value(response.result)
             .map_err(|error| ExecutionApiError::InvalidResponse(error.to_string()))?;
-        if capabilities.len() != REQUIRED_CAPABILITIES.len()
-            || REQUIRED_CAPABILITIES
-                .iter()
-                .any(|required| !capabilities.iter().any(|capability| capability == required))
-        {
-            return Err(ExecutionApiError::InvalidResponse(format!(
-                "execution endpoint must advertise exactly {REQUIRED_CAPABILITIES:?}, got {capabilities:?}"
-            )));
-        }
+        validate_engine_capabilities(&capabilities)?;
         Ok(capabilities)
     }
 
@@ -469,6 +461,19 @@ impl ExecutionApiClient {
     }
 }
 
+fn validate_engine_capabilities(capabilities: &[String]) -> Result<(), ExecutionApiError> {
+    if REQUIRED_ENGINE_CAPABILITIES
+        .iter()
+        .any(|required| !capabilities.iter().any(|capability| capability == required))
+    {
+        return Err(ExecutionApiError::InvalidResponse(format!(
+            "execution endpoint must advertise all required capabilities \
+             {REQUIRED_ENGINE_CAPABILITIES:?}, got {capabilities:?}"
+        )));
+    }
+    Ok(())
+}
+
 fn validate_rpc_response(
     response: &[u8],
     expected_id: &Value,
@@ -534,6 +539,24 @@ mod tests {
             br#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"bad params"},"id":1}"#;
         let error = validate_rpc_response(response, &json!(1)).unwrap_err();
         assert!(matches!(error, ExecutionApiError::ExecutionApi(_)));
+    }
+
+    #[test]
+    fn accepts_required_engine_capabilities_with_extras() {
+        let capabilities = [
+            "engine_newPayloadV1",
+            "engine_forkchoiceUpdatedV1",
+            "engine_newPayloadV3",
+        ]
+        .map(String::from);
+        validate_engine_capabilities(&capabilities).unwrap();
+    }
+
+    #[test]
+    fn rejects_missing_required_engine_capabilities() {
+        let capabilities = ["engine_newPayloadV1", "engine_newPayloadV3"].map(String::from);
+        let error = validate_engine_capabilities(&capabilities).unwrap_err();
+        assert!(matches!(error, ExecutionApiError::InvalidResponse(_)));
     }
 
     #[test]
