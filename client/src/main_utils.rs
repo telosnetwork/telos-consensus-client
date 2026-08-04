@@ -3,14 +3,89 @@ use std::cmp;
 use crate::client::Error::CannotStartConsensusClient;
 use crate::client::{ConsensusClient, Error, Shutdown};
 use crate::config::{AppConfig, CliArgs};
+use crate::data::ExecutionCheckpoint;
+use antelope::chain::checksum::Checksum256;
 use eyre::eyre;
+use reth_primitives::B256;
+use std::future::Future;
+use std::str::FromStr;
 use telos_translator_rs::block::TelosEVMBlock;
 use telos_translator_rs::translator::Translator;
+use telos_translator_rs::types::execution_metadata::ExecutionBranchEntry;
 use tokio::sync::mpsc;
+use tokio::task::{JoinError, JoinHandle};
 use tracing::level_filters::LevelFilter;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShutdownSignalKind {
+    Interrupt,
+    Terminate,
+}
+
+impl std::fmt::Display for ShutdownSignalKind {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Interrupt => formatter.write_str("SIGINT"),
+            Self::Terminate => formatter.write_str("SIGTERM"),
+        }
+    }
+}
+
+#[cfg(unix)]
+struct ShutdownSignals {
+    interrupt: tokio::signal::unix::Signal,
+    terminate: tokio::signal::unix::Signal,
+}
+
+#[cfg(unix)]
+impl ShutdownSignals {
+    fn new() -> Result<Self, Error> {
+        use tokio::signal::unix::{signal, SignalKind};
+
+        let interrupt = signal(SignalKind::interrupt())
+            .map_err(|error| Error::ShutdownSignal(error.to_string()))?;
+        let terminate = signal(SignalKind::terminate())
+            .map_err(|error| Error::ShutdownSignal(error.to_string()))?;
+        Ok(Self {
+            interrupt,
+            terminate,
+        })
+    }
+
+    async fn recv(&mut self) -> Result<ShutdownSignalKind, Error> {
+        tokio::select! {
+            signal = self.interrupt.recv() => signal
+                .map(|()| ShutdownSignalKind::Interrupt)
+                .ok_or_else(|| Error::ShutdownSignal("SIGINT stream closed unexpectedly".to_string())),
+            signal = self.terminate.recv() => signal
+                .map(|()| ShutdownSignalKind::Terminate)
+                .ok_or_else(|| Error::ShutdownSignal("SIGTERM stream closed unexpectedly".to_string())),
+        }
+    }
+}
+
+#[cfg(not(unix))]
+struct ShutdownSignals;
+
+#[cfg(not(unix))]
+impl ShutdownSignals {
+    fn new() -> Result<Self, Error> {
+        Ok(Self)
+    }
+
+    async fn recv(&mut self) -> Result<ShutdownSignalKind, Error> {
+        tokio::signal::ctrl_c()
+            .await
+            .map_err(|error| Error::ShutdownSignal(error.to_string()))?;
+        Ok(ShutdownSignalKind::Interrupt)
+    }
+}
 
 pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Error> {
+    // Register before any network or database startup work so an operator signal cannot take the
+    // default process-killing path during initialization.
+    let mut shutdown_signals = ShutdownSignals::new()?;
     let client = build_consensus_client(&args, config).await?;
     let client_shutdown = client.shutdown_handle();
 
@@ -35,11 +110,15 @@ pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Er
 
     let translator_handle = tokio::spawn(translator.launch(Some(block_sender)));
 
-    let client_error = client_handle
-        .await
-        .map_err(From::from)
-        .and_then(|inner| inner)
-        .err();
+    let client_error = await_client_or_shutdown(client_handle, shutdown_signals.recv(), async {
+        if let Err(error) = translator_shutdown.shutdown().await {
+            // A concurrent configured stop closes the receiver before this send. Joining both
+            // tasks below still proves whether they stopped successfully.
+            debug!(%error, "Translator shutdown receiver already closed");
+        }
+    })
+    .await
+    .err();
 
     if let Some(error) = client_error.as_ref() {
         warn!("Consensus client run failed! Error: {error:#}");
@@ -70,14 +149,144 @@ pub async fn run_client(args: CliArgs, config: AppConfig) -> Result<Shutdown, Er
     Ok(client_shutdown)
 }
 
+async fn await_client_or_shutdown<Signal, RequestShutdown>(
+    mut client_handle: JoinHandle<Result<(), Error>>,
+    signal: Signal,
+    request_shutdown: RequestShutdown,
+) -> Result<(), Error>
+where
+    Signal: Future<Output = Result<ShutdownSignalKind, Error>>,
+    RequestShutdown: Future<Output = ()>,
+{
+    tokio::pin!(signal);
+    tokio::select! {
+        result = &mut client_handle => flatten_client_result(result),
+        signal_result = &mut signal => {
+            if let Ok(signal) = signal_result.as_ref() {
+                info!(%signal, "Shutdown signal received; draining client tasks");
+            }
+            // Always stop and join the client, including the unlikely case that the signal stream
+            // itself fails. Dropping a JoinHandle would detach a task during process shutdown.
+            request_shutdown.await;
+            let client_result = flatten_client_result(client_handle.await);
+            match (signal_result, client_result) {
+                (Err(signal_error), Err(client_error)) => {
+                    warn!(%client_error, "Consensus client also failed while handling a signal-stream error");
+                    Err(signal_error)
+                }
+                (Err(signal_error), Ok(())) => Err(signal_error),
+                (Ok(_), client_result) => client_result,
+            }
+        }
+    }
+}
+
+fn flatten_client_result(result: Result<Result<(), Error>, JoinError>) -> Result<(), Error> {
+    result.map_err(Error::from).and_then(|inner| inner)
+}
+
 pub async fn build_consensus_client(
     args: &CliArgs,
     config: AppConfig,
 ) -> Result<ConsensusClient, Error> {
+    if !matches!(config.chain_id.0, 40 | 41) {
+        return Err(Error::CannotStartConsensusClient(format!(
+            "Unsupported Telos EVM chain id {}",
+            config.chain_id.0
+        )));
+    }
+    if config.batch_size == 0 {
+        return Err(Error::CannotStartConsensusClient(
+            "Batch size must be greater than zero".to_string(),
+        ));
+    }
+    if config.block_checkpoint_interval == 0 {
+        return Err(Error::CannotStartConsensusClient(
+            "Block checkpoint interval must be greater than zero".to_string(),
+        ));
+    }
+    if config.latest_blocks_in_db_num == 0 {
+        return Err(Error::CannotStartConsensusClient(
+            "Latest-block retention must be greater than zero".to_string(),
+        ));
+    }
+    if config.execution_connect_timeout_ms == Some(0)
+        || config.execution_request_timeout_ms == Some(0)
+        || config.native_request_timeout_ms == Some(0)
+        || config.execution_max_response_bytes == Some(0)
+    {
+        return Err(Error::CannotStartConsensusClient(
+            "Execution timeouts and response-size limit must be greater than zero".to_string(),
+        ));
+    }
     if config.evm_start_block > config.evm_stop_block.unwrap_or(u32::MAX) {
         return Err(Error::CannotStartConsensusClient(
             "Start block is after stop block".to_string(),
         ));
+    }
+    if config.execution_context_anchor_block != config.evm_start_block {
+        return Err(Error::CannotStartConsensusClient(format!(
+            "Execution context anchor block {} must match EVM start block {}",
+            config.execution_context_anchor_block, config.evm_start_block
+        )));
+    }
+    let expected_start = config
+        .execution_anchor_block_number
+        .checked_add(1)
+        .ok_or_else(|| {
+            Error::CannotStartConsensusClient(
+                "Execution anchor block number cannot have a child".to_string(),
+            )
+        })?;
+    if expected_start != u64::from(config.evm_start_block) {
+        return Err(Error::CannotStartConsensusClient(format!(
+            "EVM start block {} must be the child of execution anchor {}",
+            config.evm_start_block, config.execution_anchor_block_number
+        )));
+    }
+    parse_expected_first_child_hash(&config.validate_hash)?;
+
+    let execution_anchor_hash =
+        B256::from_str(&config.execution_anchor_block_hash).map_err(|_| {
+            Error::CannotStartConsensusClient(
+                "Execution anchor hash must be exactly 32 bytes of hexadecimal".to_string(),
+            )
+        })?;
+    let configured_parent_hash = B256::from_str(&config.prev_hash).map_err(|_| {
+        Error::CannotStartConsensusClient(
+            "Configured EVM parent hash must be exactly 32 bytes of hexadecimal".to_string(),
+        )
+    })?;
+    if configured_parent_hash != execution_anchor_hash {
+        return Err(Error::CannotStartConsensusClient(format!(
+            "Configured EVM parent hash {configured_parent_hash} does not match execution anchor hash {execution_anchor_hash}"
+        )));
+    }
+
+    Checksum256::from_hex(&config.native_chain_id).map_err(|error| {
+        Error::CannotStartConsensusClient(format!(
+            "Native chain id must be exactly 32 bytes of hexadecimal: {error}"
+        ))
+    })?;
+    Checksum256::from_hex(&config.execution_anchor_native_block_hash).map_err(|error| {
+        Error::CannotStartConsensusClient(format!(
+            "Native anchor hash must be exactly 32 bytes of hexadecimal: {error}"
+        ))
+    })?;
+    let expected_native_parent = config
+        .evm_start_block
+        .checked_add(config.chain_id.block_delta())
+        .and_then(|first_native_block| first_native_block.checked_sub(1))
+        .ok_or_else(|| {
+            Error::CannotStartConsensusClient(
+                "EVM start block and native block delta do not have a valid parent".to_string(),
+            )
+        })?;
+    if config.execution_anchor_native_block_number != expected_native_parent {
+        return Err(Error::CannotStartConsensusClient(format!(
+            "Native anchor block {} must be the parent {} of the first translated native block",
+            config.execution_anchor_native_block_number, expected_native_parent
+        )));
     }
 
     let mut client = ConsensusClient::new(args, config).await.map_err(|e| {
@@ -94,6 +303,21 @@ pub async fn build_consensus_client(
 
     if let Some(lib_number) = lib.as_ref().map(|lib| lib.number) {
         info!("Last stored LIB: {lib_number}");
+    }
+
+    if let Some(lib) = lib.as_ref() {
+        let removed = client.db.prune_execution_branches(
+            lib.number,
+            &lib.hash,
+            client.config.latest_blocks_in_db_num,
+        )?;
+        if removed > 0 {
+            info!(
+                removed,
+                lib_number = lib.number,
+                "Pruned irreversible branch entries"
+            );
+        }
     }
 
     let latest_number = lib
@@ -114,10 +338,71 @@ pub async fn build_consensus_client(
         );
     }
 
-    if let Some(last_checked) = last_checked {
-        if client.is_in_start_stop_range(last_checked.number + 1) {
-            client.config.evm_start_block = last_checked.number + 1;
-            client.config.prev_hash = last_checked.hash
+    let branch_entries = client.db.get_execution_branch_entries()?;
+    let stored_checkpoint = client.db.get_execution_checkpoint()?;
+    let stored_checkpoint_is_canonical = if let Some(checkpoint) = stored_checkpoint.as_ref() {
+        client
+            .canonical_block_hash(checkpoint.branch.evm_block_number)
+            .await?
+            == Some(checkpoint.branch.evm_hash)
+    } else {
+        false
+    };
+    let latest_canonical = client
+        .latest_executor_block
+        .as_ref()
+        .map(|block| -> Result<_, Error> {
+            let number = u32::try_from(block.header.number).map_err(|_| {
+                Error::CannotStartConsensusClient(format!(
+                    "latest execution block {} exceeds the companion's u32 block range",
+                    block.header.number
+                ))
+            })?;
+            Ok((number, block.header.hash))
+        })
+        .transpose()?;
+    let checkpoint = select_restart_checkpoint(
+        stored_checkpoint,
+        latest_canonical,
+        &branch_entries,
+        stored_checkpoint_is_canonical,
+    )?;
+
+    client.config.execution_branch_entries = branch_entries.clone();
+    if let Some(checkpoint) = checkpoint {
+        if client.db.get_execution_checkpoint()?.as_ref() != Some(&checkpoint) {
+            client.db.put_execution_checkpoint(checkpoint.clone())?;
+            info!(
+                evm_block = checkpoint.branch.evm_block_number,
+                evm_hash = %checkpoint.branch.evm_hash,
+                "Recovered canonical checkpoint from execution forkchoice head"
+            );
+        }
+
+        let resume_block = checkpoint.branch.evm_block_number.saturating_add(1);
+        if client.is_in_start_stop_range(resume_block) {
+            client.config.evm_start_block = resume_block;
+            client.config.prev_hash = checkpoint.branch.evm_hash.to_string();
+            client.config.validate_hash.clear();
+            client.config.execution_context_anchor_block = resume_block;
+            client.config.execution_context_starting_gas_price =
+                checkpoint.branch.child_context.gas_price.to_string();
+            client.config.execution_context_starting_revision =
+                checkpoint.branch.child_context.revision;
+            client.config.execution_context_parent_native_hash =
+                Some(checkpoint.branch.native_hash);
+            client.config.execution_context_parent_native_block =
+                Some(checkpoint.branch.native_block_number);
+        }
+    } else if let Some(last_checked) = last_checked {
+        if client.is_in_start_stop_range(last_checked.number + 1)
+            && last_checked.number >= client.config.evm_start_block
+            && latest_canonical.is_some_and(|(number, _)| number >= client.config.evm_start_block)
+        {
+            return Err(Error::CannotStartConsensusClient(format!(
+                "Database has block {} but no accepted execution-context checkpoint; restart with --clean or supply a verified checkpoint",
+                last_checked.number
+            )));
         }
     }
 
@@ -129,6 +414,49 @@ pub async fn build_consensus_client(
     Ok(client)
 }
 
+fn select_restart_checkpoint(
+    stored_checkpoint: Option<ExecutionCheckpoint>,
+    latest_canonical: Option<(u32, B256)>,
+    branch_entries: &[ExecutionBranchEntry],
+    stored_checkpoint_is_canonical: bool,
+) -> Result<Option<ExecutionCheckpoint>, Error> {
+    let canonical_branch = latest_canonical.and_then(|(number, hash)| {
+        branch_entries
+            .iter()
+            .find(|entry| entry.evm_block_number == number && entry.evm_hash == hash)
+            .cloned()
+    });
+
+    if let Some(canonical_branch) = canonical_branch {
+        return Ok(Some(canonical_branch.into()));
+    }
+    if stored_checkpoint_is_canonical {
+        return Ok(stored_checkpoint);
+    }
+    if let Some(checkpoint) = stored_checkpoint {
+        return Err(Error::CannotStartConsensusClient(format!(
+            "stored canonical checkpoint {} ({}) is not canonical in the execution endpoint and no durable branch entry matches its current head",
+            checkpoint.branch.evm_block_number, checkpoint.branch.evm_hash
+        )));
+    }
+    Ok(None)
+}
+
+fn parse_expected_first_child_hash(hash: &str) -> Result<B256, Error> {
+    let hash = B256::from_str(hash).map_err(|_| {
+        Error::CannotStartConsensusClient(
+            "Expected first translated EVM block hash must be exactly 32 bytes of hexadecimal"
+                .to_string(),
+        )
+    })?;
+    if hash == B256::ZERO {
+        return Err(Error::CannotStartConsensusClient(
+            "Expected first translated EVM block hash cannot be zero".to_string(),
+        ));
+    }
+    Ok(hash)
+}
+
 pub fn parse_log_level(s: &str) -> eyre::Result<LevelFilter> {
     match s.to_lowercase().as_str() {
         "off" => Ok(LevelFilter::OFF),
@@ -138,5 +466,250 @@ pub fn parse_log_level(s: &str) -> eyre::Result<LevelFilter> {
         "debug" => Ok(LevelFilter::DEBUG),
         "trace" => Ok(LevelFilter::TRACE),
         _ => Err(eyre!("Unknown log level: {s}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::U256;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
+    #[cfg(unix)]
+    use std::{
+        io::{BufRead, BufReader, Write},
+        process::{Command, Stdio},
+        time::{Duration, Instant},
+    };
+    use telos_translator_rs::types::execution_metadata::TelosExecutionContext;
+    use tokio::sync::oneshot;
+
+    fn branch(
+        native_number: u32,
+        native_hash: &str,
+        evm_number: u32,
+        byte: u8,
+    ) -> ExecutionBranchEntry {
+        ExecutionBranchEntry {
+            native_block_number: native_number,
+            native_hash: native_hash.to_string(),
+            native_parent_hash: Some("parent".to_string()),
+            evm_block_number: evm_number,
+            evm_hash: B256::repeat_byte(byte),
+            execution_base_fee: U256::from(7),
+            child_context: TelosExecutionContext {
+                gas_price: U256::from(byte),
+                revision: u64::from(byte),
+            },
+        }
+    }
+
+    #[test]
+    fn crash_before_fcu_does_not_promote_last_valid_side_branch() {
+        let canonical = ExecutionCheckpoint::from(branch(136, "canonical", 100, 1));
+        let side = branch(137, "valid-side", 101, 2);
+
+        let selected = select_restart_checkpoint(
+            Some(canonical.clone()),
+            Some((100, canonical.branch.evm_hash)),
+            &[side],
+            true,
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(selected, canonical);
+    }
+
+    #[test]
+    fn restart_after_reorg_selects_branch_matching_execution_head() {
+        let old = ExecutionCheckpoint::from(branch(236, "old", 200, 3));
+        let reorged = branch(237, "reorged", 201, 4);
+
+        let selected = select_restart_checkpoint(
+            Some(old),
+            Some((reorged.evm_block_number, reorged.evm_hash)),
+            std::slice::from_ref(&reorged),
+            false,
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(selected.branch, reorged);
+    }
+
+    #[test]
+    fn restart_after_execution_rollback_selects_recent_durable_branch() {
+        let ahead = ExecutionCheckpoint::from(branch(340, "ahead", 304, 5));
+        let recovered = branch(338, "recovered", 302, 6);
+
+        let selected = select_restart_checkpoint(
+            Some(ahead),
+            Some((recovered.evm_block_number, recovered.evm_hash)),
+            std::slice::from_ref(&recovered),
+            false,
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(selected.branch, recovered);
+    }
+
+    #[test]
+    fn noncanonical_checkpoint_without_a_matching_head_fails_closed() {
+        let side = ExecutionCheckpoint::from(branch(336, "side", 300, 5));
+        let result =
+            select_restart_checkpoint(Some(side), Some((300, B256::repeat_byte(6))), &[], false);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn first_child_hash_must_be_nonzero_and_well_formed() {
+        let expected = B256::repeat_byte(0x77);
+        assert_eq!(
+            parse_expected_first_child_hash(&expected.to_string()).unwrap(),
+            expected
+        );
+        assert!(parse_expected_first_child_hash(&B256::ZERO.to_string()).is_err());
+        assert!(parse_expected_first_child_hash("not-a-hash").is_err());
+    }
+
+    #[tokio::test]
+    async fn shutdown_signal_requests_and_joins_the_client() {
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let task_stopped = Arc::clone(&stopped);
+        let client_handle = tokio::spawn(async move {
+            shutdown_rx.await.unwrap();
+            task_stopped.store(true, Ordering::SeqCst);
+            Ok(())
+        });
+
+        await_client_or_shutdown(
+            client_handle,
+            async { Ok(ShutdownSignalKind::Interrupt) },
+            async move {
+                let _ = shutdown_tx.send(());
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(stopped.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn natural_client_completion_does_not_request_shutdown() {
+        let requested = Arc::new(AtomicBool::new(false));
+        let shutdown_requested = Arc::clone(&requested);
+        let client_handle = tokio::spawn(async { Ok(()) });
+
+        await_client_or_shutdown(
+            client_handle,
+            std::future::pending::<Result<ShutdownSignalKind, Error>>(),
+            async move {
+                shutdown_requested.store(true, Ordering::SeqCst);
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(!requested.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn signal_stream_failure_still_joins_the_client() {
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let task_stopped = Arc::clone(&stopped);
+        let client_handle = tokio::spawn(async move {
+            shutdown_rx.await.unwrap();
+            task_stopped.store(true, Ordering::SeqCst);
+            Ok(())
+        });
+
+        let error = await_client_or_shutdown(
+            client_handle,
+            async { Err(Error::ShutdownSignal("stream closed".to_string())) },
+            async move {
+                let _ = shutdown_tx.send(());
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "Cannot handle shutdown signal: stream closed"
+        );
+        assert!(stopped.load(Ordering::SeqCst));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_shutdown_signals_exit_cleanly() {
+        const CHILD_ENV: &str = "TELOS_TEST_SHUTDOWN_SIGNAL";
+        if let Some(expected) = std::env::var_os(CHILD_ENV) {
+            let expected = match expected.to_str().unwrap() {
+                "SIGINT" => ShutdownSignalKind::Interrupt,
+                "SIGTERM" => ShutdownSignalKind::Terminate,
+                unexpected => panic!("unexpected child signal {unexpected}"),
+            };
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let mut signals = ShutdownSignals::new().unwrap();
+                println!("TELOS_SIGNAL_READY");
+                std::io::stdout().flush().unwrap();
+                assert_eq!(signals.recv().await.unwrap(), expected);
+            });
+            return;
+        }
+
+        for (name, signal) in [("SIGINT", libc::SIGINT), ("SIGTERM", libc::SIGTERM)] {
+            let mut child = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "main_utils::tests::unix_shutdown_signals_exit_cleanly",
+                    "--nocapture",
+                ])
+                .env(CHILD_ENV, name)
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut output = BufReader::new(child.stdout.take().unwrap());
+            let mut line = String::new();
+            loop {
+                line.clear();
+                assert_ne!(output.read_line(&mut line).unwrap(), 0);
+                if line.trim() == "TELOS_SIGNAL_READY" {
+                    break;
+                }
+            }
+
+            // SAFETY: `child.id()` is the live process spawned immediately above, and `signal` is
+            // one of the two valid constants selected by this test.
+            let child_pid = libc::pid_t::try_from(child.id()).unwrap();
+            assert_eq!(unsafe { libc::kill(child_pid, signal) }, 0);
+
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let status = loop {
+                if let Some(status) = child.try_wait().unwrap() {
+                    break status;
+                }
+                if Instant::now() >= deadline {
+                    child.kill().unwrap();
+                    let _ = child.wait();
+                    panic!("child did not exit after {name}");
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            };
+            assert!(status.success(), "child exited unsuccessfully after {name}");
+        }
     }
 }

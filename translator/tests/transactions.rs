@@ -3,7 +3,6 @@ use antelope::chain::asset::{Asset, Symbol};
 use antelope::chain::checksum::{Checksum160, Checksum256};
 use antelope::chain::name::Name;
 use antelope::util::hex_to_bytes;
-use reth_primitives::BloomInput::Raw;
 use telos_translator_rs::transaction::TelosEVMTransaction;
 use telos_translator_rs::types::evm_types::{
     PrintedReceipt, RawAction, TransferAction, WithdrawAction,
@@ -54,7 +53,8 @@ async fn test_withdraw() {
         },
         from,
     )
-    .await;
+    .await
+    .unwrap();
 
     assert_eq!(
         trx.hash().to_string(),

@@ -1,6 +1,8 @@
-use alloy::hex::FromHex;
-use alloy::primitives::{Bytes, B256, U256};
+#![allow(dead_code)]
+
 use alloy_consensus::{Signed, TxEnvelope, TxLegacy};
+use alloy_primitives::hex::FromHex;
+use alloy_primitives::{Bytes, B256, U256};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

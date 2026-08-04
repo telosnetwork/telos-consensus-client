@@ -95,3 +95,35 @@ pub struct Claims {
     /// Optional client version for the CL node.
     clv: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jsonwebtoken::{decode, DecodingKey, Validation};
+
+    #[test]
+    fn generates_and_verifies_runtime_hs256_token() {
+        let secret = [0x42; JWT_SECRET_LENGTH];
+        let auth = Auth::new(
+            JwtKey::from_slice(&secret).expect("valid JWT key"),
+            Some("consensus-client".to_owned()),
+            Some("0.1.0".to_owned()),
+        );
+
+        let token = auth
+            .generate_token()
+            .expect("HS256 signing should use the configured crypto provider");
+        let mut validation = Validation::new(DEFAULT_ALGORITHM);
+        validation.required_spec_claims.clear();
+        validation.validate_exp = false;
+        let decoded =
+            decode::<serde_json::Value>(&token, &DecodingKey::from_secret(&secret), &validation)
+                .expect("HS256 verification should use the configured crypto provider");
+
+        assert_eq!(decoded.header.alg, DEFAULT_ALGORITHM);
+        let issued_at = decoded.claims["iat"].as_u64().expect("numeric iat claim");
+        assert_ne!(issued_at, 0);
+        assert_eq!(decoded.claims["id"], "consensus-client");
+        assert_eq!(decoded.claims["clv"], "0.1.0");
+    }
+}

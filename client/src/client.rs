@@ -1,14 +1,17 @@
 use crate::client::Error::ForkChoiceUpdated;
 use crate::config::{AppConfig, CliArgs};
-use crate::data::{self, Database, Lib};
+use crate::data::{self, execution_branch_entry, Database, ExecutionCheckpoint, Lib};
 use crate::execution_api_client::{ExecutionApiClient, ExecutionApiError, RpcRequest};
 use crate::json_rpc::JsonResponseBody;
 use alloy_rpc_types::Block;
-use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated};
+use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated, PayloadStatus};
 use eyre::{Context, Result};
 use reth_primitives::revm_primitives::bitvec::macros::internal::funty::Fundamental;
 use reth_primitives::B256;
 use serde_json::json;
+use std::path::Path;
+use std::str::FromStr;
+use std::time::Duration;
 use telos_translator_rs::block::TelosEVMBlock;
 use tokio::sync::mpsc;
 use tokio::task::JoinError;
@@ -28,9 +31,11 @@ pub enum Error {
     // SpawnTranslator,
     #[error("Executor hash mismatch.")]
     ExecutorHashMismatch,
-    #[error("Fork choice updated error")]
+    #[error("Invalid native irreversible block: {0}")]
+    InvalidIrreversibleBlock(String),
+    #[error("Fork choice updated error: {0}")]
     ForkChoiceUpdated(String),
-    #[error("New payload error")]
+    #[error("New payload error: {0}")]
     NewPayloadV1(String),
     #[error("Database error: {0}")]
     Database(eyre::Report),
@@ -39,6 +44,8 @@ pub enum Error {
     RangeAboveMaximum(u32),
     #[error("Cannot shutdown translator: {0}")]
     TranslatorShutdown(String),
+    #[error("Cannot handle shutdown signal: {0}")]
+    ShutdownSignal(String),
     #[error("Translator error: {0}")]
     TranslatorError(String),
     #[error("Call to execution API failed: {0}")]
@@ -46,8 +53,6 @@ pub enum Error {
     #[error("Failed to run consensus client: {0}")]
     ConsensusClientRun(#[from] JoinError),
 }
-
-const SAFE_HASH_LOOKUP: u32 = 50;
 
 pub struct Shutdown(mpsc::Sender<()>);
 impl Shutdown {
@@ -73,19 +78,41 @@ impl ConsensusClient {
     pub async fn new(args: &CliArgs, config: AppConfig) -> Result<Self> {
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
 
-        let execution_api = ExecutionApiClient::new(&config.execution_endpoint, &config.jwt_secret)
-            .wrap_err("Failed to create Execution API client")?;
+        let execution_api = ExecutionApiClient::new(
+            &config.execution_endpoint,
+            Path::new(&config.jwt_secret_path),
+            Duration::from_millis(config.execution_connect_timeout_ms.unwrap_or(5_000)),
+            Duration::from_millis(config.execution_request_timeout_ms.unwrap_or(30_000)),
+            config
+                .execution_max_response_bytes
+                .unwrap_or(16 * 1024 * 1024),
+        )
+        .wrap_err("Failed to create Execution API client")?;
+        let expected_anchor_hash = B256::from_str(&config.execution_anchor_block_hash)
+            .wrap_err("Configured execution anchor hash is not a 32-byte hex value")?;
+        execution_api
+            .exchange_capabilities()
+            .await
+            .wrap_err("Execution endpoint capability negotiation failed")?;
+        execution_api
+            .verify_chain(
+                config.chain_id.0,
+                config.execution_anchor_block_number,
+                expected_anchor_hash,
+            )
+            .await
+            .wrap_err("Execution endpoint chain identity verification failed")?;
 
         let db = match args.clean {
             false => Database::open(&config.data_path)?,
             true => Database::init(&config.data_path)?,
         };
         let latest_executor_block = execution_api
-            .get_latest_block()
+            .get_latest_block(config.execution_anchor_block_number)
             .await
             .wrap_err("Failed to get latest executor block")?;
         let latest_finalized_executor_block = execution_api
-            .get_latest_finalized_block()
+            .get_latest_finalized_block(config.execution_anchor_block_number)
             .await
             .wrap_err("Failed to get latest valid executor block")?;
 
@@ -138,6 +165,17 @@ impl ConsensusClient {
             .map(|block| block.header.number.as_u32())
     }
 
+    pub(crate) async fn canonical_block_hash(
+        &self,
+        block_number: u32,
+    ) -> Result<Option<B256>, Error> {
+        self.execution_api
+            .get_block_by_number(block_number.into())
+            .await
+            .map(|block| block.map(|block| block.header.hash))
+            .map_err(Error::ExecutionApiError)
+    }
+
     pub fn sync_range(&self) -> Option<u32> {
         self.latest_evm_number()?
             .checked_sub(self.config.evm_start_block)
@@ -147,7 +185,16 @@ impl ConsensusClient {
         let mut batch = vec![];
         let chain_id = &self.config.chain_id;
         let mut lib: data::Block = self.db.get_lib()?.unwrap_or_default();
-        let mut last_lib_hash: Option<B256> = None;
+        let mut last_finalized_hash = self
+            .latest_finalized_executor_block
+            .as_ref()
+            .map(|block| block.header.hash)
+            .ok_or_else(|| {
+                Error::InvalidIrreversibleBlock(
+                    "execution endpoint did not return a finalized block or verified anchor"
+                        .to_string(),
+                )
+            })?;
 
         loop {
             let message = tokio::select! {
@@ -175,8 +222,20 @@ impl ConsensusClient {
                 debug!("Block {latest_start} deleted from the database");
             }
 
-            // NOTE: Case when new lib < current one is not supported
-            let is_new_lib = lib.number != block.lib_num;
+            let reported_lib_hash = block.lib_hash.clone();
+            if block.lib_num < lib.number {
+                return Err(Error::InvalidIrreversibleBlock(format!(
+                    "reported LIB {} is behind stored LIB {}",
+                    block.lib_num, lib.number
+                )));
+            }
+            if block.lib_num == lib.number && lib.number != 0 && reported_lib_hash != lib.hash {
+                return Err(Error::InvalidIrreversibleBlock(format!(
+                    "reported LIB {} hash {} conflicts with stored hash {}",
+                    block.lib_num, reported_lib_hash, lib.hash
+                )));
+            }
+            let is_new_lib = block.lib_num > lib.number;
 
             if is_new_lib {
                 let new_lib = Lib(&block);
@@ -224,34 +283,64 @@ impl ConsensusClient {
 
             // if LIB is less or equal than current block batch size is 1 or more blocks
             // if LIB is greater than current block send in batches
-            let flush = !block_is_final || block_is_lib || batch.len() == self.config.batch_size;
+            let configured_stop = self.config.evm_stop_block == Some(block_num);
+            let flush = should_flush_batch(
+                block_is_final,
+                block_is_lib,
+                batch.len(),
+                self.config.batch_size,
+                configured_stop,
+            );
 
             if !flush {
                 continue;
             };
 
-            let safe_hash = self
-                .db
-                .get_block_or_prev(block_num.saturating_sub(SAFE_HASH_LOOKUP))?
-                .map(|block| block.hash.parse().unwrap())
-                .unwrap_or(block_hash);
-
-            let finalized_hash = if block_is_final {
-                debug!("Synced to head, LIB < current block");
-                Some(block_hash)
-            } else if is_new_lib {
-                // if lib hash has been changed we should send finalized hash for fork choice update
-                debug!("New LIB is detected");
-                self.db
-                    .get_block_or_prev(lib_evm_num)?
-                    .map(|block| block.hash.parse().unwrap())
+            let exact_lib_hash = if is_new_lib && !block_is_final {
+                match self.db.get_execution_branch_entry(&lib.hash)? {
+                    Some(entry) => {
+                        if entry.native_block_number != lib.number
+                            || entry.evm_block_number != lib_evm_num
+                        {
+                            return Err(Error::InvalidIrreversibleBlock(format!(
+                                "native LIB {} ({}) maps to unexpected EVM block {}",
+                                lib.number, lib.hash, entry.evm_block_number
+                            )));
+                        }
+                        Some(entry.evm_hash)
+                    }
+                    None => {
+                        let exact_lib = self.db.get_block(lib_evm_num)?.ok_or_else(|| {
+                            Error::InvalidIrreversibleBlock(format!(
+                                "cannot finalize native LIB {} ({}): exact EVM block {} is not retained",
+                                lib.number, lib.hash, lib_evm_num
+                            ))
+                        })?;
+                        Some(exact_lib.hash.parse().map_err(|error| {
+                            Error::InvalidIrreversibleBlock(format!(
+                                "stored LIB-mapped EVM block {} has an invalid hash: {error}",
+                                exact_lib.number
+                            ))
+                        })?)
+                    }
+                }
             } else {
-                debug!("Synced to head, LIB is unchanged");
-                last_lib_hash
+                None
             };
-            last_lib_hash = finalized_hash;
-            debug!("Send batch finalized hash: {last_lib_hash:?}",);
-            self.send_batch(&batch, last_lib_hash, safe_hash).await?;
+            let finalized_hash = select_finalized_hash(
+                block_is_final,
+                is_new_lib,
+                block_hash,
+                last_finalized_hash,
+                exact_lib_hash,
+            )?;
+            last_finalized_hash = finalized_hash;
+            // Telos exposes irreversibility but no distinct safe-head signal. Keeping these equal
+            // prevents finalized from advancing beyond safe during historical catch-up.
+            let safe_hash = finalized_hash;
+            debug!("Send batch finalized hash: {last_finalized_hash}");
+            self.send_batch(&batch, last_finalized_hash, safe_hash)
+                .await?;
             batch.clear();
         }
 
@@ -261,95 +350,104 @@ impl ConsensusClient {
     async fn send_batch(
         &self,
         batch: &[TelosEVMBlock],
-        finalized_hash: Option<B256>,
+        finalized_hash: B256,
         safe_hash: B256,
     ) -> Result<(), Error> {
-        let rpc_batch = batch
-            .iter()
-            .map(|block| {
-                // TODO additional rpc call fields should be added.
-                RpcRequest {
-                    method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
-                    params: vec![
-                        json![block.execution_payload.clone()],
-                        json![block.extra_fields.clone()],
-                    ]
-                    .into(),
-                }
-            })
-            .collect::<Vec<RpcRequest>>();
-
-        let new_payloadv1_result = self
-            .execution_api
-            .rpc_batch(rpc_batch)
-            .await
-            .map_err(|e| Error::NewPayloadV1(e.to_string()))?;
-
-        let error_response: Vec<String> = new_payloadv1_result
-            .clone()
-            .into_iter()
-            .filter_map(|response| response.error.map(|err| err.message))
-            .collect();
-
-        if !error_response.is_empty() {
-            debug!(
-                "Error sending NewPayloadV1.Result: {:?}",
-                new_payloadv1_result
-            );
-            return Err(Error::NewPayloadV1(error_response.join("\n")));
-        }
-
-        debug!("NewPayloadV1 result: {:?}", new_payloadv1_result);
-
-        let last_block_sent = batch.last().unwrap();
-
-        if let Some(finalized_hash_value) = finalized_hash {
-            let fork_choice_updated_result = self
-                .fork_choice_updated(last_block_sent.block_hash, safe_hash, finalized_hash_value)
-                .await;
-
-            let fork_choice_updated = fork_choice_updated_result.map_err(|e| {
-                debug!("Fork choice update error: {}", e);
-                ForkChoiceUpdated(e.to_string())
-            })?;
-
-            if let Some(error) = fork_choice_updated.error {
-                debug!("Fork choice error: {:?}", error);
-                return Err(ForkChoiceUpdated(error.message));
-            }
-
-            let fork_choice_updated: ForkchoiceUpdated =
-                serde_json::from_value(fork_choice_updated.result).unwrap();
-            info!("fork_choice_updated_result {:?}", fork_choice_updated);
-
-            // Valid, Invalid, Accepted, Syncing
-            if fork_choice_updated.is_invalid() || fork_choice_updated.is_syncing() {
-                info!(
-                    "Fork choice update status is {} ",
-                    fork_choice_updated.payload_status.status
-                );
-                return Err(ForkChoiceUpdated(format!(
-                    "Invalid status {}",
-                    fork_choice_updated.payload_status.status
+        let Some(last_block_sent) = batch.last() else {
+            return Err(Error::NewPayloadV1(
+                "refusing to submit an empty payload batch".to_string(),
+            ));
+        };
+        for (index, block) in batch.iter().enumerate() {
+            if batch[index + 1..]
+                .iter()
+                .any(|candidate_parent| candidate_parent.block_hash == block.header.parent_hash)
+            {
+                return Err(Error::NewPayloadV1(format!(
+                    "batch is not in parent order: block {} appears before parent {}",
+                    block.block_num, block.header.parent_hash
                 )));
             }
+        }
 
+        for block in batch {
+            let response = self
+                .execution_api
+                .rpc(RpcRequest {
+                    method: crate::execution_api_client::ExecutionApiMethod::NewPayloadV1,
+                    params: json!([block.execution_payload.clone(), block.extra_fields.clone()]),
+                })
+                .await
+                .map_err(|error| Error::NewPayloadV1(error.to_string()))?;
+            let payload_status: PayloadStatus = serde_json::from_value(response.result)
+                .map_err(|error| Error::NewPayloadV1(error.to_string()))?;
+            validate_payload_status(block.block_num, block.block_hash, &payload_status)?;
+            self.db
+                .put_execution_branch_entry(&execution_branch_entry(block)?)?;
+            self.db.prune_execution_branches(
+                block.lib_num,
+                &block.lib_hash,
+                self.config.latest_blocks_in_db_num,
+            )?;
             debug!(
-                "Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}",
-                last_block_sent.block_hash,
-                last_block_sent.header.parent_hash,
-                last_block_sent.block_num
-            );
-            info!(
-                "fork_choice_updated_result for block number {}: {:?}",
-                last_block_sent.block_num, fork_choice_updated
-            );
-        } else {
-            info!(
-                "Fork choice updated call skipped for block {}",
-                last_block_sent.block_num
+                block_number = block.block_num,
+                block_hash = %block.block_hash,
+                native_hash = %block.ship_hash,
+                "engine_newPayloadV1 accepted payload and persisted branch entry"
             );
         }
+
+        let finalized_hash_value = finalized_hash;
+        let fork_choice_updated_result = self
+            .fork_choice_updated(last_block_sent.block_hash, safe_hash, finalized_hash_value)
+            .await;
+
+        let fork_choice_updated = fork_choice_updated_result.map_err(|e| {
+            debug!("Fork choice update error: {}", e);
+            ForkChoiceUpdated(e.to_string())
+        })?;
+
+        if let Some(error) = fork_choice_updated.error {
+            debug!("Fork choice error: {:?}", error);
+            return Err(ForkChoiceUpdated(error.message));
+        }
+
+        let fork_choice_updated: ForkchoiceUpdated =
+            serde_json::from_value(fork_choice_updated.result)
+                .map_err(|error| ForkChoiceUpdated(error.to_string()))?;
+        info!("fork_choice_updated_result {:?}", fork_choice_updated);
+
+        // Valid, Invalid, Accepted, Syncing
+        if !fork_choice_updated.is_valid() {
+            info!(
+                "Fork choice update status is {} ",
+                fork_choice_updated.payload_status.status
+            );
+            return Err(ForkChoiceUpdated(format!(
+                "Invalid status {}",
+                fork_choice_updated.payload_status.status
+            )));
+        }
+        if fork_choice_updated.payload_status.latest_valid_hash != Some(last_block_sent.block_hash)
+        {
+            return Err(ForkChoiceUpdated(format!(
+                "latestValidHash {:?} does not match head {}",
+                fork_choice_updated.payload_status.latest_valid_hash, last_block_sent.block_hash
+            )));
+        }
+        self.db
+            .put_execution_checkpoint(ExecutionCheckpoint::try_from(last_block_sent)?)?;
+
+        debug!(
+            "Fork choice updated called with:\nhash {:?}\nparentHash {:?}\nnumber {:?}",
+            last_block_sent.block_hash,
+            last_block_sent.header.parent_hash,
+            last_block_sent.block_num
+        );
+        info!(
+            "fork_choice_updated_result for block number {}: {:?}",
+            last_block_sent.block_num, fork_choice_updated
+        );
 
         Ok(())
     }
@@ -369,8 +467,140 @@ impl ConsensusClient {
         self.execution_api
             .rpc(RpcRequest {
                 method: crate::execution_api_client::ExecutionApiMethod::ForkChoiceUpdatedV1,
-                params: json![vec![fork_choice_state]],
+                params: json!([fork_choice_state, null]),
             })
             .await
+    }
+}
+
+fn select_finalized_hash(
+    block_is_final: bool,
+    is_new_lib: bool,
+    block_hash: B256,
+    previous_finalized_hash: B256,
+    exact_lib_hash: Option<B256>,
+) -> Result<B256, Error> {
+    if block_is_final {
+        debug!("Current block is at or below the native LIB");
+        return Ok(block_hash);
+    }
+    if is_new_lib {
+        debug!("New native LIB detected");
+        return exact_lib_hash.ok_or_else(|| {
+            Error::InvalidIrreversibleBlock(
+                "new native LIB has no exact EVM block hash".to_string(),
+            )
+        });
+    }
+    debug!("Native LIB is unchanged; retaining the verified finalized hash");
+    Ok(previous_finalized_hash)
+}
+
+fn should_flush_batch(
+    block_is_final: bool,
+    block_is_lib: bool,
+    batch_len: usize,
+    batch_size: usize,
+    configured_stop: bool,
+) -> bool {
+    !block_is_final || block_is_lib || batch_len == batch_size || configured_stop
+}
+
+fn validate_payload_status(
+    block_number: u32,
+    block_hash: B256,
+    payload_status: &PayloadStatus,
+) -> Result<(), Error> {
+    if !payload_status.is_valid() {
+        return Err(Error::NewPayloadV1(format!(
+            "block {block_number} returned status {}",
+            payload_status.status
+        )));
+    }
+    if payload_status.latest_valid_hash != Some(block_hash) {
+        return Err(Error::NewPayloadV1(format!(
+            "block {block_number} returned latestValidHash {:?}, expected {block_hash}",
+            payload_status.latest_valid_hash
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_rpc_types_engine::PayloadStatusEnum;
+
+    #[test]
+    fn engine_errors_preserve_the_rpc_detail() {
+        let detail = "Server error: local execution diverged";
+        assert_eq!(
+            Error::NewPayloadV1(detail.to_string()).to_string(),
+            format!("New payload error: {detail}")
+        );
+        assert_eq!(
+            Error::ForkChoiceUpdated(detail.to_string()).to_string(),
+            format!("Fork choice updated error: {detail}")
+        );
+    }
+
+    #[test]
+    fn new_payload_requires_valid_status_for_the_exact_hash() {
+        let block_hash = B256::repeat_byte(1);
+        let valid = PayloadStatus::new(PayloadStatusEnum::Valid, Some(block_hash));
+        validate_payload_status(10, block_hash, &valid).unwrap();
+
+        let wrong_hash = PayloadStatus::new(PayloadStatusEnum::Valid, Some(B256::repeat_byte(2)));
+        assert!(validate_payload_status(10, block_hash, &wrong_hash).is_err());
+
+        let syncing = PayloadStatus::from_status(PayloadStatusEnum::Syncing);
+        assert!(validate_payload_status(10, block_hash, &syncing).is_err());
+    }
+
+    #[test]
+    fn restart_with_unchanged_lib_retains_a_finalized_hash_for_fcu() {
+        let prior = B256::repeat_byte(7);
+        assert_eq!(
+            select_finalized_hash(false, false, B256::repeat_byte(8), prior, None).unwrap(),
+            prior
+        );
+    }
+
+    #[test]
+    fn a_new_lib_requires_its_exact_evm_hash() {
+        assert!(select_finalized_hash(
+            false,
+            true,
+            B256::repeat_byte(8),
+            B256::repeat_byte(7),
+            None
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn configured_stop_flushes_a_partial_historical_batch() {
+        assert!(!should_flush_batch(true, false, 1, 5, false));
+        assert!(should_flush_batch(true, false, 1, 5, true));
+    }
+
+    #[test]
+    fn fixed_qualification_range_flushes_exactly_at_the_stop_block() {
+        let start = 479_294_329_u32;
+        let stop = 479_315_819_u32;
+        let batch_size = 5;
+        let mut batch_len = 0;
+        let mut last_head = None;
+
+        for block in start..=stop {
+            batch_len += 1;
+            if should_flush_batch(true, false, batch_len, batch_size, block == stop) {
+                last_head = Some(block);
+                batch_len = 0;
+            }
+        }
+
+        assert_eq!(last_head, Some(stop));
+        assert_eq!(batch_len, 0);
     }
 }

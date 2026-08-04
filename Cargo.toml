@@ -11,30 +11,31 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 telos-translator-rs = { path = "./translator" }
-reth-primitives = { git = "https://github.com/telosnetwork/telos-reth", branch = "telos-main" }
-reth-trie-common = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
-reth-telos-rpc-engine-api = { git = "https://github.com/telosnetwork/telos-reth.git", branch = "telos-main" }
+reth-primitives = { git = "https://github.com/telosnetwork/telos-reth", rev = "63d23e00982a0ab7704a6dff97b3f5d355e11d56" }
+reth-trie-common = { git = "https://github.com/telosnetwork/telos-reth.git", rev = "63d23e00982a0ab7704a6dff97b3f5d355e11d56" }
+reth-telos-rpc-engine-api = { git = "https://github.com/telosnetwork/telos-reth.git", rev = "63d23e00982a0ab7704a6dff97b3f5d355e11d56" }
 #reth-trie-common = { path = "../telos-reth/crates/trie/common" }
 #reth-telos-rpc-engine-api = { path = "../telos-reth/crates/telos/rpc-engine-api" }
 #reth-primitives = { path = "../telos-reth/crates/primitives" }
-alloy = "0.3.0"
+alloy-primitives = { version = "0.8.26", features = ["rlp"] }
 alloy-rlp = "0.3.0"
 alloy-rpc-types = "0.3.0"
-alloy-rpc-types-engine = "0.3.0"
+alloy-rpc-types-engine = { version = "0.3.0", default-features = false, features = ["serde", "std"] }
 alloy-eips = "0.3.0"
 alloy-consensus = "0.3.0"
 antelope-client = { git = "https://github.com/telosnetwork/antelope-rs.git", rev = "d701cd9ca2e87e8e0fd99746f9c672cb3536e5ec" }
-bytes = "1.7.1"
+bytes = "1.11.1"
 clap = { version = "4.5.6", features = ["derive"] }
 serde = { version = "1.0.196", features = ["derive"] }
 eyre = "0.6.5"
 serde_json = "1.0.117"
-tokio = { version = "1.38.0" }
+tokio = { version = "1.43.1" }
 toml = "0.8.8"
 tracing = "0.1.40"
-tracing-subscriber = "0.3.1"
+tracing-subscriber = "0.3.20"
 hex = "0.4.3"
 futures = "0.3.30"
 rocksdb = "0.22.0"
-tokio-retry = "0.3"
 testcontainers = "0.22.0"
+url = "2.5.7"
+libc = "0.2.155"

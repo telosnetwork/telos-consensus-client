@@ -1,7 +1,10 @@
-use alloy::hex;
-use alloy::hex::FromHex;
-use alloy::primitives::{Address, Signature, B256, U256};
+// alloy-consensus 0.3 uses the legacy Signature type to retain EIP-155 chain-id parity.
+#![allow(deprecated)]
+
 use alloy_consensus::TxLegacy;
+use alloy_primitives::hex;
+use alloy_primitives::hex::FromHex;
+use alloy_primitives::{Address, Signature, B256, U256};
 use antelope::chain::checksum::Checksum256;
 use std::str::FromStr;
 use telos_translator_rs::rlp::telos_rlp_decode::TelosTxDecodable;
@@ -17,14 +20,17 @@ fn test_unsigned_trx() {
 
     let tx = TxLegacy::decode_telos_signed_fields(
         &mut raw.as_slice(),
-        Some(make_unique_vrs(
-            Checksum256::from_hex(
-                "00000032f9ff3095950dbef8701acc5f0eb193e3c2d089da0e2237659048d62b",
+        Some(
+            make_unique_vrs(
+                Checksum256::from_hex(
+                    "00000032f9ff3095950dbef8701acc5f0eb193e3c2d089da0e2237659048d62b",
+                )
+                .unwrap(),
+                Address::ZERO,
+                0,
             )
             .unwrap(),
-            Address::ZERO,
-            0,
-        )),
+        ),
     );
     if tx.is_err() {
         println!(
@@ -49,14 +55,17 @@ fn test_unsigned_trx2() {
 
     let tx = TxLegacy::decode_telos_signed_fields(
         &mut raw.as_slice(),
-        Some(make_unique_vrs(
-            Checksum256::from_hex(
-                "00000032f9ff3095950dbef8701acc5f0eb193e3c2d089da0e2237659048d62b",
+        Some(
+            make_unique_vrs(
+                Checksum256::from_hex(
+                    "00000032f9ff3095950dbef8701acc5f0eb193e3c2d089da0e2237659048d62b",
+                )
+                .unwrap(),
+                Address::ZERO,
+                0,
             )
             .unwrap(),
-            Address::ZERO,
-            0,
-        )),
+        ),
     );
     if tx.is_err() {
         println!(

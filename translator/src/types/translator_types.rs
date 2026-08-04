@@ -1,7 +1,8 @@
 use crate::block::ProcessingEVMBlock;
 use crate::types::evm_types::AccountRow;
+use crate::types::execution_metadata::TelosEngineAPIExtraFields;
 use crate::types::names::{ACCOUNT, EOSIO_EVM};
-use alloy::primitives::{Address, Bytes, U256};
+use alloy_primitives::{Address, Bytes, U256};
 use antelope::api::client::{APIClient, DefaultProvider};
 use antelope::api::v1::structs::{
     GetTableRowsParams, GetTableRowsResponse, IndexPosition, TableIndexType,
@@ -11,9 +12,7 @@ use antelope::util::hex_to_bytes;
 use eyre::eyre;
 use futures_util::stream::{SplitSink, SplitStream};
 use moka::sync::Cache;
-use reth_telos_rpc_engine_api::structs::{
-    TelosAccountStateTableRow, TelosAccountTableRow, TelosEngineAPIExtraFields,
-};
+use reth_telos_rpc_engine_api::structs::{TelosAccountStateTableRow, TelosAccountTableRow};
 use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
 use std::net::TcpStream;
@@ -239,7 +238,7 @@ pub struct TelosEVMStateJSON {
     accounts: Vec<AccountJSON>,
 }
 
-pub fn generate_extra_fields_from_json(state_json: &str) -> (u32, TelosEngineAPIExtraFields) {
+pub fn generate_extra_fields_from_json(state_json: &str) -> (u32, U256, TelosEngineAPIExtraFields) {
     // Deserialize the JSON string back into the struct
     let telos_state: TelosEVMStateJSON = serde_json::from_str(state_json).unwrap();
 
@@ -265,13 +264,16 @@ pub fn generate_extra_fields_from_json(state_json: &str) -> (u32, TelosEngineAPI
         }
     }
 
+    let gas_price = telos_state.gas_price;
     (
         telos_state.evm_block_num,
+        gas_price,
         TelosEngineAPIExtraFields {
             statediffs_account: Some(exec_accounts),
             statediffs_accountstate: Some(exec_accounts_state),
             revision_changes: None,
-            gasprice_changes: Some((0, telos_state.gas_price)),
+            gasprice_changes: None,
+            execution: None,
             new_addresses_using_create: Some(vec![]),
             new_addresses_using_openwallet: Some(vec![]),
             receipts: Some(vec![]),
